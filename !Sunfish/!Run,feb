@@ -3,4 +3,8 @@
 |    $URL$
 |
 
+Set File$Type_1B6 Sunfish
+
+IconSprites <Obey$Dir>.!Sprites
+
 RMLoad <Obey$Dir>.Sunfish
