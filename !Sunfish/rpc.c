@@ -185,6 +185,16 @@ os_error *rpc_close_connection(struct conn_info *conn)
 	return NULL;
 }
 
+/* Log an entire data packet */
+static void logdata(int rx, char *buf, int len)
+{
+	int i;
+
+	syslogf(LOGNAME, LOGDATA, "%s data (%d):", rx ? "rx" : "tx", len);
+	for (i=0; i<(len & ~3); i+=4) syslogf(LOGNAME, LOGDATA, "  %.2x %.2x %.2x %.2x", buf[i], buf[i+1], buf[i+2], buf[i+3]);
+	for (i=0; i<(len & 3); i++) syslogf(LOGNAME, LOGDATA, "  %.2x", buf[(len &~3) + i]);
+}
+
 /* Setup buffer and write call header to it */
 void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, struct conn_info *conn)
 {
@@ -253,6 +263,7 @@ os_error *rpc_do_call(struct conn_info *conn)
 		fd_set rfds;
 		struct timeval tv;
 
+		if (enablelog) logdata(0, tx_buffer, buf - tx_buffer);
 		if (send(conn->sock, tx_buffer, buf - tx_buffer, 0) == -1) {
 			return gen_error(RPCERRBASE + 5, "Sending data failed (%s)", xstrerror(errno));
 		}
@@ -267,6 +278,7 @@ os_error *rpc_do_call(struct conn_info *conn)
 			len = read(conn->sock, rx_buffer, sizeof(rx_buffer1));
 			if (len == -1) return gen_error(RPCERRBASE + 7,"Read from socket failed (%s)", xstrerror(errno));
 
+			if (enablelog) logdata(1, rx_buffer, len);
 			buf = rx_buffer;
 			bufend = rx_buffer + len;
 			process_struct_rpc_msg(INPUT, reply_header, 0);

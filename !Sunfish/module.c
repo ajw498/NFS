@@ -44,11 +44,6 @@
 
 #define IMAGE_FILETYPE 0x1B6
 
-#define LOGNAME "Sunfish"
-#define LOGENTRY 50
-#define LOGEXIT  75
-#define LOGERROR 25
-
 
 #define SYSLOGF_BUFSIZE 1024
 #define Syslog_LogMessage 0x4C880

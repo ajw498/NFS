@@ -149,6 +149,12 @@ typedef _kernel_oserror os_error;
 os_error *gen_error(int num, char *msg, ...);
 
 
+#define LOGNAME "Sunfish"
+#define LOGENTRY 40
+#define LOGEXIT  60
+#define LOGERROR 20
+#define LOGDATA  80
+
 
 void syslogf(char *logname, int level, char *fmt, ...);
 
