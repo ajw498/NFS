@@ -113,6 +113,8 @@ AddExt: 2
 <h3>Filenames</h3>
 Filenames on a unix machine may contain characters that are illegal in RISC OS filenames. In order to allow access to such files, any illegal characters are changed into escape sequences of <code>?xx</code> where xx is the hexadecimal value of the character. Spaces are mapped onto hard spaces, dots map to slashes and vice versa, and other characters are unchanged.
 <p>
+Filenames are case sensitive, unlike most other RISC OS filing systems. However, it is not recommended to use filenames that differ only in their case, as RISC OS may not distinguish between them correctly.
+<p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="options">Options</a></font></h2>
 </td></tr></table>
