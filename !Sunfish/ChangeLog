@@ -3,7 +3,8 @@ Add flag to detect if we are reentered from a callback and give a sensible
 error if this occurs rather than loosing track of recieved packets.
 Fix potential bug if more than 2^32 requests have been sent.
 Fix bug that could cause a spurious error on the next operation after a
-connection timed out. 
+connection timed out.
+Wimpslot is now set correctly for the frontend.
 
 v1.00 14-Apr-04
 Added frontend for creating mount files.
