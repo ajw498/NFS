@@ -595,6 +595,7 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 	char *leafname;
 	static char oldleafname[MAXNAMLEN];
 	int filetype;
+	int dirnamelen;
 
 	err = filename_to_finfo(oldfilename, 1, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
 	if (err) return err;
@@ -605,10 +606,12 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 	renameargs.from.name.data = oldleafname;
 	renameargs.from.name.size = strlen(oldleafname);
 
-	if (strncmp(oldfilename, newfilename, leafname - oldfilename) == 0) {
+	dirnamelen = strlen(oldfilename) - renameargs.from.name.size;
+
+	if (strncmp(oldfilename, newfilename, dirnamelen) == 0) {
 		/* Both files are in the same directory */
 		memcpy(renameargs.to.dir, renameargs.from.dir, FHSIZE);
-		leafname = newfilename + (leafname - oldfilename);
+		leafname = newfilename + dirnamelen;
 	} else {
 		/* Files are in different directories, so find the handle of the new dir */
 		err = filename_to_finfo(newfilename, 1, &dinfo, NULL, &leafname, NULL, NULL, conn);

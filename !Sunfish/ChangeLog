@@ -3,6 +3,7 @@ Fixed bug when a mount was mounted before the iconbar menu was displayed.
 Hard spaces on the server are now escaped correctly.
 Deleting a symbolic link now deletes the link and not the target of the link.
 Symbolic links that point to non-existant files can now be deleted.
+Fixed bug that prevented renaming a file when the new name differed only in case.
 
 v1.03 6-Jan-05
 Add support for dragging files to a mount's iconbar icon.
