@@ -225,7 +225,7 @@ static os_error *lookup_leafname(char *dhandle, struct opaque *leafname, struct 
 	os_error *err;
 
 	memcpy(rddir.dir, dhandle, FHSIZE);
-	rddir.count = MAXDATA;
+	rddir.count = conn->maxdatabuffer;
 	rddir.cookie = 0;
 
 	do {
