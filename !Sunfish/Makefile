@@ -10,7 +10,7 @@ CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zM -zpq262144
 
 LINK = link
 
-all: module
+all: Sunfish
 
 
 rpc-calls.c rpc-calls.h: rpc-spec ProcessSpec
@@ -51,8 +51,8 @@ imageentry_common.o
 
 $(OBJS) $(GENOBJS): $(GENHDRS) imageentry_common.h
 
-module: $(OBJS) $(GENOBJS)
-	link -m -o module $(OBJS) $(GENOBJS) $(LIBS)
+Sunfish: $(OBJS) $(GENOBJS)
+	link -m -o Sunfish $(OBJS) $(GENOBJS) $(LIBS)
 
 module.o: module.c moduledefs.h
 

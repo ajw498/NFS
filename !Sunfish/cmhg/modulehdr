@@ -1,13 +1,14 @@
 ;
 ;	$Id$
+;	$URL$
 ;
 ;	Module header description
 ;
 
-help-string:  nfsmodule 0.01
+help-string:  Sunfish 0.10
 #date-string: 15 Sep 2003
 
-title-string: nfsmodule
+title-string: Sunfish
 
 initialisation-code: initialise
 
