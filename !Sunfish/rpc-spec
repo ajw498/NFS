@@ -1,5 +1,5 @@
 /*
-	$Id: portmapper-spec 8 2003-09-16 23:32:41Z ajw $
+	$Id$
 
 	XDR Specification for Remote Procedure Calls.
 	See RFC 1057 for more details.
