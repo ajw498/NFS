@@ -106,6 +106,8 @@
 #define gadget_main_DONTUSEPCNFSD         0x5
 #define gadget_main_LEAFNAME              0x15
 
+#define gadget_menu_REMOVE                0x4
+
 #define UNUSED(x) ((void)x)
 
 #define E(x) { \
@@ -155,6 +157,7 @@ static toolbox_o filenamesid;
 static toolbox_o portsid;
 static toolbox_o connectionid;
 static toolbox_o mainwinid;
+static toolbox_o mainmenuid;
 static toolbox_o editmenuid;
 
 
@@ -336,6 +339,7 @@ static osbool mount_remove(bits event_code, toolbox_action *event, toolbox_block
 		remove = iconhead;
 		if (iconhead->next == NULL) {
 			E(xtoolbox_show_object(0, unmountedicon, toolbox_POSITION_DEFAULT, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
+			E(xmenu_set_fade(0, mainmenuid, gedget_menu_REMOVE, TRUE));
 		}
 		iconhead = iconhead->next;
 	} else {
@@ -420,6 +424,7 @@ static void add_mount(char *filename)
 
 	if (iconhead == NULL) {
 		E(xtoolbox_hide_object(0, unmountedicon));
+		E(xmenu_set_fade(0, mainmenuid, gadget_menu_REMOVE, FALSE));
 	}
 	mountdetails->icon = icon;
 	mountdetails->next = iconhead;
@@ -861,8 +866,11 @@ static osbool autocreated(bits event_code, toolbox_action *event, toolbox_block 
 	if (strcmp(event->data.created.name,"mainwin") == 0) {
 		mainwinid = id_block->this_obj;
 	}
-	if (strcmp(event->data.created.name,"EditMounts") == 0) {
+	if (strcmp(event->data.created.name,"editmounts") == 0) {
 		editmenuid = id_block->this_obj;
+	}
+	if (strcmp(event->data.created.name,"mainmenu") == 0) {
+		mainmenuid = id_block->this_obj;
 	}
 	if (strcmp(event->data.created.name,"ProgInfo") == 0) {
 		E(xproginfo_set_version(0, id_block->this_obj, Module_VersionString " (" Module_Date ")"));
