@@ -29,6 +29,7 @@
 #include <swis.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <unixlib.h>
 
 #include "imageentry_func.h"
 
@@ -212,7 +213,6 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 	return j;
 }
 
-
 /* Find leafname,xyz given leafname by enumerating the entire directory
    until a matching file is found. If there are two matching files, the
    first found is used. This function would benefit in many cases by some
@@ -238,14 +238,28 @@ static os_error *lookup_leafname(char *dhandle, char *leafname, int leafnamelen,
 		while (direntry) {
 			rddir.cookie = direntry->cookie;
 
+			if (!conn->casesensitive && direntry->name.size == leafnamelen) {
+				if (strcasecmp(direntry->name.data, leafname) == 0) {
+					*found = &(direntry->name);
+					return NULL;
+				}
+			}
+
 			if (direntry->name.size == leafnamelen + sizeof(",xyz") - 1) {
-				if (strncmp(direntry->name.data, leafname, leafnamelen) == 0) {
-					if (direntry->name.data[leafnamelen] == ','
-					     && isxdigit(direntry->name.data[leafnamelen + 1])
-					     && isxdigit(direntry->name.data[leafnamelen + 2])
-					     && isxdigit(direntry->name.data[leafnamelen + 3])) {
-						*found = &(direntry->name);
-						return NULL;
+				if (direntry->name.data[leafnamelen] == ','
+				     && isxdigit(direntry->name.data[leafnamelen + 1])
+				     && isxdigit(direntry->name.data[leafnamelen + 2])
+				     && isxdigit(direntry->name.data[leafnamelen + 3])) {
+					if (conn->casesensitive) {
+						if (strncmp(direntry->name.data, leafname, leafnamelen) == 0) {
+							*found = &(direntry->name);
+							return NULL;
+						}
+					} else {
+						if (strncasecmp(direntry->name.data, leafname, leafnamelen) == 0) {
+							*found = &(direntry->name);
+							return NULL;
+						}
 					}
 				}
 			}

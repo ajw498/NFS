@@ -118,7 +118,7 @@ Pipelining: 1
 <h3>Filenames</h3>
 Filenames on a unix machine may contain characters that are illegal in RISC OS filenames. In order to allow access to such files, any illegal characters are changed into escape sequences of <code>?xx</code> where xx is the hexadecimal value of the character. Spaces are mapped onto hard spaces, dots map to slashes and vice versa, and other characters are unchanged.
 <p>
-Filenames are case sensitive, unlike most other RISC OS filing systems. However, it is not recommended to use filenames that differ only in their case, as RISC OS may not distinguish between them correctly.
+Unlike most other RISC OS filing systems, filenames may be case sensitive (depending on the casesensitive option). However, it is not recommended to use filenames that differ only in their case, as some programs or RISC OS may not distinguish between them correctly.
 <p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="options">Options</a></font></h2>
@@ -193,10 +193,15 @@ RISC OS does not have any concept like a umask - the default attributes of a fil
 The RISC OS attributes are first converted to unix mode bits, with the private attributes mapping to user permissions, and the public attributes mapping to the group and others permissions (if a public attribute is set then both the corresponding group and others permission bit will be set). This value is then ORed with the unumask, and then ANDed with the inverse of the umask to give the final unix mode bits.
 <p>
 <h4>ShowHidden</h4>
-If set to 1, all files will be shown, if set to 0 then all files beginning with a . will be hidden from filer views. If not specified, then defaults to 1.
+If set to 1, all files will be shown, if set to 0 then all files beginning with a . will be hidden from filer views. If not specified, then it defaults to 1.
 <p>
 <h4>FollowSymLinks</h4>
 The number of levels of symlinks to follow. If set to zero or a sequence of symlinks greater than the number is encountered then the link will be shown as a text file that you cannot read or write. If not specified, then it defaults to 5. Symlinks can only be followed if they point to a file within the mount directory or its children.
+<p>
+<h4>CaseSensitive</h4>
+If set to 1, filenames will be treated as case sensitive, and if the filename doesn't match exactly then you will get a file not found error. If set to 0, then if an exact match for the filename isn't found then a case insensitive match will be tried as well. If not specified, then it defaults to 0.
+<p>
+If case sensitivity is off, and you have two (or more) files in the same directory that differ only in case then trying to access one of them may result in the wrong file being altered.
 <p>
 <h4>Timeout</h4>
 The time in seconds to wait for a reply from the server before retrying or giving up. Defaults to 3 seconds.

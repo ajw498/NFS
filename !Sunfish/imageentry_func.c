@@ -171,6 +171,8 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		if (conn->maxdatabuffer > MAXDATA) conn->maxdatabuffer = MAXDATA;
 	} else if (CHECK("FollowSymlinks")) {
 		conn->followsymlinks = (int)strtol(val, NULL, 10);
+	} else if (CHECK("CaseSensitive")) {
+		conn->casesensitive = (int)strtol(val, NULL, 10);
 	}
 	/* Ignore unrecognised lines */
 	return NULL;
@@ -304,6 +306,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->nextcookie = 0;
 	conn->followsymlinks = 5;
 	conn->pipelining = 0;
+	conn->casesensitive = 0;
 
 	/* Read details from file */
 	err = parse_file(fileswitchhandle, conn);

@@ -3,6 +3,7 @@ Allow ; in filenames.
 Minor improvements to logging code.
 Fix bug that could leave an open socket if mounting failed.
 Added unumask option.
+Added CaseSensitive option and made the default caseinsensitive.
 
 v0.96 14-Dec-03
 Fixed bug that could cause some filetypes to be incorrectly set to the
