@@ -4,6 +4,7 @@
 
 #include "nfs-calls.h"
 #include "mount-calls.h"
+#include "portmapper-calls.h"
 #include "rpc.h"
 #include "readdir.h"
 
@@ -130,12 +131,15 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 	static struct readdirok_entry direntry;
 	static struct readdirok eof;
 	int numentries = 0;
+	struct mapping map = {MOUNT_RPC_PROGRAM,MOUNT_RPC_VERSION,IPPROTO_UDP,0};
+	int port;
 
 	switch (r->r[0]) {
 	case 15:
 		entry = (struct dir_entry *)(r->r[2]);
 		init_header();
 /*		NFSPROC3_NULL(NULL);*/
+		PMAPPROC_GETPORT(&map,&port,NULL);
 		MNTPROC_MNT(&dir, &res, NULL);
 		memcpy(rddir.dir, res.u.directory, FHSIZE);
 		rddir.count = 1024;

@@ -13,6 +13,8 @@ struct opaque {
 	char *data;
 };
 
+#define OPAQUE_MAX 0xFFFFFFFF
+
 typedef struct opaque string;
 
 enum bool {

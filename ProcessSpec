@@ -39,6 +39,8 @@ $types{"void"} = "void";
 $types{"bool"} = "enum";
 $typessize{"void"} = 0;
 $typessize{"int"} = 0;
+$typessize{"unsigned"} = 0;
+$typessize{"bool"} = "bool";
 
 while (<>) {
   #print "$state - $_";
@@ -71,9 +73,13 @@ while (<>) {
     } elsif (/\s*void\;/) {
       # do nothing
     } elsif (/(.*)opaque (\w*)\<(\w*)\>\;/) {
-      print STRUCTS "${1}struct opaque $2;\n";
+      my $ws = $1;
+      my $opaquename = $2;
+      my $maxsize = $3;
+      $maxsize = "OPAQUE_MAX" if ($maxsize =~ /^$/);
+      print STRUCTS "${ws}struct opaque $opaquename;\n";
 #      print STRUCTS "#define OPAQUE_${name}_${2}_MAX $3\n";
-      print PROCS "process_opaque(input,##structbase.$2,$3);\\\n";
+      print PROCS "process_opaque(input,##structbase.$opaquename,$maxsize);\\\n";
     } elsif (/(\s*)(\w+(\s+\w+)*)\s+(\w+)\;$/) {
       my $type = $types{$2};
       my $typesize = $typessize{$2};
@@ -192,6 +198,8 @@ while (<>) {
       if (!($res =~ /^void$/)) {
         if (($types{$res} =~ /(struct)|(union)/)) {
           $proto .= "struct $res";
+        } elsif (($types{$res} =~ /enum/)) {
+          $proto .= "enum $res";
         } else {
           $proto .= "$types{$res}";
         }
@@ -201,9 +209,12 @@ while (<>) {
       if ($procname =~ m/^NFS/) {
         $prog = "NFS_RPC_PROGRAM";
         $vers = "NFS_RPC_VERSION";
-      } else {
+      } elsif ($procname =~ m/^MNT/) {
         $prog = "MOUNT_RPC_PROGRAM";
         $vers = "MOUNT_RPC_VERSION";
+      } else {
+        $prog = "PMAP_RPC_PROGRAM";
+        $vers = "PMAP_RPC_VERSION";
       }
       print CALLSH "$proto;\n";
       print CALLS  "$proto\n";

@@ -80,7 +80,7 @@ int do_call(struct conn_info *conn)
 	}
 	memcpy(&name.sin_addr, hp->h_addr, hp->h_length);
 	name.sin_family = AF_INET;
-	name.sin_port = htons(call_header.body.u.cbody.prog == 100005 ? 1027 : 2049);
+	name.sin_port = htons(call_header.body.u.cbody.prog == 100005 ? 1027 : call_header.body.u.cbody.prog == 100000 ? 111 : 2049);
 	if (connect(sock, (struct sockaddr *)&name, sizeof(name)) < 0) {
 		printf("connect errno=%d\n",errno);
 		exit(1);

@@ -1,0 +1,54 @@
+/*
+	$Id$
+
+	XDR Specification for the Port Mapper protocol.
+	See RFC 1057 for more details.
+
+	StrongEd$Mode=C
+*/
+
+#define PMAP_RPC_PROGRAM 100000
+#define PMAP_RPC_VERSION 2
+
+const PMAP_PORT = 111;
+
+struct mapping {
+   unsigned int prog;
+   unsigned int vers;
+   unsigned int prot;
+   unsigned int port;
+};
+
+/* protocol number for TCP/IP */
+const IPPROTO_TCP = 6;
+/* protocol number for UDP/IP */
+const IPPROTO_UDP = 17;
+
+/*struct *pmaplist {
+   mapping map;
+   pmaplist next;
+};  */
+
+struct call_args {
+   unsigned int prog;
+   unsigned int vers;
+   unsigned int proc;
+   opaque args<>;
+};
+
+struct call_result {
+   unsigned int port;
+   opaque res<>;
+};
+
+void PMAPPROC_NULL(void) = 0;
+
+bool PMAPPROC_SET(mapping) = 1;
+
+bool PMAPPROC_UNSET(mapping) = 2;
+
+unsigned PMAPPROC_GETPORT(mapping) = 3;
+
+/*pmaplist PMAPPROC_DUMP(void) = 4; */
+
+call_result PMAPPROC_CALLIT(call_args) = 5;
