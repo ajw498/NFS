@@ -1,6 +1,6 @@
-v1.04 ?-???-05
+v1.04 2-Apr-05
 Fixed bug when a mount was mounted before the iconbar menu was displayed.
-Hard spaces on the server are now escaped correctly.
+Hard spaces in filenames on the server are now escaped correctly.
 Deleting a symbolic link now deletes the link and not the target of the link.
 Symbolic links that point to non-existant files can now be deleted.
 Fixed bug that prevented renaming a file when the new name differed only in case.
