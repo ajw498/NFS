@@ -211,7 +211,7 @@ static os_error *lookup_leafname(char *dhandle, char *leafname, int len,  struct
 			}
 			direntry = direntry->next;
 		}
-	} while (rdres.u.readdirok.eof);
+	} while (!rdres.u.readdirok.eof);
 	*found = NULL;
 	return NULL;
 }
