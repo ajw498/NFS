@@ -34,6 +34,8 @@
 #define MAX_PAYLOAD 7000
 /*FIXME*/
 
+#define FAKE_BLOCKSIZE 1024
+
 /*FIXME - verify stack usage is < 1024 bytes */
 
 /* Generate a RISC OS error block based on the NFS status code */
@@ -640,14 +642,19 @@ static void timeval_to_loadexec(struct ntimeval *unixtime, int filetype, unsigne
 /* Convert a RISC OS load and execution address into a unix timestamp */
 static void loadexec_to_timeval(unsigned int load, unsigned int exec, struct ntimeval *unixtime)
 {
-	uint64_t csecs, secs;
+	if ((load & 0xFFF00000) == 0xFFF00000) {
+		/* A real load/exec address */
+		unixtime->seconds = -1;
+		unixtime->useconds = -1;
+	} else {
+		uint64_t csecs;
 
-	csecs = exec;
-	csecs |= ((uint64_t)load & 0xFF) << 32;
-	csecs -= 0x336e996a00; /* Difference between 1900 and 1970 */
-    secs = csecs / (uint64_t)100;
-    unixtime->seconds = (unsigned int)(secs & 0xFFFFFFFF);
-    unixtime->useconds = (unsigned int)((csecs % 100) * 10000);
+		csecs = exec;
+		csecs |= ((uint64_t)load & 0xFF) << 32;
+		csecs -= 0x336e996a00; /* Difference between 1900 and 1970 */
+		unixtime->seconds = (unsigned int)((csecs / 100) & 0xFFFFFFFF);
+		unixtime->useconds = (unsigned int)((csecs % 100) * 10000);
+	}
 }
 
 /* Convert a unix mode to RISC OS attributes */
@@ -781,7 +788,11 @@ os_error *func_readdirinfo(int info, char *dirname, void *buffer, int numobjs, i
 
 /* Open a file. The handle returned is a pointer to a struct holding the
    NFS handle and any other info needed */
-os_error *open_file(char *filename, int access, struct conn_info *conn, int *file_info_word, int *internal_handle, int *extent)
+os_error *open_file(char *filename, int access, struct conn_info *conn,
+                    unsigned int *file_info_word,
+                    struct file_handle **internal_handle,
+                    unsigned int *fileswitchbuffersize, unsigned int *extent,
+                    unsigned int *allocatedspace)
 {
 	struct file_handle *handle;
     struct diropok *dinfo;
@@ -790,8 +801,9 @@ os_error *open_file(char *filename, int access, struct conn_info *conn, int *fil
     struct diropres createres;
     os_error *err;
     char *leafname;
+    int filetype;
 
-	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, NULL, NULL, conn);
+	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
 	if (err) return err;
 
 	if (finfo == NULL) {
@@ -814,6 +826,7 @@ os_error *open_file(char *filename, int access, struct conn_info *conn, int *fil
 			if (createres.status != NFS_OK) return gen_nfsstatus_error(createres.status);
 
 			finfo = &(createres.u.diropok);
+			filetype = conn->defaultfiletype;
 		} else {
 			/* File not found */
 			*internal_handle = 0;
@@ -826,13 +839,17 @@ os_error *open_file(char *filename, int access, struct conn_info *conn, int *fil
 
 	handle->conn = conn;
 	memcpy(handle->fhandle, finfo->file, FHSIZE);
+	handle->extent = finfo->attributes.size;
+	timeval_to_loadexec(&(finfo->attributes.mtime), filetype, &(handle->load), &(handle->exec));
 
-	*internal_handle = (int)handle;
+	*internal_handle = handle;
 	/* It is too difficult to determine if we will have permission to read
 	   or write the file so pretend that we can and return an error on read
 	   or write if necessary */
-	*file_info_word = (int)0xC0000000;
+	*file_info_word = 0xC0000000;
 	*extent = finfo->attributes.size;
+	*fileswitchbuffersize = FAKE_BLOCKSIZE;
+	*allocatedspace = (*extent + (FAKE_BLOCKSIZE - 1)) & ~(FAKE_BLOCKSIZE - 1);
 	return NULL;
 }
 
@@ -1007,7 +1024,7 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 	struct attrstat sattrres;
     os_error *err;
     int filetype;
-    int newfiletype = (load & 0xFFF00) >> 8;
+    int newfiletype;
     int extfound;
     char *leafname;
 
@@ -1015,6 +1032,12 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 	if (err) return err;
 
 	if (finfo == NULL) return gen_nfsstatus_error(NFSERR_NOENT);
+
+	if ((load & 0xFFF00000) == 0xFFF00000) {
+		newfiletype = (load & 0xFFF00) >> 8;
+	} else {
+		newfiletype = conn->defaultfiletype;
+	}
 
 	/* If the filetype has changed we may need to rename the file */
 	if (conn->xyzext != NEVER && newfiletype != filetype) {
@@ -1033,7 +1056,7 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 		if (renameres != NFS_OK) return gen_nfsstatus_error(renameres);
 	}
 
-	/* Set the datestamp */
+	/* Set the datestamp and attributes */
 	memcpy(sattrargs.file, finfo->file, FHSIZE);
 	sattrargs.attributes.mode = attr_to_mode(attr, finfo->attributes.mode, conn);
 	sattrargs.attributes.uid = -1;
@@ -1057,7 +1080,13 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
     os_error *err;
     struct createargs createargs;
     struct diropres createres;
-    int newfiletype = (load & 0xFFF00) >> 8;
+    int newfiletype;
+
+	if ((load & 0xFFF00000) == 0xFFF00000) {
+		newfiletype = (load & 0xFFF00) >> 8;
+	} else {
+		newfiletype = conn->defaultfiletype;
+	}
 
 	err = filename_to_finfo(filename, &dinfo, NULL, leafname, NULL, NULL, conn);
 	if (err) return err;
@@ -1192,7 +1221,7 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 		memcpy(renameargs.to.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
 	}
 
-	/* Add ,xyz on if nessacery to preserve filetype */
+	/* Add ,xyz on if necessary to preserve filetype */
 	renameargs.to.name.data = newleafname(leafname, strlen(leafname), 0, filetype, &(renameargs.to.name.size), conn);
 
 	err = NFSPROC_RENAME(&renameargs, &renameres, conn);
@@ -1202,32 +1231,102 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 	*renamefailed = 0;
 	return NULL;
 }
-/*
-os_error *args_writeextent(struct file_handle *handle, unsigned extent)
+
+os_error *args_zeropad(struct file_handle *handle, unsigned int offset, unsigned int size)
+{
+	static char zeros[] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+	os_error *err;
+
+	/* This is going to be pretty slow, but any sensible program won't
+	   be calling this entry point */
+	while (size > sizeof(zeros)) {
+		err = writebytes(handle->fhandle, zeros, sizeof(zeros), offset, handle->conn);
+		if (err) return err;
+
+		size -= sizeof(zeros);
+		offset += sizeof(zeros);
+	}
+
+	if (size > 0) {
+		err = writebytes(handle->fhandle, zeros, size, offset, handle->conn);
+		if (err) return err;
+	}
+	return NULL;
+}
+
+static os_error *writeextent(struct file_handle *handle, unsigned int extent)
 {
 	os_error *err;
 	struct sattrargs args;
 	struct attrstat res;
 
 	memcpy(args.file, handle->fhandle, FHSIZE);
-	args.mode = -1;
-	args.uid = -1;
-	args.gid = -1;
-	args.atime.seconds = -1;
-	args.atime.useconds = -1;
-	args.mtime.seconds = -1;
-	args.mtime.useconds = -1;
-	args.size = extent;
+	args.attributes.mode = -1;
+	args.attributes.uid = -1;
+	args.attributes.gid = -1;
+	args.attributes.atime.seconds = -1;
+	args.attributes.atime.useconds = -1;
+	args.attributes.mtime.seconds = -1;
+	args.attributes.mtime.useconds = -1;
+	args.attributes.size = extent;
 	err = NFSPROC_SETATTR(&args, &res, handle->conn);
 	if (err) return err;
-	if (res.status != NFS_OK) return gen_nfsstatus_error(res.status); */
-	/* FIXME: should zero pad if new extent > old extent */  /*
+	if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
+
 	return NULL;
 }
 
-os_error *args_readdatestamp(struct file_handle *handle, int *load, int *exec)
+os_error *args_writeextent(struct file_handle *handle, unsigned int extent)
 {
-	*load = 0;
-	*exec = 0; *//* We should cache the filetype (and other attrs?) when the file is opened */
-/*	return NULL;
-} */
+	os_error *err;
+
+	err = writeextent(handle, extent);
+	if (err) return err;
+
+	if (extent > handle->extent) {
+		err = args_zeropad(handle, handle->extent, extent - handle->extent);
+		if (err) return err;
+	}
+
+	handle->extent = extent;
+
+	return NULL;
+}
+
+os_error *args_ensuresize(struct file_handle *handle, unsigned int size, unsigned int *actualsize)
+{
+	os_error *err;
+
+	if (size > handle->extent) {
+		err = writeextent(handle, size);
+		if (err) return err;
+
+		handle->extent = size;
+	}
+
+	*actualsize = (handle->extent + (FAKE_BLOCKSIZE - 1)) & ~(FAKE_BLOCKSIZE - 1);
+
+	return NULL;
+}
+
+os_error *args_readdatestamp(struct file_handle *handle, unsigned int *load, unsigned int *exec)
+{
+	*load = handle->load;
+	*exec = handle->exec;
+	return NULL;
+}
+
+os_error *args_readallocatedsize(struct file_handle *handle, unsigned int *size)
+{
+	*size = (handle->extent + (FAKE_BLOCKSIZE - 1)) & ~(FAKE_BLOCKSIZE - 1);
+
+	return NULL;
+}
+
+os_error *file_readblocksize(unsigned int *size)
+{
+	*size = FAKE_BLOCKSIZE;
+
+	return NULL;
+}
+

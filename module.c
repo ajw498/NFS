@@ -160,9 +160,7 @@ _kernel_oserror *imageentry_open_handler(_kernel_swi_regs *r, void *pw)
 
 	if (enablelog) logentry("ImageEntry_Open", (char *)(r->r[1]), r);
 
-	err = open_file((char *)r->r[1], r->r[0], (struct conn_info *)(r->r[6]), &(r->r[0]), &(r->r[1]), &(r->r[3]));
-	r->r[2] = 1024;
-	r->r[4] = (r->r[3] + 1023) & ~1023;
+	err = open_file((char *)r->r[1], r->r[0], (struct conn_info *)(r->r[6]), (unsigned int *)&(r->r[0]), (struct file_handle **)&(r->r[1]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), (unsigned int *)&(r->r[4]));
 
 	if (enablelog) logexit(r, err);
 
@@ -209,11 +207,23 @@ _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_ARGS_WRITEEXTENT:
+			err = args_writeextent((struct file_handle *)(r->r[1]),(unsigned int)(r->r[2]));
+			break;
 		case IMAGEENTRY_ARGS_READSIZE:
+			err = args_readallocatedsize((struct file_handle *)(r->r[1]), (unsigned int *)&(r->r[2]));
+			break;
 		case IMAGEENTRY_ARGS_FLUSH:
+			err = args_readdatestamp((struct file_handle *)(r->r[1]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]));
+			break;
 		case IMAGEENTRY_ARGS_ENSURESIZE:
+			err = args_ensuresize((struct file_handle *)(r->r[1]),(unsigned int)(r->r[2]), (unsigned int *)&(r->r[2]));
+			break;
 		case IMAGEENTRY_ARGS_ZEROPAD:
+			err = args_zeropad((struct file_handle *)(r->r[1]), (unsigned int)(r->r[2]), (unsigned int)(r->r[3]));
+			break;
 		case IMAGEENTRY_ARGS_READDATESTAMP:
+			err = args_readdatestamp((struct file_handle *)(r->r[1]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]));
+			break;
 		default:
 			err = gen_error(UNSUPP, UNSUPPMESS);
 	}
@@ -266,7 +276,7 @@ _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 			err = file_createdir((char *)(r->r[1]), r->r[2], r->r[3], (struct conn_info *)(r->r[6]));
 			break;
 		case IMAGEENTRY_FILE_READBLKSIZE:
-			r->r[2] = 1024; /* Should this be the buffersize? Or ask NFS? */
+			file_readblocksize((unsigned int *)&(r->r[2]));
 			break;
 		default:
 			err = gen_error(UNSUPP, UNSUPPMESS);

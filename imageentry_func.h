@@ -11,6 +11,9 @@
 struct file_handle {
 	struct conn_info *conn;
 	char fhandle[FHSIZE];
+	unsigned int extent;
+	unsigned int load;
+	unsigned int exec;
 };
 
 
@@ -20,7 +23,7 @@ os_error *func_closeimage(struct conn_info *conn);
 
 os_error *func_readdirinfo(int info, char *dirname, void *buffer, int numobjs, int start, int buflen, struct conn_info *conn, int *objsread, int *continuepos);
 
-os_error *open_file(char *filename, int access, struct conn_info *conn, int *file_info_word, int *internal_handle, int *extent);
+os_error *open_file(char *filename, int access, struct conn_info *conn, unsigned int *file_info_word, struct file_handle **internal_handle, unsigned int *fileswitchbuffersize, unsigned int *extent, unsigned int *allocatedspace);
 
 os_error *close_file(struct file_handle *handle, unsigned int load, unsigned int exec);
 
@@ -42,4 +45,15 @@ os_error *file_createfile(char *filename, unsigned int load, unsigned int exec, 
 
 os_error *file_createdir(char *filename, unsigned int load, unsigned int exec, struct conn_info *conn);
 
+os_error *args_zeropad(struct file_handle *handle, unsigned int offset, unsigned int size);
+
+os_error *args_writeextent(struct file_handle *handle, unsigned int extent);
+
+os_error *args_ensuresize(struct file_handle *handle, unsigned int size, unsigned int *actualsize);
+
+os_error *args_readdatestamp(struct file_handle *handle, unsigned int *load, unsigned int *exec);
+
+os_error *args_readallocatedsize(struct file_handle *handle, unsigned int *size);
+
+os_error *file_readblocksize(unsigned int *size);
 
