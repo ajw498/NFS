@@ -263,10 +263,10 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 			err = func_rename((char *)(r->r[1]), (char *)(r->r[2]), (struct conn_info *)(r->r[6]), &(r->r[1]));
 			break;
 		case IMAGEENTRY_FUNC_READDIR:
-			err = func_readdirinfo(0, (const char *)r->r[1], (void *)r->r[2], r->r[3], r->r[4], r->r[5], (struct conn_info *)(r->r[6]), &(r->r[3]), &(r->r[4]));
+			err = func_readdirinfo(0, (char *)r->r[1], (void *)r->r[2], r->r[3], r->r[4], r->r[5], (struct conn_info *)(r->r[6]), &(r->r[3]), &(r->r[4]));
 			break;
 		case IMAGEENTRY_FUNC_READDIRINFO:
-			err = func_readdirinfo(1, (const char *)r->r[1], (void *)r->r[2], r->r[3], r->r[4], r->r[5], (struct conn_info *)(r->r[6]), &(r->r[3]), &(r->r[4]));
+			err = func_readdirinfo(1, (char *)r->r[1], (void *)r->r[2], r->r[3], r->r[4], r->r[5], (struct conn_info *)(r->r[6]), &(r->r[3]), &(r->r[4]));
 			break;
 		case IMAGEENTRY_FUNC_NEWIMAGE:
 			err = func_newimage(r->r[1],(struct conn_info **)&(r->r[1]));

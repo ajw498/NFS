@@ -110,7 +110,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 
 
 struct dir_entry {
-	unsigned int load;
+	int load;
 	int exec;
 	int len;
 	int attr;
@@ -123,63 +123,6 @@ struct dir_entry {
 #define OBJ_NONE 0
 #define OBJ_FILE 1
 #define OBJ_DIR  2
-
-os_error *func_readdirinfo(int info, const char *dirname, void *buffer, int numobjs, int start, int buflen, struct conn_info *conn, int *objsread, int *continuepos)
-{
-	char *bufferpos;
-	static struct readdirargs rddir;
-	static struct readdirres rdres;
-	struct entry *direntry;
-	os_error *err;
-
-	bufferpos = buffer;
-	*objsread = 0;
-
-	memcpy(rddir.dir, conn->rootfh, FHSIZE);
-	rddir.count = 1024;
-	rddir.cookie = 0;
-	err = NFSPROC_READDIR(&rddir, &rdres, conn);
-	if (err) return err;
-	if (rdres.status != NFS_OK) return_error("readdir failed");
-	swap_rxbuffers();
-	direntry = rdres.u.readdirok.entries;
-	while (direntry) {
-		if (direntry->name.size == 1 && direntry->name.data[0] == '.') {
-			/* current dir */
-		} else if (direntry->name.size == 2 && direntry->name.data[0] == '.' && direntry->name.data[1] == '.') {
-			/* parent dir */
-		} else {
-			if (info) {
-				struct diropargs lookupargs;
-				struct diropres lookupres;
-				struct dir_entry *entry;
-
-				memcpy(lookupargs.dir, rddir.dir, FHSIZE);
-				lookupargs.name.data = direntry->name.data;
-				lookupargs.name.size = direntry->name.size;
-				err = NFSPROC_LOOKUP(&lookupargs, &lookupres, conn);
-				if (err) return err;
-				if (lookupres.status != NFS_OK) return_error("lookup failed");
-
-				entry = (struct dir_entry *)bufferpos;
-				bufferpos += sizeof(struct dir_entry);
-				entry->load = 0xFFFFFF00;
-				entry->exec = 0;
-				entry->len = lookupres.u.diropok.attributes.size;
-				entry->attr = 3; /**/
-				entry->type = lookupres.u.diropok.attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
-			}
-			memcpy(bufferpos,direntry->name.data,direntry->name.size);
-			bufferpos[direntry->name.size] = '\0';
-			bufferpos += (direntry->name.size + 4) & ~3;
-			/* Check buffer size */
-			(*objsread)++;
-		}
-		direntry = direntry->next;
-	}
-	*continuepos = -1;
-	return NULL;
-}
 
 static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct diropok **finfo, char **leafname, struct conn_info *conn)
 {
@@ -215,6 +158,97 @@ static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struc
 		start = end + 1;
 	} while (*end != '\0');
 	if (finfo && next.status != NFSERR_NOENT) *finfo = &(next.u.diropok);
+	return NULL;
+}
+
+static void timeval_to_loadexec(struct ntimeval *unixtime, int filetype, int *load, int *exec)
+{
+	int64_t csecs;
+	csecs = unixtime->seconds;
+	csecs *= 100;
+	csecs += (unixtime->useconds / 10);
+	csecs += 0x336e996a00; /* Difference between 1900 and 1970 */
+	*load = (int)((csecs >> 32) & 0xFF);
+	*load |= (0xFFF00000 | ((filetype & 0xFFF) << 8));
+	*exec = (int)(csecs & 0xFFFFFFFF);
+}
+
+static int mode_to_attr(unsigned int mode)
+{
+	int attr;
+	attr  = ( mode & 0x100) >> 8; /* Owner read */
+	attr |= ( mode & 0x080) >> 6; /* Owner write */
+	attr |= (~mode & 0x080) >> 4; /* Locked */
+	attr |= ( mode & 0x004) << 2; /* Others read */
+	attr |= ( mode & 0x002) << 4; /* Others write */
+	return attr;
+}
+os_error *func_readdirinfo(int info, char *dirname, void *buffer, int numobjs, int start, int buflen, struct conn_info *conn, int *objsread, int *continuepos)
+{
+	char *bufferpos;
+	static struct readdirargs rddir;
+	static struct readdirres rdres;
+	struct entry *direntry;
+	os_error *err;
+
+	bufferpos = buffer;
+	*objsread = 0;
+
+	if (dirname[0] == '\0') {
+		memcpy(rddir.dir, conn->rootfh, FHSIZE);
+	} else {
+		struct diropok *finfo;
+		err = filename_to_finfo(dirname, NULL, &finfo, NULL, conn);
+		if (err) return err;
+		if (finfo == NULL) return_error("dir doesn't exist");
+		memcpy(rddir.dir, finfo->file, FHSIZE);
+	}
+	rddir.count = 1024;
+	rddir.cookie = start;
+	err = NFSPROC_READDIR(&rddir, &rdres, conn);
+	if (err) return err;
+	if (rdres.status != NFS_OK) return_error("readdir failed");
+	swap_rxbuffers();
+	direntry = rdres.u.readdirok.entries;
+	while (direntry) {
+		if (direntry->name.size == 1 && direntry->name.data[0] == '.') {
+			/* current dir */
+		} else if (direntry->name.size == 2 && direntry->name.data[0] == '.' && direntry->name.data[1] == '.') {
+			/* parent dir */
+		} else {
+			if (info) {
+				struct diropargs lookupargs;
+				struct diropres lookupres;
+				struct dir_entry *entry;
+
+				memcpy(lookupargs.dir, rddir.dir, FHSIZE);
+				lookupargs.name.data = direntry->name.data;
+				lookupargs.name.size = direntry->name.size;
+				err = NFSPROC_LOOKUP(&lookupargs, &lookupres, conn);
+				if (err) return err;
+				if (lookupres.status != NFS_OK) return_error("lookup failed");
+
+				entry = (struct dir_entry *)bufferpos;
+				bufferpos += sizeof(struct dir_entry);
+				timeval_to_loadexec(&(lookupres.u.diropok.attributes.mtime), 0xFFF, &(entry->load), &(entry->exec));
+				entry->len = lookupres.u.diropok.attributes.size;
+				entry->attr = mode_to_attr(lookupres.u.diropok.attributes.mode);
+				entry->type = lookupres.u.diropok.attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
+			}
+			memcpy(bufferpos,direntry->name.data,direntry->name.size);
+			bufferpos[direntry->name.size] = '\0';
+			bufferpos += (direntry->name.size + 4) & ~3;
+			/* Check buffer size */
+			(*objsread)++;
+		}
+		start = direntry->cookie;
+		direntry = direntry->next;
+	}
+	if (rdres.u.readdirok.eof) {
+		*continuepos = -1;
+	} else {
+		*continuepos = start;
+	}
 	return NULL;
 }
 
