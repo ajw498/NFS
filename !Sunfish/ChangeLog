@@ -1,3 +1,6 @@
+v0.92 ??
+Fix bug in IP address handling.
+
 v0.91 18-Oct-03
 Specifying an IP address as the server name now works for addresses
 that don't have a reverse DNS entry.

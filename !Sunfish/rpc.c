@@ -113,10 +113,11 @@ static os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct
 	if (sscanf(host, "%d.%d.%d.%d", &quad1, &quad2, &quad3, &quad4) == 4) {
 		/* Host is an IP address, so doesn't need resolving */
 		static struct hostent hostent;
-		static int addr;
+		static unsigned int addr;
+		static char *addr_list = (char *)&addr;
 
 		addr = quad1 | (quad2 << 8) | (quad3 << 16) | (quad4 << 24);
-		hostent.h_addr = (char *)&addr;
+		hostent.h_addr_list = &addr_list;
 		hostent.h_length = sizeof(addr);
 
 		*hp = &hostent;
