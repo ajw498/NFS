@@ -267,10 +267,6 @@ Devices and other non regular files are not supported, as they don't map to RISC
 <p>
 If ShowHidden == 0 and you try to delete a directory that contains hidden files then it will fail with a directory not empty error.
 <p>
-If more than four concurrent OS_GBPB directory enumerations take place per mount then incorrect results may be returned. There is not much I can do about this, but it is extremely unlikely to occur.
-<p>
-Deleting a directory containing many files from the filer may sometimes fail with a directory not empty error message.
-<p>
 Case insensitive matching only works for the leafname, the rest of the pathname is always treated as case sensitive at present.
 <p>
 Some operations are not as fast as they could be. For the first release I have concentrated on getting a functional and stable program, and there are some places where performance could be improved in the future. In particular, file attributes and mappings between filenames and NFS file handles should be cached, as this would reduce network traffic and delay for directory listings and many other operations.
