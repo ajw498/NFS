@@ -14,7 +14,8 @@ RMEnsure UtilityModule 3.70 RMEnsure CallASWI 0.02 RMLoad System:Modules.CallASW
 RMEnsure UtilityModule 3.70 RMEnsure CallASWI 0.02 Error Sunfish requires CallASWI 0.02 or later
 RMEnsure SharedCLibrary 5.17 RMLoad System:Modules.CLib
 RMEnsure SharedCLibrary 5.34 Error Sunfish requires SharedCLibrary 5.34 or later
- 
+RMEnsure MimeMap 0.01 RMLoad System:Modules.Network.MimeMap
+
 RMLoad <Sunfish$Dir>.Sunfish
 
 If "%*0" <> "" Then Filer_OpenDir %*0
