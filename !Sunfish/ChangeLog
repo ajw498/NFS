@@ -5,6 +5,7 @@ Removed limitation of only supporting 4 concurrent OS_GBPB directory
 enumerations per mount.
 Fixed bug that could occasionally cause a stale file handle error when
 writing a file.
+Fix problems with pipelined reading or writing of 0 byte files.
 
 v0.97 12-Jan-04
 Allow ; in filenames.
