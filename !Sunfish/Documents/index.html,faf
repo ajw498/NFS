@@ -1,3 +1,5 @@
+<!-- $Id$ -->
+<!-- $URL$ -->
 <html>
 <head>
   <title>Sunfish NFS client</title>
@@ -174,7 +176,7 @@ Controls adding of a ,xyz extension. When 0, no ,xyz extensions are added, and a
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="reportingbugs">Reporting Bugs</a></font></h2>
 </td></tr></table>
-If you discover a bug, please report it to <a href="mailto:alex@alexwaugh.com">me</a>, or better still fix it yourself and send me a patch. When reporting a bug, first load syslog, then set the logging option before doing the operation that triggers the bug. If you have access to a machine that can run ethereal then it would be very useful to use that to save a dump of the network traffic along with the syslog file, a description of the problem and exactly what operation you were doing to trigger the bug. Also details of what OS and NFS version the server is running would be helpful. 
+If you discover a bug, please report it to <a href="mailto:alex@alexwaugh.com">me</a>, or better still fix it yourself and send me a patch. When reporting a bug, first load syslog, then set the logging option before doing the operation that triggers the bug. If you have access to a machine that can run ethereal then it would be very useful to use that to save a dump of the network traffic along with the syslog file, a description of the problem and exactly what operation you were doing to trigger the bug. Also details of what OS and NFS version the server is running would be helpful, and the version of the Sunfish module and RISC OS version. 
 <p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="knownbugs">Known Bugs</a></font></h2>
