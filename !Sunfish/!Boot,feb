@@ -1,8 +1,10 @@
 |
-|    $Id: $
-|    $URL: $
+|    $Id$
+|    $URL$
 |
 
 Set File$Type_1B6 Sunfish
 
 IconSprites <Obey$Dir>.!Sprites
+
+Set Alias$@RunType_1B6 Run <Obey$Dir>.!Run %%*0
