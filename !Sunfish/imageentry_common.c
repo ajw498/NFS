@@ -168,7 +168,7 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 			}
 		} else if (name[i] == '!') {
 			buffer[j++] = name[i];
-		} else if (name[i] < '('
+		} else if (name[i] < '\''
 				|| name[i] == '/'
 				|| name[i] == ':'
 				|| name[i] == ';'

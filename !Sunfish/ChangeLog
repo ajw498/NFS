@@ -1,6 +1,7 @@
 v0.92 ??
 Fix bug in IP address handling.
 Fixed bug in reading of auxilliary gids from pcnfsd.
+Allow ' in filenames.
 
 v0.91 18-Oct-03
 Specifying an IP address as the server name now works for addresses
