@@ -517,7 +517,7 @@ void timeval_to_loadexec(struct ntimeval *unixtime, int filetype, unsigned int *
 /* Convert a RISC OS load and execution address into a unix timestamp */
 void loadexec_to_timeval(unsigned int load, unsigned int exec, struct ntimeval *unixtime)
 {
-	if ((load & 0xFFF00000) == 0xFFF00000) {
+	if ((load & 0xFFF00000) != 0xFFF00000) {
 		/* A real load/exec address */
 		unixtime->seconds = -1;
 		unixtime->useconds = -1;
