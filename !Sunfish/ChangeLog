@@ -1,4 +1,4 @@
-v0.98 ??-Feb-04
+v0.98 22-Feb-04
 Fixed bug that could cause directory not empty errors when trying to delete
 a directory.
 Removed limitation of only supporting 4 concurrent OS_GBPB directory
@@ -6,6 +6,7 @@ enumerations per mount.
 Fixed bug that could occasionally cause a stale file handle error when
 writing a file.
 Fix problems with pipelined reading or writing of 0 byte files.
+Fix case-insensitive matching for directory names.
 
 v0.97 12-Jan-04
 Allow ; in filenames.

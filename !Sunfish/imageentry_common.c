@@ -245,7 +245,9 @@ static os_error *lookup_leafname(char *dhandle, char *leafname, int leafnamelen,
 				}
 			}
 
-			if (direntry->name.size == leafnamelen + sizeof(",xyz") - 1) {
+			if (conn->xyzext != NEVER
+			    && direntry->name.size == leafnamelen + sizeof(",xyz") - 1) {
+
 				if (direntry->name.data[leafnamelen] == ','
 				     && isxdigit(direntry->name.data[leafnamelen + 1])
 				     && isxdigit(direntry->name.data[leafnamelen + 2])
@@ -273,8 +275,8 @@ static os_error *lookup_leafname(char *dhandle, char *leafname, int leafnamelen,
 
 /* Convert a leafname into nfs handle and attributes.
    May follow symlinks if needed.
-   Returns a pointer to static data. */
-os_error *leafname_to_finfo(char *leafname, unsigned int len, char *dirhandle, struct diropok **finfo, enum nstat *status, struct conn_info *conn)
+   Returns a pointer to static data, and updates the leafname in place. */
+os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, char *dirhandle, struct diropok **finfo, enum nstat *status, struct conn_info *conn)
 {
 	struct diropargs lookupargs;
 	static struct diropres lookupres;
@@ -282,11 +284,31 @@ os_error *leafname_to_finfo(char *leafname, unsigned int len, char *dirhandle, s
 	int follow;
 
 	lookupargs.name.data = leafname;
-	lookupargs.name.size = len;
+	lookupargs.name.size = *len;
 	memcpy(lookupargs.dir, dirhandle, FHSIZE);
 
 	err = NFSPROC_LOOKUP(&lookupargs, &lookupres, conn);
 	if (err) return err;
+
+	if (!simple && lookupres.status == NFSERR_NOENT) {
+		struct opaque *file;
+
+		err = lookup_leafname(dirhandle, leafname, *len, &file, conn);
+		if (err) return err;
+		if (file == NULL) {
+			*status = NFSERR_NOENT;
+			return NULL;
+		}
+
+		lookupargs.name = *file;
+		memcpy(leafname, file->data, file->size);
+		*len = file->size;
+		leafname[*len] = '\0';
+
+		err = NFSPROC_LOOKUP(&lookupargs, &lookupres, conn);
+		if (err) return err;
+	}
+
 	if (lookupres.status != NFS_OK) {
 		*status = lookupres.status;
 		return NULL;
@@ -313,13 +335,13 @@ os_error *leafname_to_finfo(char *leafname, unsigned int len, char *dirhandle, s
 		segment = link;
 		segmentmaxlen = linkres.u.data.size;
 		if (segmentmaxlen > 0 && segment[0] == '/') {
-			int len = strlen(conn->export);
+			int exportlen = strlen(conn->export);
 
 			/* An absolute link. We can only handle these if they are under
 			   the exported directory */
-			if (segmentmaxlen > len && strncmp(segment, conn->export, len) == 0) {
-				segment += len;
-				segmentmaxlen -= len;
+			if (segmentmaxlen > exportlen && strncmp(segment, conn->export, exportlen) == 0) {
+				segment += exportlen;
+				segmentmaxlen -= exportlen;
 				while (segmentmaxlen > 0 && *segment == '/') {
 					segment++;
 					segmentmaxlen--;
@@ -374,7 +396,6 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 	char *start = filename;
 	char *end;
 	char dirhandle[FHSIZE];
-	struct diropargs current;
 	static struct diropok dirinfo;
 	char *segmentname;
 	unsigned int segmentlen;
@@ -397,7 +418,7 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 
 		if (leafname) *leafname = segmentname;
 
-		err = leafname_to_finfo(segmentname, segmentlen, dirhandle, &segmentinfo, &status, conn);
+		err = leafname_to_finfo(segmentname, &segmentlen, 0, dirhandle, &segmentinfo, &status, conn);
 
 		/* It is not an error if the file isn't found, but the
 		   containing directory must exist */
@@ -432,64 +453,40 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 	} while (*end != '\0');
 
 	/* By this point, the directory has been found, the file may or
-	   may not have been found (either because it doesn't exist, or
-	   because we need to add an ,xyz extension) */
+	   may not have been found */
 
 	/* There's no need to continue if the caller doesn't care about the file */
 	if (finfo == NULL) return NULL;
 
+	if (status != NFS_OK) return NULL;
 
-	if (status == NFSERR_NOENT) {
-		if (conn->xyzext != NEVER) {
-			struct opaque *file;
-	
-			err = lookup_leafname(dirhandle, segmentname, segmentlen, &file, conn);
-			if (err) return err;
-	
-			if (file) {
-				/* A matching file,xyz was found */
-				current.name.data = file->data;
-				current.name.size = file->size;
-				if (leafname && file->size <= MAXNAMLEN) {
-					/* Update the leafname. This is a bit icky as it copies
-					   into unixify's private buffer, but it saves allocating
-					   a new buffer */
-					memcpy(*leafname, file->data, file->size);
-					(*leafname)[file->size] = '\0';
-				}
-	
-				if (filetype) *filetype = (int)strtol(file->data + file->size - 3, NULL, 16);
+	*finfo = segmentinfo;
 
-				/* Lookup the handle with the new leafname */
-				err = leafname_to_finfo(file->data, file->size, dirhandle, &segmentinfo, &status, conn);
-				if (err) return err;
-				if (status != NFS_OK) return gen_nfsstatus_error(status);
-	
-				*finfo = segmentinfo;
+	if (filetype) {
+		if (conn->xyzext == NEVER) {
+			/* Not configured to use the mimetype */
+			*filetype = conn->defaultfiletype;
+		} else {
+			/* Work out the filetype */
+			if (segmentlen > 4 && segmentname[segmentlen - 4] == ','
+				      && isxdigit(segmentname[segmentlen - 3])
+				      && isxdigit(segmentname[segmentlen - 2])
+				      && isxdigit(segmentname[segmentlen - 1])) {
+				/* There is an ,xyz extension */
+				*filetype = (int)strtol(segmentname + segmentlen - 3, NULL, 16);
 
 				if (extfound) *extfound = 1;
-			}
-		}
-	} else {
-		/* The file was found without needing to add ,xyz */
-		*finfo = segmentinfo;
-
-		/* Work out the filetype */
-		if (filetype) {
-			if (conn->xyzext != NEVER) {
+			} else {
+				/* No ,xyz extension, so use mimemap if possible */
 				int lastdot = segmentlen;
 				while (lastdot > 0 && segmentname[lastdot] != '.') lastdot--;
 	
-				/* current.name.data is pointing to unixify's buffer and is 0 terminated */
 		    	if (lastdot) {
 		    		*filetype = lookup_mimetype(segmentname + lastdot + 1, conn);
 				} else {
 					/* No ,xyz and no extension, so use the default */
 					*filetype = conn->defaultfiletype;
 				}
-			} else {
-				/* No ,xyz and not configured to use the mimetype */
-				*filetype = conn->defaultfiletype;
 			}
 		}
 	}

@@ -510,7 +510,7 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 		
 						/* Lookup file attributes.
 						   READDIRPLUS in NFS3 would eliminate this call. */
-						err = leafname_to_finfo(direntry->name.data, direntry->name.size, rddir.dir, &lookupres, &status, conn);
+						err = leafname_to_finfo(direntry->name.data, &(direntry->name.size), 1, rddir.dir, &lookupres, &status, conn);
 						if (err) return err;
 						if (status == NFS_OK) {
 							timeval_to_loadexec(&(lookupres->attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
