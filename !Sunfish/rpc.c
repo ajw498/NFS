@@ -251,7 +251,7 @@ static void logdata(int rx, char *buf, int len)
 {
 	int i;
 
-	syslogf(LOGNAME, LOGDATASUMMARY, "%s data (%d):", rx ? "rx" : "tx", len);
+	syslogf(LOGNAME, LOGDATASUMMARY, "%s data (%d): xid %.2x%.2x%.2x%.2x", rx ? "rx" : "tx", len, buf[0], buf[1], buf[2], buf[3]);
 	for (i=0; i<(len & ~3); i+=4) syslogf(LOGNAME, LOGDATA, "  %.2x %.2x %.2x %.2x", buf[i], buf[i+1], buf[i+2], buf[i+3]);
 	for (i=0; i<(len & 3); i++) syslogf(LOGNAME, LOGDATA, "  %.2x", buf[(len &~3) + i]);
 }

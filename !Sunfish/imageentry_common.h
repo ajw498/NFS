@@ -161,7 +161,7 @@ os_error *gen_error(int num, char *msg, ...);
 #define LOGEXIT  60
 #define LOGERROR 20
 #define LOGDATASUMMARY 70
-#define LOGDATA  80
+#define LOGDATA  130
 
 
 void syslogf(char *logname, int level, char *fmt, ...);

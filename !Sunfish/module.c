@@ -150,7 +150,7 @@ _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
     (void)podule_base;
     (void)private_word;
 
-	if (enablelog) syslogf(LOGNAME, LOGENTRY, "Module finalisation %s %s %s", Module_Title, Module_VersionString, Module_Date);
+	if (enablelog) syslogf(LOGNAME, LOGENTRY, "Module finalisation");
 
     if (!finalised) err = _swix(OS_FSControl, _INR(0,1), 36, IMAGE_FILETYPE);
     finalised = 1;

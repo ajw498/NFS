@@ -56,7 +56,7 @@ imageentry_bytes.o \
 imageentry_openclose.o \
 imageentry_common.o
 
-$(OBJS) $(GENOBJS): $(GENHDRS) imageentry_common.h
+$(OBJS) $(GENOBJS): $(GENHDRS) imageentry_common.h moduledefs.h
 
 Sunfish: $(OBJS) $(GENOBJS)
 	link -m -o Sunfish $(OBJS) $(GENOBJS) $(LIBS)

@@ -1,5 +1,6 @@
 v0.97 ??-Jan-04
 Allow ; in filenames.
+Minor improvements to logging code.
 
 v0.96 14-Dec-03
 Fixed bug that could cause some filetypes to be incorrectly set to the

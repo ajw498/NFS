@@ -33,6 +33,8 @@
 
 #include "imageentry_func.h"
 
+#include "moduledefs.h"
+
 #include "rpc-calls.h"
 #include "nfs-calls.h"
 #include "mount-calls.h"
@@ -307,7 +309,10 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 		return err;
 	}
 
-	if (conn->logging) enablelog++;
+	if (conn->logging) {
+		enablelog++;
+		syslogf(LOGNAME, LOGENTRY, "Logging enabled for new connection %s %s %s", Module_Title, Module_VersionString, Module_Date);
+	}
 
 	if (conn->machinename == NULL) {
 		/* Get the hostname of the machine we are running on */
