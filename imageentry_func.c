@@ -104,13 +104,14 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		conn->logging = (int)strtol(val, NULL, 10);
 	} else if (CHECK("umask")) {
 		conn->umask = (int)strtol(val, NULL, 8); /* umask is specified in octal */
-	} else if (CHECK("ShowHiddenFiles")) {
+	} else if (CHECK("ShowHidden")) {
 		conn->hidden = (int)strtol(val, NULL, 10);
 	} else if (CHECK("Timeout")) {
 		conn->timeout = (int)strtol(val, NULL, 10);
 	} else if (CHECK("Retries")) {
 		conn->retries = (int)strtol(val, NULL, 10);
 	}
+	/* Ignore unrecognised lines */
 	return NULL;
 }
 
@@ -234,7 +235,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	if (conn->logging) enablelog++;
 
 	if (conn->password) {
-		/* use pcnfd to map to uid/gid */
+		/* use pcnfsd to map to uid/gid */
 	}
 
 	if (conn->machinename == NULL) {
@@ -305,7 +306,6 @@ struct dir_entry {
 	int len;
 	int attr;
 	int type;
-/*	char name[1];*/
 };
 
 #define return_error(msg) return gen_error(1,msg)
@@ -338,15 +338,23 @@ static char *filename_unixify(char *name, int len)
 	return namebuffer;
 }
 
+#define MimeMap_Translate 0x50B00
+#define MMM_TYPE_RISCOS 0
+#define MMM_TYPE_RISCOS_STRING 1
+#define MMM_TYPE_MIME 2
+#define MMM_TYPE_DOT_EXTN 3
+
 static int filename_riscosify(char *name, int len, char **buffer)
 {
 	int i;
-	int filetype = 0xFFF;
+	int filetype = -1;
+	char *lastdot = NULL;
 
 	for (i = 0; i < len; i++) {
 		switch (name[i]) {
 			case '.':
 				(*buffer)[i] = '/';
+				lastdot = name + i;
 				break;
 			case ' ':
 				(*buffer)[i] = 160;
@@ -371,7 +379,16 @@ static int filename_riscosify(char *name, int len, char **buffer)
 	}
 	(*buffer)[len] = '\0';
 	(*buffer) += (len + 4) & ~3;
+    if (filetype == -1 && lastdot) {
+    	os_error *err;
 
+    	/* No explicit ,xyz found, so try MimeMap to get a filetype */
+    	err = _swix(MimeMap_Translate,_INR(0,2) | _OUT(3), MMM_TYPE_DOT_EXTN, lastdot + 1, MMM_TYPE_RISCOS, &filetype);
+    	if (err) filetype = 0xFFF;
+    } else {
+    	/* No ,xyz and no extension, so default to text */
+    	filetype = 0xFFF;
+    }
 	return filetype;
 }
 
@@ -515,7 +532,11 @@ os_error *func_readdirinfo(int info, char *dirname, void *buffer, int numobjs, i
 	swap_rxbuffers();
 	direntry = rdres.u.readdirok.entries;
 	while (direntry) {
-		if (direntry->name.size == 1 && direntry->name.data[0] == '.') {
+		if (direntry->name.size == 0) {
+			/* Ignore null names */
+		} else if (!conn->hidden && direntry->name.data[0] == '.') {
+			/* Ignore hidden files if so configured */
+		} else if (direntry->name.size == 1 && direntry->name.data[0] == '.') {
 			/* current dir */
 		} else if (direntry->name.size == 2 && direntry->name.data[0] == '.' && direntry->name.data[1] == '.') {
 			/* parent dir */
