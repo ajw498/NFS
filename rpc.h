@@ -30,6 +30,14 @@ struct conn_info {
 	int sock;
 	long timeout;
 	int retries;
+	int hidden;
+	int umask;
+	char *gids;
+	int uid;
+	int gid;
+	char *username;
+	char *password;
+	int logging;
 };
 
 void rpc_init_header(void);
@@ -41,6 +49,12 @@ os_error *rpc_do_call(struct conn_info *conn);
 #define rpc_buffer_overflow() gen_error(1,"rpc Buffer overflow")
 
 os_error *gen_error(int num, char *msg, ...); /* This shouldn't be in this file */
+
+extern int enablelog;
+
+void syslogf(char *logname, int level, char *fmt, ...);
+
+void log_error(os_error *err);
 
 #define ERRBASE 1
 #define RPCERRBASE 1

@@ -52,7 +52,9 @@ void tm_service(int service_number, _kernel_swi_regs *r, void *private_word)
 #define UNSUPP 1
 #define UNSUPPMESS "Unsupported entry point called"
 
-static int enablelog = 1;
+/* A count of the number of connections that have logging enabled.
+   We log all connections if any of them have logging enabled. */
+int enablelog = 0;
 
 
 os_error *gen_error(int num, char *msg, ...)
@@ -67,7 +69,7 @@ os_error *gen_error(int num, char *msg, ...)
 	return &module_err_buf;
 }
 
-static void syslogf(char *logname, int level, char *fmt, ...)
+void syslogf(char *logname, int level, char *fmt, ...)
 {
 	static char syslogbuf[1024];
 	va_list ap;
@@ -82,10 +84,15 @@ static void syslogf(char *logname, int level, char *fmt, ...)
 	_kernel_swi(0x4C880,&r,&r);
 }
 
+void log_error(os_error *err)
+{
+	syslogf(LOGNAME, LOGERROR, "Error %x, %s", err->errnum, err->errmess);
+}
+
 static void logexit(_kernel_swi_regs *r, os_error *err)
 {
 	if (err) {
-		syslogf(LOGNAME, LOGERROR, "Error %x, %s", err->errnum, err->errmess);
+		log_error(err);
 	} else {
 		syslogf(LOGNAME, LOGEXIT, "Exit %x %x %x %x %x %x %x",r->r[0],r->r[1],r->r[2],r->r[3],r->r[4],r->r[5],r->r[6]);
 	}

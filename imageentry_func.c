@@ -12,6 +12,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <swis.h>
+#include <unixlib.h>
 
 #include "imageentry_func.h"
 
@@ -22,11 +23,13 @@
 #define NOMEM 1
 #define NOMEMMESS "Out of memory"
 
+/*FIXME*/
+#define IMAGEERRBASE 20
+
 static void free_conn_info(struct conn_info *conn)
 {
 	if (conn == NULL) return;
-	if (conn->server) free(conn->server);
-	if (conn->export) free(conn->export);
+	if (conn->config) free(conn->config);
 	free(conn);
 }
 
@@ -38,32 +41,114 @@ os_error *func_closeimage(struct conn_info *conn)
 	dir.size = strlen(conn->export);
 	dir.data = conn->export;
 	err = MNTPROC_UMNT(&dir, conn);
-	/*if (err) return err; */
+	if (err && enablelog) log_error(err);
 
 	/* Close socket etc. */
 	err = rpc_close_connection(conn);
-	/*if (err) return err; */
+	if (err && enablelog) log_error(err);
+
+	if (conn->logging) enablelog--;
 
 	free_conn_info(conn);
-	return NULL; /* Should we supress errors from UMNT? */
+	/* Don't return an error as neither of the above is essential,
+	   and giving an error will prevent killing the module */
+	return NULL;
 }
 
-/*#define CHECK(str) ((ch - file == sizeof(str)) && (strncasecmp(file,str,sizeof(str))==0))
-void parse_file(char *file, int size, struct conn_info *conn)
+#define CHECK(str) (strncasecmp(line,str,sizeof(str))==0)
+
+
+static os_error *parse_line(char *line, struct conn_info *conn)
 {
-	char *ch = file;
-	char *end = file + size;
+	char *val;
 
-	do {
-		while (ch < end && *ch != ':' && *ch != '\n') ch++;
-		if (ch >= end) return;
-		if (CHECK("Protocol")) {
-			do ch++; while (ch < end && *ch == ' ');
+	/* Find the end of the field */
+	val = line;
+	while (*val && *val != ':') val++;
+	if (*val) *val++ = '\0';
+	/* Find the start of the value.
+	   Trailing spaces have already been removed by parse_file */
+	while (isspace(*val)) val++;
+
+	if (CHECK("#")) {
+		/* A comment */
+	} else if (CHECK("Protocol")) {
+		if (strcasecmp(val, "NFS2") != 0) {
+			return gen_error(IMAGEERRBASE + 0, "Unknown protocol '%s'", val);
 		}
-		*ch = '\0'
-	
+	} else if (CHECK("Server")) {
+		conn->server = val;
+	} else if (CHECK("PortMapperPort")) {
+		conn->portmapper_port = (int)strtol(val, NULL, 10);
+	} else if (CHECK("MountPort")) {
+		conn->mount_port = (int)strtol(val, NULL, 10);
+	} else if (CHECK("NFSPort")) {
+		conn->nfs_port = (int)strtol(val, NULL, 10);
+	} else if (CHECK("Export")) {
+		conn->export = val;
+	} else if (CHECK("UID")) {
+		conn->uid = (int)strtol(val, NULL, 10);
+	} else if (CHECK("GID")) {
+		conn->gid = (int)strtol(val, NULL, 10);
+	} else if (CHECK("GIDs")) {
+		conn->gids = val;
+	} else if (CHECK("Username")) {
+		conn->username = val;
+	} else if (CHECK("Password")) {
+		conn->password = val;
+	} else if (CHECK("Logging")) {
+		conn->logging = (int)strtol(val, NULL, 10);
+	} else if (CHECK("umask")) {
+		conn->umask = (int)strtol(val, NULL, 8); /* umask is specified in octal */
+	} else if (CHECK("ShowHiddenFiles")) {
+		conn->hidden = (int)strtol(val, NULL, 10);
+	} else if (CHECK("Timeout")) {
+		conn->timeout = (int)strtol(val, NULL, 10);
+	} else if (CHECK("Retries")) {
+		conn->retries = (int)strtol(val, NULL, 10);
+	}
+	return NULL;
+}
 
-} */
+/* Read a config file and fill in the conn structure */
+static os_error *parse_file(unsigned int fileswitchhandle, struct conn_info *conn)
+{
+	char *ch;
+	char *end;
+	unsigned int size;
+	unsigned int remain;
+	os_error *err;
+
+	/* Get filesize */
+	err = _swix(OS_Args, _INR(0,1) | _OUT(2), 2, fileswitchhandle, &size);
+	if (err) return err;
+	
+	conn->config = malloc(size + 1); /* Allow space for a terminating 0 */
+	if (conn->config == NULL) return gen_error(NOMEM,NOMEMMESS);
+
+	/* Load entire file into memory */
+	err = _swix(OS_GBPB, _INR(0,4) | _OUT(3), 3, fileswitchhandle, conn->config, size, 0, &remain);
+	if (err) return err;
+	size -= remain;
+
+	/* Split the file into lines */
+	ch = conn->config;
+	end = ch + size;
+	do {
+		char *line = ch;
+		char *endspc;
+
+		/* Find end of line */
+		while (ch < end && *ch != '\n') ch++;
+		*ch++ = '\0';
+		/* Strip trailing spaces */
+		endspc = ch - 2;
+		while (endspc > line && isspace(*endspc)) endspc--;
+		err = parse_line(line, conn);
+	} while (ch < end && err == NULL);
+
+	return err;
+}
 
 os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhandle)
 {
@@ -71,46 +156,46 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	string dir;
 	struct fhstatus rootfh;
 	os_error *err;
-	int size;
-	int remain;
 
+	/* Allocate the conn structure which hold all information about the mount.
+	   The image filing system internal handle is a pointer to this struct */
 	conn = malloc(sizeof(struct conn_info));
 	if (conn == NULL) return gen_error(NOMEM,NOMEMMESS);
 	*myhandle = conn;
 
 	/* Set defaults */
+	conn->config = NULL;
 	conn->portmapper_port = PMAP_PORT;
 	conn->mount_port = 0;
 	conn->nfs_port = 0;
-	/*conn->auth = ;*/
-	conn->server = NULL;
-	conn->export = NULL;
-	conn->timeout = 1;
+	conn->server = "";
+	conn->export = "";
+	conn->timeout = 5;
 	conn->retries = 2;
+	conn->hidden = 1;
+	conn->umask = 022;
+	conn->username = NULL;
+	conn->password = NULL;
+	conn->uid = 0;
+	conn->gid = 0;
+	conn->gids = NULL;
+	conn->logging = 0;
 
 	/* Read details from file */
-	err = _swix(OS_Args, _INR(0,1) | _OUT(2), 2, fileswitchhandle, &size);
+	err = parse_file(fileswitchhandle, conn);
 	if (err) {
 		free_conn_info(conn);
 		return err;
 	}
-	conn->config = malloc(size+1);
-	if (conn->config == NULL) {
-		free_conn_info(conn);
-		return gen_error(NOMEM,NOMEMMESS);
-	}
-	err = _swix(OS_GBPB, _INR(0,4)|_OUT(3), 3, fileswitchhandle, conn->config, size, 0, &remain);
-	if (err || remain) {
-		free_conn_info(conn);
-		if (err) return err;
-		return gen_error(1,"gbpb failed");
-	}
-	conn->server = "mint";
-	conn->export = "/nfssandbox";
+
+	if (conn->logging) enablelog++;
 
 	/* Initialise socket etc. */
 	err = rpc_init_connection(conn);
-	if (err) return err; /*leak*/
+	if (err) {
+		free_conn_info(conn);
+		return err;
+	}
 
 	/* Get port numbers if not specified */
 	if (conn->mount_port == 0) {
@@ -146,19 +231,12 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 		return err;
 	}
 	if (rootfh.status != 0) {
-		/* status is an errno value */
-		static _kernel_oserror mnterr = {1,"mount failed"};
 		free_conn_info(conn);
-		return &mnterr;
+		/* status is an errno value, not exactly portable */
+		return gen_error(IMAGEERRBASE + 0, "Mount of '%s' failed (%d)", conn->export, rootfh.status);
 	}
 	memcpy(conn->rootfh, rootfh.u.directory, FHSIZE);
 
-	{
-		struct statfsargs args;
-		struct statfsres res;
-		memcpy(args.fhandle, conn->rootfh, FHSIZE);
-		NFSPROC_STATFS(&args,&res,conn);
-	}
 	return NULL;
 }
 
@@ -334,7 +412,7 @@ static void timeval_to_loadexec(struct ntimeval *unixtime, int filetype, int *lo
 	int64_t csecs;
 	csecs = unixtime->seconds;
 	csecs *= 100;
-	csecs += (unixtime->useconds / 10);
+	csecs += (int64_t)(unixtime->useconds / (long)10);
 	csecs += 0x336e996a00; /* Difference between 1900 and 1970 */
 	*load = (int)((csecs >> 32) & 0xFF);
 	*load |= (0xFFF00000 | ((filetype & 0xFFF) << 8));
