@@ -66,7 +66,7 @@ os_error *func_closeimage(struct conn_info *conn)
 	dir.size = strlen(conn->export);
 	dir.data = conn->export;
 	err = MNTPROC_UMNT(&dir, conn);
-	if (err && enablelog) log_error(err);
+	if (err && err != ERR_WOULDBLOCK && enablelog) log_error(err);
 
 	/* Close socket etc. */
 	err = rpc_close_connection(conn);

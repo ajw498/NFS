@@ -259,6 +259,8 @@ while (<>) {
       if ($procname =~ m/(WRITE)|(READ)$/) {
         $proto .= ", enum callctl calltype";
         $calltype = "calltype";
+      } elsif ($procname =~ m/UMNT/) {
+        $calltype = "TXNONBLOCKING";
       }
       $proto .= ")";
       if ($procname =~ m/^NFS/) {
@@ -282,6 +284,7 @@ while (<>) {
       print CALLS "_$args" if (($types{$args} =~ /(struct)|(union)|(linklist)/));
       print CALLS "(OUTPUT, (*args), $typessize{$args});\n";
       print CALLS "\terr = rpc_do_call(conn, $calltype);\n";
+      print CALLS "\trpc_resetfifo();\n" if ($procname =~ m/UMNT/);
       print CALLS "\tif (err) return err;\n";
       print CALLS "\tprocess_$types{$res}";
       print CALLS "_${res}" if (($types{$res} =~ /(struct)|(union)|(linklist)/));
