@@ -1,6 +1,6 @@
 /*
-	$Id: $
-	$URL: $
+	$Id$
+	$URL$
 
 	Bits shared between the module and the frontend
 */
