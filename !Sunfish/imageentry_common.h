@@ -137,6 +137,7 @@ struct conn_info {
 	int nextcookie;
 	int cookies[MAX_DIRSTREAMS];
 	int followsymlinks;
+	int pipelining;
 };
 
 /* The default port range to bind to. */

@@ -160,6 +160,8 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		conn->localportmin = (int)strtol(val, &end, 10);
 		conn->localportmax = (int)strtol(end, NULL, 10);
 		if (conn->localportmax == 0) conn->localportmax = conn->localportmin;
+	} else if (CHECK("Pipelining")) {
+		conn->pipelining = (int)strtol(val, NULL, 10);
 	} else if (CHECK("MaxDataBuffer")) {
 		conn->maxdatabuffer = (int)strtol(val, NULL, 10);
 		if (conn->maxdatabuffer > MAXDATA) conn->maxdatabuffer = MAXDATA;
@@ -296,6 +298,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->maxdatabuffer =  MAXDATABUFFER_DEFAULT;
 	conn->nextcookie = 0;
 	conn->followsymlinks = 5;
+	conn->pipelining = 0;
 
 	/* Read details from file */
 	err = parse_file(fileswitchhandle, conn);

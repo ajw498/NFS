@@ -54,7 +54,7 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 		len -= args.count;
 		if (args.count > 0) outstanding++;
 
-		err = NFSPROC_READ(&args, &res, handle->conn, 1/*handle->conn->pipelining*/ ? (args.count > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING);
+		err = NFSPROC_READ(&args, &res, handle->conn, handle->conn->pipelining ? (args.count > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING);
 		if (err != ERR_WOULDBLOCK) {
 			if (err) return err;
 			if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
@@ -79,6 +79,7 @@ os_error *writebytes(char *fhandle, char *buffer, unsigned int len, unsigned int
 	os_error *err;
 	struct writeargs args;
 	struct attrstat res;
+	int outstanding = 0;
 
 	args.beginoffset = 0; /* Unused in NFS2 */
 	args.totalcount = 0;  /* Unused in NFS2 */
@@ -92,11 +93,15 @@ os_error *writebytes(char *fhandle, char *buffer, unsigned int len, unsigned int
 		len -= args.data.size;
 		args.data.data = buffer;
 		buffer += args.data.size;
+		if (args.data.size > 0) outstanding++;
 
-		err = NFSPROC_WRITE(&args, &res, conn, TXBLOCKING);
-		if (err) return err;
-		if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
-	} while (len > 0);
+		err = NFSPROC_WRITE(&args, &res, conn, conn->pipelining ? (args.data.size > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING);
+		if (err != ERR_WOULDBLOCK) {
+			if (err) return err;
+			if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
+			outstanding--;
+		}
+	} while (len > 0 || outstanding > 0);
 
 	return NULL;
 }
