@@ -1,46 +1,53 @@
 /*
-	!PHP
-	Copyright © Alex Waugh 2000
+	$Id$
+	$URL$
 
-	$Id: PHPFrontEnd.c,v 1.4 2002/12/13 22:31:10 ajw Exp $
+	Frontend for creating mount files
 
 
-    This program is free software; you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation; either version 2 of the License, or
-    (at your option) any later version.
-
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
-
-    You should have received a copy of the GNU General Public License
-    along with this program; if not, write to the Free Software
-    Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
-
+	Copyright (C) 2003 Alex Waugh
+	
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 2 of the License, or
+	(at your option) any later version.
+	
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+	
+	You should have received a copy of the GNU General Public License
+	along with this program; if not, write to the Free Software
+	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-/*#include <swis.h>*/
+#include <kernel.h>
 #include <stdarg.h>
 
 #include "Event.h"
+
 #include "oslib/gadget.h"
 #include "oslib/radiobutton.h"
 #include "oslib/optionbutton.h"
 #include "oslib/writablefield.h"
 #include "oslib/numberrange.h"
 #include "oslib/window.h"
+#include "oslib/iconbar.h"
 
+#include "oslib/osfile.h"
+#include "oslib/osfscontrol.h"
 
 #define event_main_SHOW 0x100
 #define event_main_SET  0x101
 #define event_main_HIDE 0x102
 #define event_QUIT 0x103
 #define event_main_PCNFSD 0x104
+#define event_MOUNT 0x105
+#define event_SHOWMOUNTS 0x106
 
 #define event_ports_SHOW 0x200
 #define event_ports_SET  0x201
@@ -83,6 +90,7 @@
 #define gadget_main_GIDS                  0x7
 #define gadget_main_UMASK                 0xa
 #define gadget_main_USEPCNFSD             0x4
+#define gadget_main_LEAFNAME              0x15
 
 #define UNUSED(x) ((void)x)
 
@@ -126,24 +134,129 @@ struct mount {
 };
 
 static struct mount mount = {0,5,1,0xfff,1,0777,111,0,0,0,800,900,"fudge",2048,1,3,2,0,"mint","/home/foo","user","pass",100,"345 3",022,1};
-/*
-#define Syslog_LogMessage 0x4c880 
-void syslogf(char *logname, int level, char *fmt, ...)
-{
-	static char syslogbuf[1024];
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsnprintf(syslogbuf, sizeof(syslogbuf), fmt, ap);
-	va_end(ap);
-
-	* Ignore any errors, as there's not much we can do with them *
-	_swix(Syslog_LogMessage, _INR(0,2), logname, syslogbuf, level);
-}*/
 
 static toolbox_o filenamesid;
 static toolbox_o portsid;
 static toolbox_o connectionid;
+
+static void mount_save(char *filename)
+{
+	FILE *file;
+	file = fopen(filename, "w");
+	if (file == NULL) {
+		xwimp_report_error((os_error*)_kernel_last_oserror(),0,"Sunfish",NULL);
+		return;
+	}
+
+	fprintf(file,"Protocol: NFS2\n");
+	fprintf(file,"Server: %s\n",mount.server);
+	fprintf(file,"Export: %s\n",mount.export);
+	if (mount.usepcnfsd) {
+		fprintf(file,"Password: %s\n",mount.password);
+		fprintf(file,"Username: %s\n",mount.username);
+	} else {
+		int gid;
+		char *gids;
+		fprintf(file,"uid: %d\n",mount.uid);
+		gid = (int)strtol(mount.gids, &gids, 10);
+		fprintf(file,"gid: %d\n",gid);
+		fprintf(file,"gids: %s\n",gids);
+		fprintf(file,"umask: %.3o\n",mount.umask);
+	}
+	fprintf(file,"ShowHidden: %d\n",mount.showhidden);
+	fprintf(file,"FollowSymlinks: %d\n",mount.followsymlinks);
+	fprintf(file,"CaseSensitive: %d\n",mount.casesensitive);
+	fprintf(file,"DefaultFiletype: %.3X\n",mount.defaultfiletype);
+	fprintf(file,"AddExt: %d\n",mount.addext);
+	fprintf(file,"unumask: %.3o\n",mount.unumask);
+	if (mount.portmapperport) fprintf(file,"PortmapperPort: %d\n",mount.portmapperport);
+	if (mount.nfsport) fprintf(file,"NFSPort: %d\n",mount.nfsport);
+	if (mount.pcnfsdport) fprintf(file,"PCNFSDPort: %d\n",mount.pcnfsdport);
+	if (mount.mountport) fprintf(file,"MountPort: %d\n",mount.mountport);
+	if (mount.localportmin && mount.localportmin) fprintf(file,"LocalPort: %d %d\n",mount.localportmin,mount.localportmax);
+	if (mount.machinename[0]) fprintf(file,"MachineName: %s\n",mount.machinename);
+	fprintf(file,"MaxDataBuffer: %d\n",mount.maxdatabuffer);
+	fprintf(file,"Pipelining: %d\n",mount.pipelining);
+	fprintf(file,"Timeout: %d\n",mount.timeout);
+	fprintf(file,"Retries: %d\n",mount.retries);
+	fprintf(file,"Logging: %d\n",mount.logging);
+	fclose(file);
+
+	E(xosfile_set_type(filename, 0x1b6/*FIXME*/));
+}
+
+struct mounticon {
+	toolbox_o icon;
+	char filename[1024];
+	struct mounticon *next;
+};
+
+static struct mounticon *iconhead = NULL;
+
+static toolbox_o unmountedicon;
+
+static osbool mount_open(bits event_code, toolbox_action *event, toolbox_block *id_block, void *mountdetails)
+{
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(id_block);
+
+	char buf[1024];
+
+	snprintf(buf, sizeof(buf), "Filer_OpenDir %s",((struct mounticon *)mountdetails)->filename);
+	E(xwimp_start_task(buf, NULL));
+
+	return 1;
+}
+
+static osbool mount_showall(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
+{
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(id_block);
+	UNUSED(handle);
+
+	E(xwimp_start_task("Filer_OpenDir Sunfish:mounts", NULL));
+
+	return 1;
+}
+
+static void add_mount(char *filename)
+{
+	toolbox_o icon;
+	char *leaf;
+	wimp_i oldicon;
+	struct mounticon *mountdetails = malloc(sizeof(struct mounticon));
+	struct mounticon *details;
+
+	if (mountdetails == NULL) return; /*FIXME*/
+
+	/*E(xosfscontrol_canonicalise_path(filename, mountdetails->filename, 0, 0, sizeof(mountdetails->filename), NULL));*/
+	strcpy(mountdetails->filename, filename); /**/
+
+	for (details = iconhead; details != NULL; details = details->next) {
+		if (strcmp(details->filename, mountdetails->filename) == 0) {
+			free(mountdetails);
+			return;
+		}
+	}
+	leaf = strrchr(mountdetails->filename,'.');
+	if (leaf == NULL) leaf = mountdetails->filename; else leaf++;
+
+	E(xtoolbox_create_object(0, (toolbox_id)"mounted", &icon));
+	E(xiconbar_set_text(0, icon, leaf));
+ 	event_register_toolbox_handler(icon, event_MOUNT,  mount_open, mountdetails);
+
+    E(xiconbar_get_icon_handle(0, iconhead == NULL ? unmountedicon : iconhead->icon, &oldicon));
+	E(xtoolbox_show_object(0, icon, toolbox_POSITION_FULL, (toolbox_position*)&oldicon, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
+
+	if (iconhead == NULL) {
+		E(xtoolbox_hide_object(0, unmountedicon));
+	}
+	mountdetails->icon = icon;
+	mountdetails->next = iconhead;
+	iconhead = mountdetails;
+}
 
 static osbool filenames_open(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
 {
@@ -347,6 +460,8 @@ static osbool mainwin_open(bits event_code, toolbox_action *event, toolbox_block
 	E(xwritablefield_set_value(0, id_block->this_obj, gadget_main_UMASK, tmp));
 	E(xradiobutton_set_state(0, id_block->this_obj, gadget_main_USEPCNFSD, mount.usepcnfsd));
 
+	E(xwritablefield_set_value(0, id_block->this_obj, gadget_main_LEAFNAME, ""));
+
 	pcnfsd_toggle(event_code, event, id_block, handle);
 	return 1;
 }
@@ -356,7 +471,8 @@ static osbool mainwin_set(bits event_code, toolbox_action *event, toolbox_block 
 	UNUSED(event_code);
 	UNUSED(event);
 	UNUSED(handle);
-	char tmp[11];
+	char tmp[256];
+	char filename[256];
 
 	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_SERVER, mount.server, sizeof(tmp), NULL));
 	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_EXPORT, mount.export, sizeof(tmp), NULL));
@@ -369,6 +485,15 @@ static osbool mainwin_set(bits event_code, toolbox_action *event, toolbox_block 
 	mount.umask = (int)strtol(tmp, NULL, 8);
 	E(xradiobutton_get_state(0, id_block->this_obj, gadget_main_USEPCNFSD, &mount.usepcnfsd, NULL));
 
+	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_LEAFNAME, tmp, sizeof(tmp), NULL));
+	snprintf(filename, sizeof(filename), "<Sunfish$Write>.mounts.%s", tmp);
+	mount_save(filename);
+
+	snprintf(filename, sizeof(filename), "Filer_OpenDir Sunfish:mounts.%s",tmp);
+	E(xwimp_start_task(filename, NULL));
+
+	snprintf(filename, sizeof(filename), "Sunfish:mounts.%s",tmp);
+    add_mount(filename);
 	return 1;
 }
 
@@ -415,7 +540,7 @@ static osbool autocreated(bits event_code, toolbox_action *event, toolbox_block 
 	return 1;
 }
 
-static int message_quit(wimp_message *message,void *handle)
+static osbool message_quit(wimp_message *message,void *handle)
 {
 	UNUSED(message);
 	UNUSED(handle);
@@ -424,6 +549,22 @@ static int message_quit(wimp_message *message,void *handle)
 	return 1;
 }
 
+static osbool message_data_open(wimp_message *message, void *handle)
+{
+	UNUSED(handle);
+	bits filetype = message->data.data_xfer.file_type;
+	bits load;
+
+	if (filetype == 0x1000) {
+		if (xosfile_read_no_path(message->data.data_xfer.file_name, NULL, &load, NULL, NULL, NULL) == NULL) {
+			if ((load & 0xFFF00000) == 0xFFF00000) filetype = (load & 0x000FFF00) >> 8;
+		}
+	}
+	if (filetype == 0x1b6 /*FIXME*/) {
+		add_mount(message->data.data_xfer.file_name);
+	}
+	return 1;
+}
 
 int main(void)
 {
@@ -447,6 +588,8 @@ int main(void)
 	event_register_toolbox_handler(event_ANY, event_main_SET,  mainwin_set, NULL);
 	event_register_toolbox_handler(event_ANY, event_main_PCNFSD,  pcnfsd_toggle, NULL);
 
+	event_register_toolbox_handler(event_ANY, event_SHOWMOUNTS,  mount_showall, NULL);
+
 	event_register_toolbox_handler(event_ANY, event_filenames_SHOW, filenames_open, NULL);
 	event_register_toolbox_handler(event_ANY, event_filenames_SET,  filenames_set, NULL);
 
@@ -458,6 +601,14 @@ int main(void)
 
 	event_register_toolbox_handler(event_ANY, action_OBJECT_AUTO_CREATED, autocreated, NULL);
 	event_register_message_handler(message_QUIT, message_quit, NULL);
+
+	event_register_message_handler(message_DATA_OPEN, message_data_open, NULL);
+
+	E(xtoolbox_create_object(0, (toolbox_id)"unmounted", &unmountedicon));
+	E(xtoolbox_show_object(0, unmountedicon, toolbox_POSITION_DEFAULT, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
+
+	xosfile_create_dir("<Sunfish$Write>", 0);
+	xosfile_create_dir("<Sunfish$Write>.mounts", 0);
 
 	while (TRUE) event_poll(&event_code, &poll_block, 0);
 
