@@ -283,6 +283,7 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 {
 	struct diropargs lookupargs;
 	static struct diropres lookupres;
+	static struct diropres lookupres2;
 	os_error *err;
 	int follow;
 
@@ -317,16 +318,19 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 		return NULL;
 	}
 
+	*finfo = &(lookupres.u.diropok);
+	memcpy(&lookupres2, &lookupres, sizeof(struct diropres));
+
 	follow = followsymlinks ? conn->followsymlinks : 0;
 	
-	while (follow > 0 && lookupres.u.diropok.attributes.type == NFLNK) {
+	while (follow > 0 && lookupres2.u.diropok.attributes.type == NFLNK) {
 		struct readlinkargs linkargs;
 		struct readlinkres linkres;
 		char *segment;
 		unsigned int segmentmaxlen;
 		static char link[MAXPATHLEN];
 
-		memcpy(linkargs.fhandle, lookupres.u.diropok.file, FHSIZE);
+		memcpy(linkargs.fhandle, lookupres2.u.diropok.file, FHSIZE);
 		err = NFSPROC_READLINK(&linkargs, &linkres, conn);
 		if (err) return err;
 		if (linkres.status != NFS_OK) {
@@ -351,8 +355,11 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 				}
 				dirhandle = conn->rootfh;
 			} else {
-				/* Not within the export */
-				*status = NFSERR_NOENT;
+				/* Not within the export. Return the details
+				   of the symlink instead. If we returned
+				   NFSERR_NOENT then you wouldn't be able
+				   to delete the link. */
+				*status = NFS_OK;
 				return NULL;
 			}
 		}
@@ -360,6 +367,7 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 		/* segment must now be a link relative to dirhandle */
 		while (segmentmaxlen > 0) {
 			int i = 0;
+			static struct diropres lookupres2;
 
 			while (i < segmentmaxlen && segment[i] != '/') i++;
 	
@@ -367,14 +375,21 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 			lookupargs.name.size = i;
 			memcpy(lookupargs.dir, dirhandle, FHSIZE);
 	
-			err = NFSPROC_LOOKUP(&lookupargs, &lookupres, conn);
+			err = NFSPROC_LOOKUP(&lookupargs, &lookupres2, conn);
 			if (err) return err;
-			if (lookupres.status != NFS_OK) {
-				*status = lookupres.status;
+			if (lookupres2.status != NFS_OK) {
+				if (lookupres2.status == NFSERR_NOENT) {
+					/* Return the details for the last
+					   valid symlink */
+					*status = NFS_OK;
+				} else {
+					*status = lookupres2.status;
+				}
 				return NULL;
 			}
+			*finfo = &(lookupres2.u.diropok);
 
-			if (lookupres.u.diropok.attributes.type == NFDIR) dirhandle = lookupres.u.diropok.file;
+			if (lookupres2.u.diropok.attributes.type == NFDIR) dirhandle = lookupres2.u.diropok.file;
 			while (i < segmentmaxlen && segment[i] == '/') i++;
 			segment += i;
 			segmentmaxlen -= i;
@@ -382,7 +397,6 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 		follow--;
 	}
 
-	*finfo = &(lookupres.u.diropok);
 	*status = NFS_OK;
 
 	return NULL;
