@@ -421,6 +421,7 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 		if (leafname) *leafname = segmentname;
 
 		err = leafname_to_finfo(segmentname, &segmentlen, 0, dirhandle, &segmentinfo, &status, conn);
+		if (err) return err;
 
 		/* It is not an error if the file isn't found, but the
 		   containing directory must exist */

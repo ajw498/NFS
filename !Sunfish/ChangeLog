@@ -1,3 +1,6 @@
+v1.02 ???
+Fixed a bug where an error could occasionally be misreported.
+
 v1.01 7-Oct-04
 Add flag to detect if we are reentered from a callback and give a sensible
 error if this occurs rather than loosing track of recieved packets.
