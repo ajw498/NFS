@@ -187,6 +187,11 @@ If set to 1 then all operations will be reported to syslog. This should only be 
 <h4>umask</h4>
 The umask to use, specified in octal. All operations that modify a files attributes will have the Unix mode bits modified according to the umask. If not specified, it defaults to 022. If pcnfsd is used then the umask returned by that will override this setting.
 <p>
+<h4>unumask</h4>
+RISC OS does not have any concept like a umask - the default attributes of a file are decided by the application that creates the file. Usually the default chosen is private read/write set and public read/write clear. The unumask allows you to force particular unix mode bits to be set, and is specified in octal in the same format as the umask. If not specified, it defaults to 0.
+<p>
+The RISC OS attributes are first converted to unix mode bits, with the private attributes mapping to user permissions, and the public attributes mapping to the group and others permissions (if a public attribute is set then both the corresponding group and others permission bit will be set). This value is then ORed with the unumask, and then ANDed with the inverse of the umask to give the final unix mode bits.
+<p>
 <h4>ShowHidden</h4>
 If set to 1, all files will be shown, if set to 0 then all files beginning with a . will be hidden from filer views. If not specified, then defaults to 1.
 <p>

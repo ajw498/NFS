@@ -1,6 +1,8 @@
 v0.97 ??-Jan-04
 Allow ; in filenames.
 Minor improvements to logging code.
+Fix bug that could leave an open socket if mounting failed.
+Added unumask option.
 
 v0.96 14-Dec-03
 Fixed bug that could cause some filetypes to be incorrectly set to the

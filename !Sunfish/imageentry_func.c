@@ -146,6 +146,8 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		conn->logging = (int)strtol(val, NULL, 10);
 	} else if (CHECK("umask")) {
 		conn->umask = 07777 & (int)strtol(val, NULL, 8); /* umask is specified in octal */
+	} else if (CHECK("unumask")) {
+		conn->unumask = 07777 & (int)strtol(val, NULL, 8); /* unumask is specified in octal */
 	} else if (CHECK("ShowHidden")) {
 		conn->hidden = (int)strtol(val, NULL, 10);
 	} else if (CHECK("Timeout")) {
@@ -285,6 +287,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->retries = 2;
 	conn->hidden = 1;
 	conn->umask = 022;
+	conn->unumask = 0;
 	conn->username = NULL;
 	conn->password = "";
 	conn->uid = 0;

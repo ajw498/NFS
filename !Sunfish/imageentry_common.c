@@ -535,6 +535,7 @@ unsigned int attr_to_mode(unsigned int attr, unsigned int oldmode, struct conn_i
 {
 	unsigned int newmode;
 	newmode = oldmode & ~0666; /* Preserve existing type and execute bits */
+	newmode |= conn->unumask;
 	newmode |= (attr & 0x01) << 8; /* Owner read */
 	newmode |= (attr & 0x02) << 6; /* Owner write */
 	newmode |= (attr & 0x10) << 1; /* Group read */

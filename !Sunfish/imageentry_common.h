@@ -119,6 +119,7 @@ struct conn_info {
 	int retries;
 	int hidden;
 	unsigned int umask;
+	unsigned int unumask;
 	unsigned int numgids;
 	unsigned int uid;
 	unsigned int gid;
