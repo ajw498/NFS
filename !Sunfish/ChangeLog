@@ -1,6 +1,12 @@
-v0.96 ??-Nov-03
+v0.96 14-Dec-03
 Fixed bug that could cause some filetypes to be incorrectly set to the
 default filetype.
+No longer waits for a reponse when unmounting, so it won't wait for
+a timeout if server is uncontactable when the module is killed.
+Implemented pipelining of file reads and writes to improve speed, and
+added the Pipelining option to control this.
+Fixed a bug that on some network cards could cause a
+"no buffer space available" error.
 
 v0.95 9-Nov-03
 Fixed bug in OS_File 0 handling which could cause incorrect size and
