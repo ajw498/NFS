@@ -15,10 +15,14 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <socklib.h>
 #include <time.h>
+#include <sys/time.h>
+#include <swis.h>
+#include <sys/errno.h>
 
 
 static unsigned int xid;
@@ -78,69 +82,79 @@ os_error err_buf = {1, ""};
  return &err_buf; \
 } while (0)
 
-os_error *rpc_do_call(struct conn_info *conn)
+os_error *rpc_init_connection(struct conn_info *conn)
 {
-	int sock;
-	struct sockaddr_in name;
 	struct hostent *hp;
-	int len;
-	int port;
 
-	sock = socket(AF_INET, SOCK_DGRAM, 0);
-	if (sock < 0) rpc_error("opening dgram socket");
+	conn->sock = socket(AF_INET, SOCK_DGRAM, 0);
+	if (conn->sock < 0) rpc_error("opening dgram socket");
 
 	hp = gethostbyname(conn->server);
 	if (hp == NULL) rpc_error("Unable to resolve hostname");
 
-	memcpy(&name.sin_addr, hp->h_addr, hp->h_length);
-	name.sin_family = AF_INET;
+	memcpy(&(conn->sockaddr.sin_addr), hp->h_addr, hp->h_length);
+	conn->sockaddr.sin_family = AF_INET;
+	conn->sockaddr.sin_port = 0;
+	return NULL;
+}
+
+os_error *rpc_close_connection(struct conn_info *conn)
+{
+	if (socketclose(conn->sock)) rpc_error("socketclose failed");
+	return NULL;
+}
+void syslogf(char *logname, int level, char *fmt, ...);
+
+os_error *rpc_do_call(struct conn_info *conn)
+{
+	int len = 0;
+	int port;
+	int tries = 0;
+	int ret;
+	os_error *err;
+
 	switch (call_header.body.u.cbody.prog) {
 	case PMAP_RPC_PROGRAM:
-		port = conn->portmapper_port;
+		port = htons(conn->portmapper_port);
 		break;
 	case MOUNT_RPC_PROGRAM:
-		port = conn->mount_port;
+		port = htons(conn->mount_port);
 		break;
 	case NFS_RPC_PROGRAM:
-		port = conn->nfs_port;
+		port = htons(conn->nfs_port);
 		break;
 	default:
 		rpc_error("Unknown rpc program");
 	}
-	name.sin_port = htons(port);
-	if (connect(sock, (struct sockaddr *)&name, sizeof(name)) < 0) rpc_error("connect failed");
+	if (port != conn->sockaddr.sin_port) {
+		conn->sockaddr.sin_port = port;
+		if (connect(conn->sock, (struct sockaddr *)&(conn->sockaddr), sizeof(struct sockaddr_in)) < 0) rpc_error("connect failed");
+	}
 
-/*	{
-		char *i;
-		printf("call:\n");
-		for (i = tx_buffer; i < buf; i++) {
-			printf("0x%X ",*i);
-			if (((int)i)%4 == 3) printf("\n");
+	do {
+		fd_set rfds;
+		struct timeval tv;
+
+		if (send(conn->sock, tx_buffer, buf - tx_buffer, 0) == -1) rpc_error("send failed");
+
+		FD_ZERO(&rfds);
+		FD_SET(conn->sock, &rfds);
+		tv.tv_sec = conn->timeout;
+		tv.tv_usec = 0;
+		ret = select(conn->sock + 1, &rfds, NULL, NULL, &tv);
+		if (ret == -1) rpc_error("select failed");
+		if (ret > 0) {
+			len = socketread(conn->sock, rx_buffer, sizeof(rx_buffer1));
+			if (len == -1) rpc_error("socketread failed");
 		}
-	}*/
-
-	if (send(sock, tx_buffer, buf - tx_buffer, 0) == -1) rpc_error("send failed");
-
-	len = socketread(sock, rx_buffer, sizeof(rx_buffer1));
-	if (len == -1) rpc_error("socketread failed");
-
-/*	{
-		int i;
-		printf("reply:\n");
-		for (i = 0; i < len; i++) {
-			printf("0x%X ",rx_buffer[i]);
-			if (i%4 == 3) printf("\n");
-		}
-		printf("\n");
-	}  */
-
-	if (socketclose(sock)) rpc_error("socketclose failed");
+	} while ((ret == 0) && (tries++ < conn->retries));
+	if (ret == 0) rpc_error("connection timed out");
 
 	buf = rx_buffer;
 	bufend = rx_buffer + len;
 	process_struct_rpc_msg(INPUT, reply_header, 0);
 
-	/*printf("xid = %d\n",reply_header.xid);*/
+	if (reply_header.xid != call_header.xid) rpc_error("xid mismatch");
 	if (reply_header.body.mtype != REPLY) {
 		/*printf("type = %d\n",reply_header.body.mtype);*/
 		rpc_error("Not a reply");

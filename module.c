@@ -63,7 +63,7 @@ os_error *gen_error(int num, char *msg)
 	return &module_err_buf;
 }
 
-static void syslogf(char *logname, int level, char *fmt, ...)
+void syslogf(char *logname, int level, char *fmt, ...)
 {
 	static char syslogbuf[1024];
 	va_list ap;
@@ -196,7 +196,16 @@ _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 
 	if (enablelog) logentry("ImageEntry_Args", "", r);
 
-	err = gen_error(UNSUPP, UNSUPPMESS);
+	switch (r->r[0]) {
+		case IMAGEENTRY_ARGS_WRITEEXTENT:
+		case IMAGEENTRY_ARGS_READSIZE:
+		case IMAGEENTRY_ARGS_FLUSH:
+		case IMAGEENTRY_ARGS_ENSURESIZE:
+		case IMAGEENTRY_ARGS_ZEROPAD:
+		case IMAGEENTRY_ARGS_READDATESTAMP:
+		default:
+			err = gen_error(UNSUPP, UNSUPPMESS);
+	}
 
 	if (enablelog) logexit(r, err);
 
@@ -240,8 +249,14 @@ _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 			err = file_delete((char *)(r->r[1]), (struct conn_info *)(r->r[6]), &(r->r[0]), &(r->r[2]), &(r->r[3]), &(r->r[4]), &(r->r[5]));
 			break;
 		case IMAGEENTRY_FILE_CREATEFILE:
+			err = file_createfile((char *)(r->r[1]), r->r[2], r->r[3], (char *)(r->r[4]), (char *)(r->r[5]),  (struct conn_info *)(r->r[6]));
+			break;
 		case IMAGEENTRY_FILE_CREATEDIR:
+			err = file_createdir((char *)(r->r[1]), r->r[2], r->r[3], (struct conn_info *)(r->r[6]));
+			break;
 		case IMAGEENTRY_FILE_READBLKSIZE:
+			r->r[2] = 1024; /* Should this be the buffersize? Or ask NFS? */
+			break;
 		default:
 			err = gen_error(UNSUPP, UNSUPPMESS);
 	}
@@ -278,15 +293,9 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 		/* The following entrypoints are meaningless for NFS.
 		   We could fake them, but I think it is better to give an error */
 		case IMAGEENTRY_FUNC_READDEFECT:
-			/*if (r->r[5] >= 4) (int *)(r->r[2]) = 0x20000000;
-			break;*/
 		case IMAGEENTRY_FUNC_ADDDEFECT:
-			/*break;*/
 		case IMAGEENTRY_FUNC_READBOOT:
-			/*r->r[2] = 0;
-			break;*/
 		case IMAGEENTRY_FUNC_WRITEBOOT:
-			/*break;*/
 		case IMAGEENTRY_FUNC_READUSEDSPACE:
 		case IMAGEENTRY_FUNC_READFREESPACE:
 		case IMAGEENTRY_FUNC_NAME:

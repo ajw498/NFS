@@ -11,6 +11,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <swis.h>
 
 #include "imageentry_func.h"
 
@@ -18,8 +19,8 @@
 #include "mount-calls.h"
 #include "portmapper-calls.h"
 
-
-static os_error no_mem = {1, "Out of memory"};
+#define NOMEM 1
+#define NOMEMMESS "Out of memory"
 
 static void free_conn_info(struct conn_info *conn)
 {
@@ -37,9 +38,32 @@ os_error *func_closeimage(struct conn_info *conn)
 	dir.size = strlen(conn->export);
 	dir.data = conn->export;
 	err = MNTPROC_UMNT(&dir, conn);
+	/*if (err) return err; */
+
+	/* Close socket etc. */
+	err = rpc_close_connection(conn);
+	/*if (err) return err; */
+
 	free_conn_info(conn);
-	return err; /* Should we supress errors from UMNT? */
+	return NULL; /* Should we supress errors from UMNT? */
 }
+
+/*#define CHECK(str) ((ch - file == sizeof(str)) && (strncasecmp(file,str,sizeof(str))==0))
+void parse_file(char *file, int size, struct conn_info *conn)
+{
+	char *ch = file;
+	char *end = file + size;
+
+	do {
+		while (ch < end && *ch != ':' && *ch != '\n') ch++;
+		if (ch >= end) return;
+		if (CHECK("Protocol")) {
+			do ch++; while (ch < end && *ch == ' ');
+		}
+		*ch = '\0'
+	
+
+} */
 
 os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhandle)
 {
@@ -47,9 +71,11 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	string dir;
 	struct fhstatus rootfh;
 	os_error *err;
+	int size;
+	int remain;
 
 	conn = malloc(sizeof(struct conn_info));
-	if (conn == NULL) return &no_mem;
+	if (conn == NULL) return gen_error(NOMEM,NOMEMMESS);
 	*myhandle = conn;
 
 	/* Set defaults */
@@ -59,11 +85,32 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	/*conn->auth = ;*/
 	conn->server = NULL;
 	conn->export = NULL;
+	conn->timeout = 1;
+	conn->retries = 2;
 
 	/* Read details from file */
-	fileswitchhandle = 0;
+	err = _swix(OS_Args, _INR(0,1) | _OUT(2), 2, fileswitchhandle, &size);
+	if (err) {
+		free_conn_info(conn);
+		return err;
+	}
+	conn->config = malloc(size+1);
+	if (conn->config == NULL) {
+		free_conn_info(conn);
+		return gen_error(NOMEM,NOMEMMESS);
+	}
+	err = _swix(OS_GBPB, _INR(0,4)|_OUT(3), 3, fileswitchhandle, conn->config, size, 0, &remain);
+	if (err || remain) {
+		free_conn_info(conn);
+		if (err) return err;
+		return gen_error(1,"gbpb failed");
+	}
 	conn->server = "mint";
 	conn->export = "/nfssandbox";
+
+	/* Initialise socket etc. */
+	err = rpc_init_connection(conn);
+	if (err) return err; /*leak*/
 
 	/* Get port numbers if not specified */
 	if (conn->mount_port == 0) {
@@ -106,6 +153,12 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	}
 	memcpy(conn->rootfh, rootfh.u.directory, FHSIZE);
 
+	{
+		struct statfsargs args;
+		struct statfsres res;
+		memcpy(args.fhandle, conn->rootfh, FHSIZE);
+		NFSPROC_STATFS(&args,&res,conn);
+	}
 	return NULL;
 }
 
@@ -488,16 +541,13 @@ os_error *file_writecatinfo(char *filename, int load, int exec, int attr, struct
 	return NULL;
 }
 
-os_error *file_savefile(char *filename, int load, int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname)
+static os_error *createfile(char *filename, int dir, int load, int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname, char **fhandle)
 {
     struct diropok *dinfo;
     os_error *err;
     struct createargs createargs;
     struct diropres createres;
-	struct writeargs writeargs;
-	struct attrstat writeres;
 
-	if (buffer_end - buffer > 7000/*tx_buffersize*/) return_error("file too big");
 	err = filename_to_finfo(filename, &dinfo, NULL, leafname, conn);
 	if (err) return err;
 
@@ -512,10 +562,40 @@ os_error *file_savefile(char *filename, int load, int exec, char *buffer, char *
 	createargs.attributes.atime.useconds = -1;
 	createargs.attributes.mtime.seconds = -1;
 	createargs.attributes.mtime.useconds = -1;
-	err = NFSPROC_CREATE(&createargs, &createres, conn);
+	if (dir) {
+		err = NFSPROC_MKDIR(&createargs, &createres, conn);
+	} else {
+		err = NFSPROC_CREATE(&createargs, &createres, conn);
+	}
 	if (err) return err;
 	if (createres.status != NFS_OK && createres.status != NFSERR_EXIST) return_error("create file failed");
-	memcpy(writeargs.file, createres.u.diropok.file, FHSIZE);
+	if (fhandle) *fhandle = createres.u.diropok.file;
+	return NULL;
+}
+
+os_error *file_createfile(char *filename, int load, int exec, char *buffer, char *buffer_end, struct conn_info *conn)
+{
+	char *leafname;
+	return createfile(filename, 0, load, exec, buffer, buffer_end, conn, &leafname, NULL);
+	/* Should createfile return an error if the file already exists? */
+}
+
+os_error *file_createdir(char *filename, int load, int exec, struct conn_info *conn)
+{
+	char *leafname;
+	return createfile(filename, 1, load, exec, 0, 0, conn, &leafname, NULL);
+}
+
+os_error *file_savefile(char *filename, int load, int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname)
+{
+    os_error *err;
+    char *fhandle;
+	struct writeargs writeargs;
+	struct attrstat writeres;
+
+	if (buffer_end - buffer > 7000/*tx_buffersize*/) return_error("file too big");
+	err = createfile(filename, 0, load, exec, buffer, buffer_end, conn, leafname, &fhandle);
+	memcpy(writeargs.file, fhandle, FHSIZE);
 	writeargs.offset = 0;
 	writeargs.data.size = buffer_end - buffer;
 	writeargs.data.data = buffer;
@@ -595,3 +675,32 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 	*renamefailed = 0;
 	return NULL;
 }
+/*
+os_error *args_writeextent(struct file_handle *handle, unsigned extent)
+{
+	os_error *err;
+	struct sattrargs args;
+	struct attrstat res;
+
+	memcpy(args.file, handle->fhandle, FHSIZE);
+	args.mode = -1;
+	args.uid = -1;
+	args.gid = -1;
+	args.atime.seconds = -1;
+	args.atime.useconds = -1;
+	args.mtime.seconds = -1;
+	args.mtime.useconds = -1;
+	args.size = extent;
+	err = NFSPROC_SETATTR(&args, &res, handle->conn);
+	if (err) return err;
+	if (res.status != NFS_OK) return_error("setattr failed"); */
+	/* FIXME: should zero pad if new extent > old extent */  /*
+	return NULL;
+}
+
+os_error *args_readdatestamp(struct file_handle *handle, int *load, int *exec)
+{
+	*load = 0;
+	*exec = 0; *//* We should cache the filetype (and other attrs?) when the file is opened */
+/*	return NULL;
+} */

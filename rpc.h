@@ -8,6 +8,9 @@
 #define RPC_H
 
 #include "kernel.h"
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 #define FHSIZE 32
 /**/
@@ -22,6 +25,11 @@ struct conn_info {
 	/*struct auth_unix auth;  */
 	char *export;
 	char rootfh[FHSIZE];
+	char *config;
+	struct sockaddr_in sockaddr;
+	int sock;
+	long timeout;
+	int retries;
 };
 
 void rpc_init_header(void);
@@ -36,5 +44,8 @@ extern os_error err_buf;
 void *llmalloc(size_t size);
 
 void swap_rxbuffers(void);
+
+os_error *rpc_init_connection(struct conn_info *conn);
+os_error *rpc_close_connection(struct conn_info *conn);
 
 #endif

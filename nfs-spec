@@ -232,3 +232,34 @@ struct getattrargs {
 };
 
 attrstat NFSPROC_GETATTR(getattrargs) = 1;
+
+diropres NFSPROC_MKDIR(createargs) = 14;
+
+struct sattrargs {
+        fhandle file;
+        sattr attributes;
+};
+
+attrstat NFSPROC_SETATTR(sattrargs) = 2;
+
+struct info {
+    unsigned tsize;
+    unsigned bsize;
+    unsigned blocks;
+    unsigned bfree;
+    unsigned bavail;
+};
+
+union statfsres switch (nstat status) {
+case NFS_OK:
+	info info;
+default:
+        void;
+};
+
+struct statfsargs {
+	fhandle fhandle;
+};
+
+statfsres NFSPROC_STATFS(statfsargs) = 17;
+

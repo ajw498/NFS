@@ -1,5 +1,5 @@
 /*
-	$Id: $
+	$Id$
 
 	Routines for ImageEntry_Func
 */
@@ -37,3 +37,10 @@ os_error *file_savefile(char *filename, int load, int exec, char *buffer, char *
 os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, int *load, int *exec, int *len, int *attr);
 
 os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *conn, int *renamefailed);
+
+os_error *file_createfile(char *filename, int load, int exec, char *buffer, char *buffer_end, struct conn_info *conn);
+
+os_error *file_createdir(char *filename, int load, int exec, struct conn_info *conn);
+
+
+os_error *gen_error(int num, char *msg); /* This shouldn't be in this file */

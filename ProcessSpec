@@ -233,12 +233,13 @@ while (<>) {
       }
       print CALLSH "$proto;\n";
       print CALLS  "$proto\n";
-      print CALLS "{\n";
+      print CALLS "{\nos_error *err;\n";
       print CALLS "\trpc_prepare_call($prog, $vers, $procno, conn);\n";
       print CALLS "\tprocess_$types{$args}";
       print CALLS "_$args" if (($types{$args} =~ /(struct)|(union)/));
       print CALLS "(OUTPUT, (*args), $typessize{$args});\n";
-      print CALLS "\trpc_do_call(conn);\n";
+      print CALLS "\terr = rpc_do_call(conn);\n";
+      print CALLS "\tif (err) return err;\n";
       print CALLS "\tprocess_$types{$res}";
       print CALLS "_${res}" if (($types{$res} =~ /(struct)|(union)/));
       print CALLS "(INPUT, (*res), $typessize{$res});\n";
