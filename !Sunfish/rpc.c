@@ -242,7 +242,15 @@ os_error *rpc_init_connection(struct conn_info *conn)
 /* Close for each mount */
 os_error *rpc_close_connection(struct conn_info *conn)
 {
-	if (close(conn->sock)) return gen_error(RPCERRBASE + 3, "Socket close failed (%s)", xstrerror(errno));
+	int ret;
+
+	if (conn->sock < 0) return NULL;
+
+	ret = close(conn->sock);
+	conn->sock = -1;
+
+	if (ret) return gen_error(RPCERRBASE + 3, "Socket close failed (%s)", xstrerror(errno));
+
 	return NULL;
 }
 

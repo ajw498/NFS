@@ -325,6 +325,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	/* Initialise socket etc. */
 	err = rpc_init_connection(conn);
 	if (err) {
+		rpc_close_connection(conn);
 		free_conn_info(conn);
 		return err;
 	}
@@ -333,6 +334,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	if (conn->pcnfsd_port == 0 && conn->username) {
 		err = getport(PCNFSD_RPC_PROGRAM, PCNFSD_RPC_VERSION, &(conn->pcnfsd_port), conn);
 		if (err) {
+			rpc_close_connection(conn);
 			free_conn_info(conn);
 			return err;
 		}
@@ -341,6 +343,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	if (conn->mount_port == 0) {
 		err = getport(MOUNT_RPC_PROGRAM, MOUNT_RPC_VERSION, &(conn->mount_port), conn);
 		if (err) {
+			rpc_close_connection(conn);
 			free_conn_info(conn);
 			return err;
 		}
@@ -349,6 +352,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	if (conn->nfs_port == 0) {
 		err = getport(NFS_RPC_PROGRAM, NFS_RPC_VERSION, &(conn->nfs_port), conn);
 		if (err) {
+			rpc_close_connection(conn);
 			free_conn_info(conn);
 			return err;
 		}
@@ -370,10 +374,12 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 
 		err = PCNFSD_AUTH(&args, &res, conn);
 		if (err) {
+			rpc_close_connection(conn);
 			free_conn_info(conn);
 			return err;
 		}
 		if (res.stat != AUTH_RES_OK) {
+			rpc_close_connection(conn);
 			free_conn_info(conn);
 			return gen_error(FUNCERRBASE + 2, "PCNFSD authentication failed");
 		}
@@ -389,6 +395,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	/* Create the opaque auth structure */
 	err = create_auth(conn);
 	if (err) {
+		rpc_close_connection(conn);
 		free_conn_info(conn);
 		return err;
 	}
@@ -398,10 +405,12 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	dir.data = conn->export;
 	err = MNTPROC_MNT(&dir, &rootfh, conn);
 	if (err) {
+		rpc_close_connection(conn);
 		free_conn_info(conn);
 		return err;
 	}
 	if (rootfh.status != 0) {
+		rpc_close_connection(conn);
 		free_conn_info(conn);
 		/* status is an errno value. Probably the same as an NFS status value. */
 		return gen_nfsstatus_error((enum nstat)rootfh.status);
