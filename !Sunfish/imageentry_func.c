@@ -487,12 +487,12 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 		while (direntry && *objsread < numobjs) {
 			if (direntry->name.size == 0) {
 				/* Ignore null names */
-			} else if (!conn->hidden && direntry->name.data[0] == '.') {
-				/* Ignore hidden files if so configured */
 			} else if (direntry->name.size == 1 && direntry->name.data[0] == '.') {
 				/* current dir */
 			} else if (direntry->name.size == 2 && direntry->name.data[0] == '.' && direntry->name.data[1] == '.') {
 				/* parent dir */
+			} else if (direntry->name.data[0] == '.' && (conn->hidden == 0 || (conn->hidden == 2 && dirname[0] == '\0'))) {
+				/* Ignore hidden files if so configured */
 			} else {
 				if (dirpos >= start) {
 					struct dir_entry *info_entry = NULL;

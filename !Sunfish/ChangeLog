@@ -1,7 +1,8 @@
-v1.03 ??
+v1.03 6-Jan-05
 Add support for dragging files to a mount's iconbar icon.
 Silently reconnect if a server closes a TCP connection due to inactivity.
 Improve error message on portmapper failure.
+Add option to show hidden files except in the root directory of a mount.
 
 v1.02 6-Nov-04
 Added support for TCP connections.

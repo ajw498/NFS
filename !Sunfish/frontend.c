@@ -81,7 +81,9 @@
 #define gadget_ports_LOCALMAX    0xd
 #define gadget_ports_MACHINE     0x0
 
-#define gadget_filenames_SHOWHIDDEN       0x6
+#define gadget_filenames_SHOWHIDDENALWAYS 0x10
+#define gadget_filenames_SHOWHIDDENROOT   0x11
+#define gadget_filenames_SHOWHIDDENNEVER  0x12
 #define gadget_filenames_FOLLOWSYMLINKS   0x9
 #define gadget_filenames_SYMLINKLEVELS    0x4
 #define gadget_filenames_CASESENSITIVE    0x3
@@ -443,7 +445,17 @@ static osbool filenames_open(bits event_code, toolbox_action *event, toolbox_blo
 	UNUSED(handle);
 	char tmp[4];
 
-	E(xoptionbutton_set_state(0, id_block->this_obj, gadget_filenames_SHOWHIDDEN, mount.showhidden));
+	switch (mount.showhidden) {
+		case 1:
+			E(xradiobutton_set_state(0, id_block->this_obj, gadget_filenames_SHOWHIDDENALWAYS, TRUE));
+			break;
+		case 2:
+			E(xradiobutton_set_state(0, id_block->this_obj, gadget_filenames_SHOWHIDDENROOT, TRUE));
+			break;
+		default:
+			E(xradiobutton_set_state(0, id_block->this_obj, gadget_filenames_SHOWHIDDENNEVER, TRUE));
+			break;
+	}
 	snprintf(tmp, sizeof(tmp), "%d", mount.followsymlinks);
 	E(xwritablefield_set_value(0, id_block->this_obj, gadget_filenames_SYMLINKLEVELS, tmp));
 	E(xoptionbutton_set_state(0, id_block->this_obj, gadget_filenames_FOLLOWSYMLINKS, mount.followsymlinks != 0));
@@ -475,7 +487,18 @@ static osbool filenames_set(bits event_code, toolbox_action *event, toolbox_bloc
 	char tmp[4];
 	toolbox_c selected;
 
-	E(xoptionbutton_get_state(0, id_block->this_obj, gadget_filenames_SHOWHIDDEN, &mount.showhidden));
+	E(xradiobutton_get_state(0, id_block->this_obj, gadget_filenames_SHOWHIDDENALWAYS, NULL, &selected));
+	switch (selected) {
+		case gadget_filenames_SHOWHIDDENALWAYS:
+			mount.showhidden = 1;
+			break;
+		case gadget_filenames_SHOWHIDDENROOT:
+			mount.showhidden = 2;
+			break;
+		default:
+			mount.showhidden = 0;
+			break;
+	}
 	E(xoptionbutton_get_state(0, id_block->this_obj, gadget_filenames_FOLLOWSYMLINKS, &mount.followsymlinks));
 	if (mount.followsymlinks) {
 		E(xwritablefield_get_value(0, id_block->this_obj, gadget_filenames_SYMLINKLEVELS, tmp, sizeof(tmp), NULL));

@@ -218,7 +218,7 @@ RISC OS does not have any concept like a umask - the default attributes of a fil
 The RISC OS attributes are first converted to unix mode bits, with the private attributes mapping to user permissions, and the public attributes mapping to the group and others permissions (if a public attribute is set then both the corresponding group and others permission bit will be set). This value is then ORed with the unumask, and then ANDed with the inverse of the umask to give the final unix mode bits.
 <p>
 <h4>ShowHidden</h4>
-If set to 1, all files will be shown, if set to 0 then all files beginning with a . will be hidden from filer views. If not specified, then it defaults to 1.
+If set to 1, all files will be shown, if set to 0 then all files beginning with a . will be hidden from filer views. If set to 2 then all files beginning with a . in the root directory of the mount will be hidden, but those in other directories will still be shown. If not specified, then it defaults to 1.
 <p>
 <h4>FollowSymLinks</h4>
 The number of levels of symlinks to follow. If set to zero or a sequence of symlinks greater than the number is encountered then the link will be shown as a text file that you cannot read or write. If not specified, then it defaults to 5. Symlinks can only be followed if they point to a file within the mount directory or its children.
