@@ -1,3 +1,6 @@
+v1.00 14-Apr-04
+Added frontend for creating mount files.
+
 v0.98 22-Feb-04
 Fixed bug that could cause directory not empty errors when trying to delete
 a directory.

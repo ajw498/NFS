@@ -4,4 +4,4 @@
 |
 Dir <Obey$Dir>
 remove sunfish/zip
-zip -r -9 -I sunfish/zip !Sunfish COPYING ReadMe -x *CVS* *svn* *.o.* *.c.*calls *.h.*structs *.h.*process* *.h.*calls *.h.moduledefs
+zip -r -9 -I sunfish/zip !Sunfish COPYING -x *CVS* *svn* *.o.* *.c.*calls *.h.*structs *.h.*process* *.h.*calls *.h.moduledefs
