@@ -34,6 +34,7 @@
 #define MAX_PAYLOAD 7000
 /*FIXME*/
 
+/*FIXME - verify stack usage is < 1024 bytes */
 
 /* Generate a RISC OS error block based on the NFS status code */
 static os_error *gen_nfsstatus_error(enum nstat stat)
@@ -586,10 +587,20 @@ static void loadexec_to_timeval(unsigned int load, unsigned int exec, struct nti
 static unsigned int mode_to_attr(unsigned int mode)
 {
 	unsigned int attr;
-	attr  = ( mode & 0x100) >> 8; /* Owner read */
-	attr |= ( mode & 0x080) >> 6; /* Owner write */
-	attr |= ( mode & 0x004) << 2; /* Others read */
-	attr |= ( mode & 0x002) << 4; /* Others write */
+	attr  = (mode & 0x100) >> 8; /* Owner read */
+	attr |= (mode & 0x080) >> 6; /* Owner write */
+	attr |= (mode & 0x004) << 2; /* Others read */
+	attr |= (mode & 0x002) << 4; /* Others write */
+	return attr;
+}
+
+/* Convert a unix mode to RISC OS file information word */
+static unsigned int mode_to_fileinfo(unsigned int mode)
+{
+	unsigned int attr;
+	attr  = (mode & 0x100) << 22; /* Owner read */
+	attr |= (mode & 0x080) << 24; /* Owner write */
+	/* FIXME: This is wrong, as we may not be the owner */
 	return attr;
 }
 
@@ -695,6 +706,8 @@ os_error *func_readdirinfo(int info, char *dirname, void *buffer, int numobjs, i
 	return NULL;
 }
 
+/* Open a file. The handle returned is a pointer to a struct holding the
+   NFS handle and any other info needed */
 os_error *open_file(char *filename, int access, struct conn_info *conn, int *file_info_word, int *internal_handle, int *extent)
 {
 	struct file_handle *handle;
@@ -705,46 +718,44 @@ os_error *open_file(char *filename, int access, struct conn_info *conn, int *fil
     os_error *err;
     char *leafname;
 
-	handle = malloc(sizeof(struct file_handle));
-	if (handle == NULL) return_error("out of mem");
 	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, conn);
-	if (err) {
-		free(handle);
-		return err;
-	}
+	if (err) return err;
+
 	if (finfo == NULL) {
-/*		char tmp[20];
-		sprintf(tmp,"access = %x",access);
-		return_error(tmp);*/
-		if (access ==1) {
+		if (access == 1) {
+			/* Create and open for update */
 			memcpy(createargs.where.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
 			createargs.where.name.data = leafname;
 			createargs.where.name.size = strlen(leafname);
-			createargs.attributes.mode = 0x00008180; /**/
+			createargs.attributes.mode = 0x00008000 | (0666 & ~conn->umask); /* FIXME: umask needs testing */
 			createargs.attributes.uid = -1;
 			createargs.attributes.gid = -1;
-			createargs.attributes.size = access; /**/
+			createargs.attributes.size = 0;
 			createargs.attributes.atime.seconds = -1;
 			createargs.attributes.atime.useconds = -1;
 			createargs.attributes.mtime.seconds = -1;
 			createargs.attributes.mtime.useconds = -1;
+
 			err = NFSPROC_CREATE(&createargs, &createres, conn);
-			if (err) {
-				free(handle);
-				return err;
-			}
+			if (err) return err;
 			if (createres.status != NFS_OK) return gen_nfsstatus_error(createres.status);
+
 			finfo = &(createres.u.diropok);
 		} else {
+			/* File not found */
 			*internal_handle = 0;
 			return NULL;
 		}
 	}
+
+	handle = malloc(sizeof(struct file_handle));
+	if (handle == NULL) return gen_error(NOMEM, NOMEMMESS);
+
 	handle->conn = conn;
 	memcpy(handle->fhandle, finfo->file, FHSIZE);
 
 	*internal_handle = (int)handle;
-	*file_info_word = (int)0xC0000000;/*((finfo->attributes.mode & 0x400) << 20) | ((finfo->attributes.mode & 0x200) << 22);*/
+	*file_info_word = mode_to_fileinfo(finfo->attributes.mode);
 	*extent = finfo->attributes.size;
 	return NULL;
 }
