@@ -3,10 +3,18 @@
 |    $URL$
 |
 
+Set Sunfish$Dir <Obey$Dir>
+
 Set File$Type_1B6 Sunfish
 
-IconSprites <Obey$Dir>.!Sprites
+IconSprites <Sunfish$Dir>.!Sprites
 
-RMLoad <Obey$Dir>.Sunfish
+RMEnsure UtilityModule 3.10 Error Sunfish requires RISC OS 3.10 or later
+RMEnsure UtilityModule 3.70 RMEnsure CallASWI 0.02 RMLoad System:Modules.CallASWI
+RMEnsure UtilityModule 3.70 RMEnsure CallASWI 0.02 Error Sunfish requires CallASWI 0.02 or later
+RMEnsure SharedCLibrary 5.17 RMLoad System:Modules.CLib
+RMEnsure SharedCLibrary 5.34 Error Sunfish requires SharedCLibrary 5.34 or later
+ 
+RMLoad <Sunfish$Dir>.Sunfish
 
 If "%*0" <> "" Then Filer_OpenDir %*0
