@@ -292,6 +292,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->localportmin = LOCALPORTMIN_DEFAULT;
 	conn->localportmax = LOCALPORTMAX_DEFAULT;
 	conn->maxdatabuffer =  MAXDATABUFFER_DEFAULT;
+	conn->nextcookie = 0;
 
 	/* Read details from file */
 	err = parse_file(fileswitchhandle, conn);
@@ -412,6 +413,12 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 	bufferpos = buffer;
 	*objsread = 0;
 
+	if (start > MAX_DIRSTREAMS) {
+		return gen_error(FUNCERRBASE + 3, "Invalid start value");
+	} else if (start > 0) {
+		start = conn->cookies[start - 1];
+	}
+
 	if (dirname[0] == '\0') {
 		/* An empty dirname specifies the root directory */
 		memcpy(rddir.dir, conn->rootfh, FHSIZE);
@@ -500,7 +507,13 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 		   output buffer then we should cache them to save rerequesting
 		   them on the next iteration */
 	} else {
-		*continuepos = start;
+		/* Store the cookie in a circular buffer. Ideally, we would just
+		   return the cookie to the user, but RISC OS seems to treat any
+		   value with the top bit set as if it were -1 */
+		conn->cookies[conn->nextcookie] = start;
+		*continuepos = ++(conn->nextcookie);
+		if (conn->nextcookie >= MAX_DIRSTREAMS) conn->nextcookie = 0;
+
 		/* At this point we could speculativly request the next set of
 		   entries to reduce the latency on the next request */
 	}

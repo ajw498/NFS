@@ -75,7 +75,7 @@
 /* 1 error */
 #define BYTESERRBASE (ERRBASE + 2)
 
-/* 3 errors */
+/* 4 errors */
 #define FUNCERRBASE (ERRBASE + 8)
 
 /* 1 error */
@@ -89,6 +89,8 @@
 
 #define MAX_GIDS 16
 
+/* The maximum concurrent OS_GBPB directory streams supported per mount */
+#define MAX_DIRSTREAMS 4
 
 /* All infomation associated with an open file */
 struct file_handle {
@@ -131,6 +133,8 @@ struct conn_info {
 	int localportmin;
 	int localportmax;
 	int maxdatabuffer;
+	int nextcookie;
+	int cookies[MAX_DIRSTREAMS];
 };
 
 /* The default port range to bind to. */
