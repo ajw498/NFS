@@ -79,16 +79,46 @@ void rpc_init_header(void)
 	call_header.body.u.cbody.verf.body.size = 0;
 }
 
+#define Resolver_GetHost 0x46001
+
+/* A version of gethostbyname that will timeout */
+static os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct hostent **hp)
+{
+	unsigned long starttime;
+	unsigned long endtime;
+	os_error *err;
+	int errnum;
+
+	err = _swix(OS_ReadMonotonicTime, _OUT(0), &starttime);
+	if (err) return err;
+
+	do {
+		err = _swix(Resolver_GetHost, _IN(0) | _OUTR(0,1), host, &errnum, hp);
+		if (err) return err;
+
+		if (errnum != EINPROGRESS) break;
+
+		err = _swix(OS_ReadMonotonicTime, _OUT(0), &endtime);
+		if (err) return err;
+
+	} while (endtime - starttime < timeout * 100);
+
+	if (errnum == 0) return NULL; /* Host found */
+
+	return gen_error(RPCERRBASE + 1, "Unable to resolve hostname '%s' (%d)", host, errnum);
+}
+
 /* Initialise for each mount */
 os_error *rpc_init_connection(struct conn_info *conn)
 {
 	struct hostent *hp;
+	os_error *err;
 
 	conn->sock = socket(AF_INET, SOCK_DGRAM, 0);
-	if (conn->sock < 0) return gen_error(RPCERRBASE + 1,"Unable to open socket (%s)", xstrerror(errno));
+	if (conn->sock < 0) return gen_error(RPCERRBASE + 2,"Unable to open socket (%s)", xstrerror(errno));
 
-	hp = gethostbyname(conn->server);
-	if (hp == NULL) return gen_error(RPCERRBASE + 2, "Unable to resolve hostname '%s'", conn->server);
+	err = gethostbyname_timeout(conn->server, conn->timeout, &hp);
+	if (err) return err;
 
 	memcpy(&(conn->sockaddr.sin_addr), hp->h_addr, hp->h_length);
 	conn->sockaddr.sin_family = AF_INET;
