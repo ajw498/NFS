@@ -464,11 +464,13 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 			len = filename_riscosify(direntry->name.data, direntry->name.size, bufferpos, buffer + buflen - bufferpos, &filetype, conn);
 			if (len == 0) break; /* Buffer overflowed */
 
-			bufferpos += (len + 3) & ~3;
+			bufferpos += len;
 
 			if (info) {
 				struct diropargs lookupargs;
 				struct diropres lookupres;
+
+				bufferpos = (char *)(((int)bufferpos + 3) & ~3);
 
 				/* Lookup file attributes.
 				   READDIRPLUS in NFS3 would eliminate this call. */

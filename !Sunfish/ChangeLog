@@ -3,6 +3,7 @@ Fix bug in IP address handling.
 Fixed bug in reading of auxilliary gids from pcnfsd.
 Allow ' in filenames.
 Support the read boot option entry point, so *cat and *ex work.
+Fix bug in alignment of OS_GBPB 8/9 results.
 
 v0.91 18-Oct-03
 Specifying an IP address as the server name now works for addresses
