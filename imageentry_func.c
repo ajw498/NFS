@@ -197,9 +197,8 @@ static os_error *create_auth(struct conn_info *conn)
 	process_struct_auth_unix(0, auth_unix, 0);
 	conn->authsize = buf - conn->auth;
 
+buffer_overflow: /* Should never occur */
 	return NULL;
-buffer_overflow:
-	return gen_error(1,"FIXME: Check this can never occur");
 }
 
 
@@ -314,7 +313,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 
 
 /* Read directory entries and possibly info */
-os_error *func_readdirinfo(int info, char *dirname, void *buffer, int numobjs, int start, int buflen, struct conn_info *conn, int *objsread, int *continuepos)
+os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, int start, int buflen, struct conn_info *conn, int *objsread, int *continuepos)
 {
 	char *bufferpos;
 	struct readdirargs rddir;
@@ -362,19 +361,22 @@ os_error *func_readdirinfo(int info, char *dirname, void *buffer, int numobjs, i
 		} else {
 			struct dir_entry *info_entry = NULL;
 			int filetype;
+			int len;
 
 			if (info) {
 				info_entry = (struct dir_entry *)bufferpos;
 				bufferpos += sizeof(struct dir_entry);
 			}
 
-			/* Check there is room in the output buffer.
-			   This check may be slightly pessimistic. */
-			if (bufferpos + direntry->name.size + 4 > (char *)buffer + buflen) break;
+			/* Check there is room in the output buffer. */
+			if (bufferpos > buffer + buflen) break;
 
 			/* Copy leafname into output buffer, translating some
 			   chars and stripping any ,xyz */
-			filetype = filename_riscosify(direntry->name.data, direntry->name.size, &bufferpos, conn);
+			len = filename_riscosify(direntry->name.data, direntry->name.size, bufferpos, buffer + buflen - bufferpos, &filetype, conn);
+			if (len == 0) break; /* Buffer overflowed */
+
+			bufferpos += (len + 3) & ~3;
 
 			if (info) {
 				struct diropargs lookupargs;

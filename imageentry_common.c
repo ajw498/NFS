@@ -59,28 +59,43 @@ os_error *gen_nfsstatus_error(enum nstat stat)
 	return gen_error(NFSSTATBASE, "NFS call failed (%s)", str);
 }
 
-/* FIXME: better conversion of chars */
-static char *filename_unixify(char *name, int len)
+static char *filename_unixify(char *name, unsigned int len, unsigned int *newlen)
 {
 	static char namebuffer[MAXNAMLEN + 1];
 	int i;
+	int j;
 
-	if (len > MAXNAMLEN) len = MAXNAMLEN; /*?*/
+	/* Truncate if there is not enough buffer space. This is slightly
+	   pessimistic if the name has escape sequences */
+	if (len > MAXNAMLEN) len = MAXNAMLEN;
 
-	for (i = 0; i < len; i++) {
+	for (i = 0, j = 0; i < len; i++) {
 		switch (name[i]) {
 			case '/':
-				namebuffer[i] = '.';
+				namebuffer[j++] = '.';
 				break;
 			case 160: /*hard space*/
-				namebuffer[i] = ' ';
+				namebuffer[j++] = ' ';
 				break;
-			/*case '&': etc */
+			case '?':
+				if (i + 2 < len && isxdigit(name[i+1]) && !islower(name[i+1]) && isxdigit(name[i+2]) && !islower(name[i+2])) {
+					/* An escape sequence */
+					i++;
+					namebuffer[j] = (name[i] > '9' ? name[i] - 'A' + 10 : name[i] - '0') << 4;
+					i++;
+					namebuffer[j++] |= name[i] > '9' ? name[i] - 'A' + 10 : name[i] - '0';
+				} else {
+					namebuffer[j++] = name[i];
+				}
+				break;
 			default:
-				namebuffer[i] = name[i];
+				namebuffer[j++] = name[i];
 		}
 	}
-	namebuffer[len] = '\0';
+
+	namebuffer[j] = '\0';
+	*newlen = j;
+
 	return namebuffer;
 }
 
@@ -104,58 +119,78 @@ static int lookup_mimetype(char *ext, struct conn_info *conn)
 }
 
 
-int filename_riscosify(char *name, int len, char **buffer, struct conn_info *conn)
+int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetype, struct conn_info *conn)
 {
 	int i;
-	int filetype = -1;
+	int j;
 	char *lastdot = NULL;
 
-	for (i = 0; i < len; i++) {
-		switch (name[i]) {
-			case '.':
-				(*buffer)[i] = '/';
-				lastdot = name + i;
-				break;
-			case ' ':
-				(*buffer)[i] = 160;
-				break;
-			/*case '&': etc */
-			case ',':
-				if (conn->xyzext != NEVER
-				    && len - i == 4
-				    && isxdigit(name[i+1]) && isxdigit(name[i+2]) && isxdigit(name[i+3])) {
-					char tmp[4];
-					tmp[0] = name[i+1];
-					tmp[1] = name[i+2];
-					tmp[2] = name[i+3];
-					tmp[3] = '\0';
-					filetype = (int)strtol(tmp, NULL, 16);
-					len -= 4;
-				} else {
-					(*buffer)[i] = name[i];
-				}
-				break;
-			default:
-				(*buffer)[i] = name[i];
+	*filetype = -1;
+
+	for (i = 0, j = 0; (i < namelen) && (j + 3 < buflen); i++) {
+		if (name[i] == '.') {
+			buffer[j++] = '/';
+			lastdot = name + i;
+		} else if (name[i] == ' ') {
+			buffer[j++] = 160; /* spaces to hard spaces */
+		} else if (name[i] == ',') {
+			if (conn->xyzext != NEVER
+			    && namelen - i == 4
+			    && isxdigit(name[i+1]) && isxdigit(name[i+2]) && isxdigit(name[i+3])) {
+				char tmp[4];
+
+				tmp[0] = name[i+1];
+				tmp[1] = name[i+2];
+				tmp[2] = name[i+3];
+				tmp[3] = '\0';
+				*filetype = (int)strtol(tmp, NULL, 16);
+				namelen -= sizeof(",xyz") - 1;
+			} else {
+				buffer[j++] = name[i];
+			}
+		} else if (name[i] == '!') {
+			buffer[j++] = name[i];
+		} else if (name[i] < '('
+				|| name[i] == '/'
+				|| name[i] == ':'
+				|| name[i] == ';'
+				|| name[i] == '?'
+				|| name[i] == '@'
+				|| name[i] == '\\'
+				|| name[i] == 127) {
+			int val;
+
+			/* Turn illegal chars into ?XX escape sequences */
+			buffer[j++] = '?';
+			val = ((name[i] & 0xF0) >> 4);
+			buffer[j++] = val < 10 ? val + '0' : (val - 10) + 'A';
+			val = (name[i] & 0x0F);
+			buffer[j++] = val < 10 ? val + '0' : (val - 10) + 'A';
+		} else {
+			/* All other chars translate unchanged */
+			buffer[j++] = name[i];
 		}
 	}
-	(*buffer)[len] = '\0';
-	(*buffer) += (len + 4) & ~3;
+
+	if (i < namelen) return 0; /* Buffer overflow */
+
+	buffer[j++] = '\0';
 
 	if (conn->xyzext != NEVER) {
-		if (filetype == -1) {
+		if (*filetype == -1) {
 			/* No ,xyz found */
 	    	if (lastdot) {
-				filetype = lookup_mimetype(lastdot + 1, conn);
+				*filetype = lookup_mimetype(lastdot + 1, conn);
 			} else {
 				/* No ,xyz and no extension, so use default */
-				filetype = conn->defaultfiletype;
+				*filetype = conn->defaultfiletype;
 			}
 		}
 	} else {
-		filetype = conn->defaultfiletype;
+		*filetype = conn->defaultfiletype;
 	}
-	return filetype;
+
+	return j;
 }
 
 
@@ -228,8 +263,7 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 		/* Find end of dirname segment */
 		while (*end && *end != '.') end++;
 
-		current.name.data = filename_unixify(start, end - start);
-		current.name.size = end - start;
+		current.name.data = filename_unixify(start, end - start, &(current.name.size));
 
 		if (leafname) *leafname = current.name.data;
 

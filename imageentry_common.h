@@ -144,7 +144,7 @@ void log_error(os_error *err);
 os_error *gen_nfsstatus_error(enum nstat stat);
 
 /* Convert unix leafname into RISC OS format */
-int filename_riscosify(char *name, int len, char **buffer, struct conn_info *conn);
+int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetype, struct conn_info *conn);
 
 /* Convert a full filename/dirname into an nfs handle */
 os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct diropok **finfo, char **leafname, int *filetype, int *extfound, struct conn_info *conn);
