@@ -108,6 +108,11 @@ static char *nextmalloc;
 char *buf;
 char *bufend;
 
+#define INVALIDBUFFER (-1)
+
+/* The current rx buffer we are in the middle of recieving into */
+static int currentbuffer = INVALIDBUFFER;
+
 /* Execute a send or read, repeating until the data is sent/read or a
    timeout occurs */
 #define blocking_timeout(ret,call) do { \
@@ -115,7 +120,7 @@ char *bufend;
 	do { \
 		trigger_callback(); \
 		ret = call; \
-	} while (ret == -1 && errno == EWOULDBLOCK && clock() < (t + (conn->timeout * CLOCKS_PER_SEC))); \
+	} while (ret == -1 && (errno == EWOULDBLOCK || errno == ENOTCONN) && clock() < (t + (conn->timeout * CLOCKS_PER_SEC))); \
 } while (0)
 
 /* Reset all fifo entries and rx buffers to an unallocated state */
@@ -126,12 +131,19 @@ void rpc_resetfifo(void)
 	head = 0;
 	tail = 0;
 	freebufferstart = 0;
+	currentbuffer = INVALIDBUFFER;
 	for (i = 0; i < FIFOSIZE; i++) {
 		fifo[i].xid = UNALLOCATED;
 		fifo[i].rx = NULL;
 		buffers[i].len = 0;
 	}
 }
+
+/* Close the socket, ignoring any errors (it will be reopened on the next request) */
+#define gen_rpc_error(conn, ...) (\
+	(conn->tcp ? rpc_close_connection(conn) : NULL),\
+	gen_error(__VA_ARGS__))
+
 
 /* Swap the active rx buffer */
 void swap_rxbuffers(void)
@@ -198,14 +210,11 @@ static os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct
 	return gen_error(RPCERRBASE + 1, "Unable to resolve hostname '%s' (%d)", host, errnum);
 }
 
-/* Initialise for each mount */
-os_error *rpc_init_connection(struct conn_info *conn)
+static os_error *rpc_create_socket(struct conn_info *conn)
 {
-	struct hostent *hp;
-	os_error *err;
 	int on = 1;
 
-	conn->sock = socket(AF_INET, SOCK_DGRAM, 0);
+	conn->sock = socket(AF_INET, conn->tcp ? SOCK_STREAM : SOCK_DGRAM, 0);
 	if (conn->sock < 0) return gen_error(RPCERRBASE + 2,"Unable to open socket (%s)", xstrerror(errno));
 
 	/* Make the socket non-blocking */
@@ -219,6 +228,7 @@ os_error *rpc_init_connection(struct conn_info *conn)
 		int port = conn->localportmin;
 		int ret;
 
+		memset(&name, 0, sizeof(name));
 		name.sin_family = AF_INET;
 		name.sin_addr.s_addr = (int)htonl(INADDR_ANY);
 
@@ -230,9 +240,22 @@ os_error *rpc_init_connection(struct conn_info *conn)
 		if (ret) return gen_error(RPCERRBASE + 14, "Unable to bind socket to local port (%s)", xstrerror(errno));
 	}
 
+	return NULL;
+}
+
+/* Initialise for each mount */
+os_error *rpc_init_connection(struct conn_info *conn)
+{
+	struct hostent *hp;
+	os_error *err;
+
+	err = rpc_create_socket(conn);
+	if (err) return err;
+
 	err = gethostbyname_timeout(conn->server, conn->timeout, &hp);
 	if (err) return err;
 
+	memset(&(conn->sockaddr), 0, sizeof(conn->sockaddr));
 	memcpy(&(conn->sockaddr.sin_addr), hp->h_addr, hp->h_length);
 	conn->sockaddr.sin_family = AF_INET;
 	conn->sockaddr.sin_port = 0;
@@ -265,6 +288,104 @@ static void logdata(int rx, char *buf, int len)
 	for (i=0; i<(len & 3); i++) syslogf(LOGNAME, LOGDATA, "  %.2x", buf[(len &~3) + i]);
 }
 
+/* Fills as much of the buffer as it can without blocking */
+static os_error *rpc_fillbuffer(char *buf, int buflen, int *currentlen, struct conn_info *conn)
+{
+	int len;
+
+	trigger_callback();
+	len = read(conn->sock, buf + *currentlen, buflen - *currentlen);
+
+	if (len == -1) {
+		if (errno == EWOULDBLOCK) {
+			len = 0;
+		} else {
+			return gen_rpc_error(conn, RPCERRBASE + 7,"Read from socket failed (%s)", xstrerror(errno));
+		}
+	}
+
+	*currentlen += len;
+
+	return NULL;
+}
+
+/* Reads data into the current buffer, and returns the current buffer if the entire reply has been recieved */
+static os_error *rpc_readdata(int blocking, int *buffer, struct conn_info *conn)
+{
+	static int currentrecordoffset;
+	static int currentoffset;
+	static int recordsize;
+	static int lastrecord;
+	static int currentrmoffset;
+	os_error *err;
+	time_t t = clock();
+
+	if (currentbuffer == INVALIDBUFFER) {
+		/* Search for a free buffer entry.
+		   There should always be at least one */
+		for (currentbuffer = freebufferstart; currentbuffer < freebufferstart + FIFOSIZE; currentbuffer++) {
+			if (buffers[currentbuffer % FIFOSIZE].len == 0) {
+				currentbuffer %= FIFOSIZE;
+				break;
+			}
+		}
+		if (currentbuffer >= FIFOSIZE) return gen_rpc_error(conn, RPCERRBASE + 9, "No free rxbuffer found");
+		currentoffset = 0;
+		currentrecordoffset = 0;
+		currentrmoffset = 0;
+		if (conn->tcp) {
+			recordsize = 0;
+			lastrecord = 0;
+		} else {
+			recordsize = BUFFERSIZE;
+			lastrecord = 1;
+		}
+	}
+
+	do {
+		if (recordsize == 0) {
+			static char rmbuffer[sizeof(int)];
+
+			/* Read the record marker if this is a tcp stream */
+			err = rpc_fillbuffer(rmbuffer, sizeof(int), &currentrmoffset, conn);
+			if (err) return err;
+
+			if (currentrmoffset == sizeof(int)) {
+				recordsize  = (rmbuffer[3]);
+				recordsize |= (rmbuffer[2]) << 8;
+				recordsize |= (rmbuffer[1]) << 16;
+				recordsize |= (rmbuffer[0] & 0x7F) << 24;
+				lastrecord  = (rmbuffer[0] & 0x80) >> 7;
+				currentrmoffset = 0;
+			}
+		}
+
+		if (recordsize + currentoffset > BUFFERSIZE) return gen_rpc_error(conn, RPCERRBASE + 15,"RPC reply too big");
+
+		if (recordsize > 0) {
+			err = rpc_fillbuffer(buffers[currentbuffer].buffer + currentoffset, recordsize, &currentrecordoffset, conn);
+			if (err) return err;
+		}
+
+		if (currentrecordoffset >= (conn->tcp ? recordsize : 1)) {
+			currentoffset += currentrecordoffset;
+			recordsize = 0;
+			currentrecordoffset = 0;
+		}
+	} while (blocking && !(recordsize == 0 && lastrecord) && (clock() < (t + (conn->timeout * CLOCKS_PER_SEC))));
+
+	if (recordsize == 0 && lastrecord) {
+		/* We have read the entire reply */
+		buffers[currentbuffer].len = currentoffset;
+		*buffer = currentbuffer;
+		currentbuffer = INVALIDBUFFER;
+	} else {
+		/* We have read part, or none, of the reply */
+		*buffer = INVALIDBUFFER;
+	}
+	return NULL;
+}
+
 /* Setup buffer and write call header to it */
 void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, struct conn_info *conn)
 {
@@ -286,6 +407,10 @@ void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, s
 
 	buf = fifo[head].tx.buffer;
 	bufend = buf + BUFFERSIZE;
+
+	/* Leave room for the record marker */
+	if (conn->tcp) buf += 4;
+
 	fifo[head].xid = call_header.xid;
 	fifo[head].rx = NULL;
 
@@ -301,9 +426,12 @@ buffer_overflow: /* Should be impossible, but prevent compiler complaining */
    the rpc reply header */
 os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 {
+	os_error *err;
+
 	if (calltype == TXBLOCKING || calltype == TXNONBLOCKING) {
 		int port;
 		int ret;
+		unsigned int recordmarker;
 
 		/* Choose the port to use */
 		switch (call_header.body.u.cbody.prog) {
@@ -321,12 +449,21 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 			port = htons(conn->nfs_port);
 			break;
 		}
-	
+
 		/* Only connect the socket if the port is different from the last
 		   time we used the socket */
-		if (port != conn->sockaddr.sin_port) {
+		if (port != conn->sockaddr.sin_port || conn->sock == -1) {
 			conn->sockaddr.sin_port = port;
-			if (connect(conn->sock, (struct sockaddr *)&(conn->sockaddr), sizeof(struct sockaddr_in)) < 0) {
+
+			if (conn->tcp) {
+				err = rpc_close_connection(conn);
+				if (err) return err;
+				err = rpc_create_socket(conn);
+				if (err) return err;
+			}
+
+			ret = connect(conn->sock, (struct sockaddr *)&(conn->sockaddr), sizeof(struct sockaddr_in));
+			if (ret == -1 && errno != EINPROGRESS) {
 				return gen_error(RPCERRBASE + 4, "Connect on socket failed (%s)", xstrerror(errno));
 			}
 		}
@@ -334,10 +471,23 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 		fifo[head].tx.len = buf - fifo[head].tx.buffer;
 		fifo[head].retries = 0;
 		fifo[head].rx = NULL;
+
+		if (conn->tcp) {
+			/* Insert the record marker at the start of the buffer */
+			recordmarker = 0x80000000 | (fifo[head].tx.len - 4);
+			buf = fifo[head].tx.buffer;
+			bufend = buf + 4;
+			process_int(OUTPUT, recordmarker, 0);
+		}
+
 		if (enablelog) logdata(0, fifo[head].tx.buffer, fifo[head].tx.len);
 		blocking_timeout(ret, send(conn->sock, fifo[head].tx.buffer, fifo[head].tx.len, 0));
 		if (ret == -1) {
-			return gen_error(RPCERRBASE + 5, "Sending data failed (%s)", xstrerror(errno));
+			if (errno == ENOTCONN) {
+				return gen_rpc_error(conn, RPCERRBASE + 4, "Connect on socket failed (connection timed out)");
+			} else {
+				return gen_rpc_error(conn, RPCERRBASE + 5, "Sending data failed (%s)", xstrerror(errno));
+			}
 		}
 
 		head++;
@@ -355,63 +505,47 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 		   and read one */
 
 		do {
-			unsigned int freebuffer;
-			int len;
-	
-			/* Search for a free buffer entry.
-			   There should always be at least one */
-			for (freebuffer = freebufferstart; freebuffer < freebufferstart + FIFOSIZE; freebuffer++) {
-				if (buffers[freebuffer % FIFOSIZE].len == 0) {
-					freebuffer = freebuffer % FIFOSIZE;
-					break;
-				}
-			}
-			if (freebuffer >= FIFOSIZE) return gen_error(RPCERRBASE + 9, "No free rxbuffer found");
+			int readbuffer;
 
-			if (calltype == TXBLOCKING || calltype == RXBLOCKING) {
-				blocking_timeout(len, read(conn->sock, buffers[freebuffer].buffer, BUFFERSIZE));
-			} else {
-				trigger_callback();
-				len = read(conn->sock, buffers[freebuffer].buffer, BUFFERSIZE);
-			}
-			if (len == -1 && errno != EWOULDBLOCK) return gen_error(RPCERRBASE + 7,"Read from socket failed (%s)", xstrerror(errno));
+			err = rpc_readdata((calltype == TXBLOCKING || calltype == RXBLOCKING), &readbuffer, conn);
+			if (err) return err;
 
-			if (len > 0) {
+			if (readbuffer != INVALIDBUFFER) {
 				int i;
 				int xid;
-	
-				if (enablelog) logdata(1, buffers[freebuffer].buffer, len);
+
+				if (enablelog) logdata(1, buffers[readbuffer].buffer, buffers[readbuffer].len);
 
 				/* Check to see if it a reply that we are waiting for, and
 				   fill in the appropriate fifo entry. Ignore any unknown
 				   replies (They could be replies from earlier calls that
 				   we retransmitted because of timeouts) */
-				buf = buffers[freebuffer].buffer;
-				bufend = buf + len;
+				buf = buffers[readbuffer].buffer;
+				bufend = buf + buffers[readbuffer].len;
 				process_int(INPUT, xid, 0);
 
 				for (i = 0; i < FIFOSIZE; i++) {
 					if (xid == fifo[i].xid) {
-						fifo[i].rx = &(buffers[freebuffer]);
-						buffers[freebuffer].len = len;
+						fifo[i].rx = &(buffers[readbuffer]);
 						break;
 					}
 				}
+				if (i == FIFOSIZE) buffers[readbuffer].len = 0; /* Clear buffer, it wasn't one we were waiting for */
 			} else if (calltype == TXBLOCKING || calltype == RXBLOCKING) {
 				int ret;
 
 				/* No data recived, so retransmit the oldest fifo entry if it
 				   is still pending, unless we are non blocking */
-	
+
 				fifo[tail].retries++;
 				if (fifo[tail].rx == NULL && fifo[tail].retries > conn->retries) {
-					return gen_error(RPCERRBASE + 8, "Connection timed out");
+					return gen_rpc_error(conn, RPCERRBASE + 8, "Connection timed out");
 				}
-	
+
 				if (enablelog) logdata(0, fifo[tail].tx.buffer, fifo[tail].tx.len);
 				blocking_timeout(ret, send(conn->sock, fifo[tail].tx.buffer, fifo[tail].tx.len, 0));
 				if (ret == -1) {
-					return gen_error(RPCERRBASE + 5, "Sending data failed (%s)", xstrerror(errno));
+					return gen_rpc_error(conn, RPCERRBASE + 5, "Sending data failed (%s)", xstrerror(errno));
 				}
 			}
 		} while ((calltype == TXBLOCKING || calltype == RXBLOCKING) && fifo[tail].rx == NULL);

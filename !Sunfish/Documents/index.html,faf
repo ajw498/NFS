@@ -59,7 +59,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 <h2><font color="#ffffff"><a name="requirements">Requirements</a></font></h2>
 </td></tr></table>
 <p>
-Sunfish requires a working network connection and an NFS server to connect to. The server should be running version 2 of the NFS protocol, version 1 of the Mount protocol, version 2 of the portmapper protocol, and optionally version 2 of the pcnfsd protocol. It has currently only been tested with the Linux kernel server present in Debian Woody, but it should work with other servers. Only UDP connections are supported at present.
+Sunfish requires a working network connection and an NFS server to connect to. The server should be running version 2 of the NFS protocol, version 1 of the Mount protocol, version 2 of the portmapper protocol, and optionally version 2 of the pcnfsd protocol. It has currently only been tested with the Linux kernel server present in Debian Woody, but it should work with other servers. Both UDP and TCP connections are supported.
 <p>
 Sunfish should run on any version of RISC OS from 3.11 onwards. It has been reported to work on RISC OS 3.7, RISC OS 4 (including under Virtual RPC), Select, and RISC OS 5. It is 26/32bit neutral.
 <p>
@@ -108,6 +108,7 @@ A more complex example.
 <pre>
 Protocol: NFS2
 Server: mint.cp15.org
+Transport: tcp
 Export: /tmp
 UID: 1002
 GID: 51
@@ -116,7 +117,6 @@ umask: 066
 MachineName: caramel
 ShowHidden: 0
 Timeout: 5
-Retries: 0
 DefaultFiletype: FFF
 AddExt: 2
 MaxDataBuffer: 8192
@@ -161,11 +161,14 @@ The password to give to pcnfsd with the username. This password has to be stored
 <h3>Optional options</h3>
 These options can be specified if needed, but if they are not then default values will be used. For most connections, the defaults will be sufficient.
 <p>
+<h4>Transport</h4>
+The type of connection to use as transport. Can be either tcp or udp. If omitted, it defaults to udp. Note that older servers tend not to support tcp connections.
+<p>
 <h4>MachineName</h4>
 The name of the machine the client is running on. Some servers may use it to allow or deny access. If omitted, it defaults to the value of <code>&lt;Inet$Hostname&gt;</code> which should be sufficient in most cases.
 <p>
 <h4>MaxDataBuffer</h4>
-The maximum number of bytes to use for the data buffer of a read or write request. A bigger buffer will generally be faster than a smaller one, but some network cards (In particular, the Castle 100BaseT podule) cannot handle larger packets. The maximum value is 8192 bytes, and it is recommeded that you set it to this if your network card can handle it (You will probably get timeout errors when reading a large file if it is too big). If omitted, it defaults to 4096 bytes.
+The maximum number of bytes to use for the data buffer of a read or write request. A bigger buffer will generally be faster than a smaller one, but some network cards (In particular, the Castle 100BaseT podule) cannot handle larger packets when using UDP. The maximum value is 8192 bytes, and it is recommeded that you set it to this if your network card can handle it (You will probably get timeout errors when reading a large file if it is too big). If omitted, it defaults to 4096 bytes for UDP connections and 8192 for TCP connections.
 <p>
 <h4>Pipelining</h4>
 If set to 0, then all operations wait for a reply before sending the next request. If set to 1, then for file reads and writes new requests are sent before the reply from the previous request is recieved. This can give an increase in speed in some circumstances. If ommitted, it defaults to 0.  
@@ -215,7 +218,7 @@ If case sensitivity is off, and you have two (or more) files in the same directo
 The time in seconds to wait for a reply from the server before retrying or giving up. Defaults to 3 seconds.
 <p>
 <h4>Retries</h4>
-The number of times to resend a request if no reply is received. Defaults to 2 retries.
+The number of times to resend a request if no reply is received. Defaults to 2 retries. If TCP is being used as the transport then this setting is ignored because TCP will do any necessary retries itself.
 <p>
 <h4>DefaultFiletype</h4>
 The hexadecimal filetype to give a file if it doesn't have an ,xyz extension or a . extension that matches a mimemap entry. If not specified then it defaults to FFF.
@@ -228,11 +231,13 @@ Controls adding of a ,xyz extension. When 0, no ,xyz extensions are added, and a
 <h2><font color="#ffffff"><a name="performance">Improving Performance</a></font></h2>
 </td></tr></table>
 <p>
-There are two options that are likely to have an effect on performance: the MaxDataBuffer option and the Pipelining option.
+There are three options that are likely to have an effect on performance: the transport, the MaxDataBuffer option and the Pipelining option.
 <p>
-Normally, the bigger the data buffer the better (the maximum size is 8192), however some network cards (notably the Castle 100bT podule) cannot cope with large packet sizes. I suggest you try setting it to 8192, and if you start getting timeout errors when transferring files then reduce it.
+Using TCP as the transport may give better results than UDP in some circumstances.
 <p>
-The pipelining option (which is disabled by default) allows file read and write requests to be pipelined which can give around a 20% increase in speed. However, with some servers or network setups it could make things slower. If, for example, your server is running on a 100bT segment while the client is the other side of a switch on a 10bT segment then it is likely to make things worse, but if the server and client are of comparable speeds on the same segment then it may make things faster.
+Normally, the bigger the data buffer the better (the maximum size is 8192), however some network cards (notably the Castle 100bT podule) cannot cope with large packet sizes when using UDP. I suggest you try setting it to 8192, and if you start getting timeout errors when transferring files then reduce it.
+<p>
+The pipelining option (which is disabled by default) allows file read and write requests to be pipelined which can give around a 20% increase in speed. However, with some servers or network setups it could make things slower. If, for example, your server is running on a 100bT segment while the client is the other side of a switch on a 10bT segment then it is likely to make things worse on a UDP connection, but if the server and client are of comparable speeds on the same segment then it may make things faster.
 <p>
 The server can also have a large influence on the speed. For example, if I read a 30MB file from the server it may take 14 seconds, but if I then read it a second time it take less than half that time because of the filesystem caching on the server.
 <p>

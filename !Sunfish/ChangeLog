@@ -1,5 +1,6 @@
 v1.02 ???
 Fixed a bug where an error could occasionally be misreported.
+Added support for TCP connections.
 
 v1.01 7-Oct-04
 Add flag to detect if we are reentered from a callback and give a sensible

@@ -125,6 +125,8 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		conn->nfs_port = (int)strtol(val, NULL, 10);
 	} else if (CHECK("PCNFSDPort")) {
 		conn->pcnfsd_port = (int)strtol(val, NULL, 10);
+	} else if (CHECK("Transport")) {
+		conn->tcp = strcasecmp(val, "tcp") == 0;
 	} else if (CHECK("Export")) {
 		conn->export = val;
 	} else if (CHECK("UID")) {
@@ -254,6 +256,8 @@ static os_error *getport(int program, int version, unsigned int *progport, struc
 	os_error *err;
 	int port;
 
+	if (conn->tcp) map.prot = IPPROTO_TCP;
+
 	err = PMAPPROC_GETPORT(&map, &port, conn);
 	if (err) return err;
 	if (port == 0) {
@@ -285,6 +289,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->mount_port = 0;
 	conn->nfs_port = 0;
 	conn->pcnfsd_port = 0;
+	conn->tcp = 0;
 	conn->server = "";
 	conn->export = "";
 	conn->timeout = 3;
@@ -304,7 +309,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->xyzext = NEEDED;
 	conn->localportmin = LOCALPORTMIN_DEFAULT;
 	conn->localportmax = LOCALPORTMAX_DEFAULT;
-	conn->maxdatabuffer =  MAXDATABUFFER_DEFAULT;
+	conn->maxdatabuffer = 0;
 	conn->followsymlinks = 5;
 	conn->pipelining = 0;
 	conn->casesensitive = 0;
@@ -320,6 +325,13 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	if (conn->logging) {
 		enablelog++;
 		syslogf(LOGNAME, LOGENTRY, "Logging enabled for new connection %s %s %s", Module_Title, Module_VersionString, Module_Date);
+	}
+
+	/* There is no point in retrying on a reliable transport */
+	if (conn->tcp) conn->retries = 0;
+
+	if (conn->maxdatabuffer == 0) {
+		conn->maxdatabuffer =  conn->tcp ? MAXDATABUFFER_TCP_DEFAULT : MAXDATABUFFER_UDP_DEFAULT;
 	}
 
 	if (conn->machinename == NULL) {
@@ -577,14 +589,14 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 /* Rename a file or directory */
 os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *conn, int *renamefailed)
 {
-    struct diropok *dinfo;
-    struct diropok *finfo;
-    struct renameargs renameargs;
-    enum nstat renameres;
-    os_error *err;
-    char *leafname;
-    static char oldleafname[MAXNAMLEN];
-    int filetype;
+	struct diropok *dinfo;
+	struct diropok *finfo;
+	struct renameargs renameargs;
+	enum nstat renameres;
+	os_error *err;
+	char *leafname;
+	static char oldleafname[MAXNAMLEN];
+	int filetype;
 
 	err = filename_to_finfo(oldfilename, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
 	if (err) return err;

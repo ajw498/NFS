@@ -87,6 +87,7 @@
 #define gadget_connection_TIMEOUT         0xc
 #define gadget_connection_RETRIES         0xd
 #define gadget_connection_LOGGING         0x5
+#define gadget_connection_TCP             0x12
 
 #define gadget_main_SERVER                0x0
 #define gadget_main_EXPORT                0x1
@@ -138,6 +139,7 @@ struct mount {
 	char gids[STRMAX];
 	int umask;
 	osbool usepcnfsd;
+	osbool tcp;
 };
 
 static struct mount mount;
@@ -180,6 +182,7 @@ static void mount_save(char *filename)
 		fprintf(file,"gids: %s\n",gids);
 		fprintf(file,"umask: %.3o\n",mount.umask);
 	}
+	fprintf(file,"Transport: %s\n",mount.tcp ? "TCP" : "UDP");
 	fprintf(file,"ShowHidden: %d\n",mount.showhidden);
 	fprintf(file,"FollowSymlinks: %d\n",mount.followsymlinks);
 	fprintf(file,"CaseSensitive: %d\n",mount.casesensitive);
@@ -432,6 +435,7 @@ static osbool connection_open(bits event_code, toolbox_action *event, toolbox_bl
 	snprintf(tmp, sizeof(tmp), "%d", mount.retries);
 	E(xwritablefield_set_value(0, id_block->this_obj, gadget_connection_RETRIES, tmp));
 	E(xoptionbutton_set_state(0, id_block->this_obj, gadget_connection_LOGGING, mount.logging));
+	E(xradiobutton_set_state(0, id_block->this_obj, gadget_connection_TCP, mount.tcp));
 
 	return 1;
 }
@@ -450,6 +454,7 @@ static osbool connection_set(bits event_code, toolbox_action *event, toolbox_blo
 	E(xwritablefield_get_value(0, id_block->this_obj, gadget_connection_RETRIES, tmp, sizeof(tmp), NULL));
 	mount.retries = atoi(tmp);
 	E(xoptionbutton_get_state(0, id_block->this_obj, gadget_connection_LOGGING, &mount.logging));
+	E(xradiobutton_get_state(0, id_block->this_obj, gadget_connection_TCP, &mount.tcp, NULL));
 
 	return 1;
 }
@@ -508,7 +513,7 @@ static osbool mainwin_open(bits event_code, toolbox_action *event, toolbox_block
 	mount.localportmin = LOCALPORTMIN_DEFAULT;
 	mount.localportmax = LOCALPORTMAX_DEFAULT;
 	mount.machinename[0] = '\0';
-	mount.maxdatabuffer = MAXDATABUFFER_DEFAULT;
+	mount.maxdatabuffer = MAXDATABUFFER_UDP_DEFAULT;
 	mount.pipelining = 0;
 	mount.timeout = 3;
 	mount.retries = 2;
@@ -521,6 +526,7 @@ static osbool mainwin_open(bits event_code, toolbox_action *event, toolbox_block
 	mount.gids[0] = '\0';
 	mount.umask = 022;
 	mount.usepcnfsd = 0;
+	mount.tcp = 0;
 
 
 	E(xwritablefield_set_value(0, id_block->this_obj, gadget_main_SERVER, mount.server));

@@ -22,6 +22,7 @@
 
 /* The default buffer size to use. Ideally, this would be 8K, but the
    Castle 100bT podule card cannot handle such large packets */
-#define MAXDATABUFFER_DEFAULT 4096
+#define MAXDATABUFFER_UDP_DEFAULT 4096
+#define MAXDATABUFFER_TCP_DEFAULT 8192
 
 #endif

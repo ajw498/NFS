@@ -141,6 +141,7 @@ struct conn_info {
 	int lastcookie;
 	int laststart;
 	char lastdirhandle[FHSIZE];
+	int tcp;
 };
 
 extern int enablelog;
