@@ -113,6 +113,8 @@ os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 		return gen_error(BYTESERRBASE + 2,"Cannot write data to a non-regular file");
 	}
 
+	if (offset + len > handle->extent) handle->extent = offset + len;
+
 	return writebytes(handle->fhandle, buffer, len, offset, handle->conn);
 }
 

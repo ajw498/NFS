@@ -5,6 +5,7 @@ Fix bug that could leave an open socket if mounting failed.
 Added unumask option.
 Added CaseSensitive option and made the default caseinsensitive.
 Fixed bug that could prevent timestamps getting set correctly.
+Fixed bug that could cause OS_Args 3 to erroneously write zeros to the file.
 
 v0.96 14-Dec-03
 Fixed bug that could cause some filetypes to be incorrectly set to the
