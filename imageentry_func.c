@@ -566,20 +566,21 @@ static void timeval_to_loadexec(struct ntimeval *unixtime, int filetype, unsigne
 	csecs *= 100;
 	csecs += ((int64_t)unixtime->useconds / 10000);
 	csecs += 0x336e996a00; /* Difference between 1900 and 1970 */
-	*load = (int)((csecs >> 32) & 0xFF);
+	*load = (unsigned int)((csecs >> 32) & 0xFF);
 	*load |= (0xFFF00000 | ((filetype & 0xFFF) << 8));
-	*exec = (int)(csecs & 0xFFFFFFFF);
+	*exec = (unsigned int)(csecs & 0xFFFFFFFF);
 }
 
 /* Convert a RISC OS load and execution address into a unix timestamp */
 static void loadexec_to_timeval(unsigned int load, unsigned int exec, struct ntimeval *unixtime)
 {
-	uint64_t csecs;
+	uint64_t csecs, secs;
 
 	csecs = exec;
 	csecs |= ((uint64_t)load & 0xFF) << 32;
 	csecs -= 0x336e996a00; /* Difference between 1900 and 1970 */
-    unixtime->seconds = (unsigned int)(csecs / 100);
+    secs = csecs / (uint64_t)100;
+    unixtime->seconds = (unsigned int)(secs & 0xFFFFFFFF);
     unixtime->useconds = (unsigned int)((csecs % 100) * 10000);
 }
 
@@ -760,10 +761,32 @@ os_error *open_file(char *filename, int access, struct conn_info *conn, int *fil
 	return NULL;
 }
 
-os_error *close_file(struct file_handle *handle, int load, int exec)
+os_error *close_file(struct file_handle *handle, unsigned int load, unsigned int exec)
 {
-	/* FIXME update load/exec */
-	free(handle);
+#if 0 /* loadexec_to_timeval seems to be broken, and this operation is likely to fail if we aren't the file owner */
+	struct sattrargs sattrargs;
+	struct attrstat sattrres;
+	os_error *err;
+
+	/* Set a new timestamp.
+	   Ignore the filetype, as there is no API for applications to change a
+	   filetype from a file handle so it shouldn't have changed */
+	memcpy(sattrargs.file, handle->fhandle, FHSIZE);
+	sattrargs.attributes.mode = -1;
+	sattrargs.attributes.uid = -1;
+	sattrargs.attributes.gid = -1;
+	sattrargs.attributes.size = -1;
+	sattrargs.attributes.atime.seconds = -1;
+	sattrargs.attributes.atime.useconds = -1;
+	loadexec_to_timeval(load, exec, &(sattrargs.attributes.mtime));
+
+	err = NFSPROC_SETATTR(&sattrargs, &sattrres, handle->conn);
+#endif
+	free(handle); /* Free memory before returning even if there is an error */
+#if 0
+	if (err) return err;
+	if (sattrres.status != NFS_OK) gen_nfsstatus_error(sattrres.status);
+#endif
 	return NULL;
 }
 

@@ -22,7 +22,7 @@ os_error *func_readdirinfo(int info, char *dirname, void *buffer, int numobjs, i
 
 os_error *open_file(char *filename, int access, struct conn_info *conn, int *file_info_word, int *internal_handle, int *extent);
 
-os_error *close_file(struct file_handle *handle, int load, int exec);
+os_error *close_file(struct file_handle *handle, unsigned int load, unsigned int exec);
 
 os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned len, unsigned offset);
 
