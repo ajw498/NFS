@@ -189,3 +189,11 @@ struct writeargs {
 };
 
 attrstat NFSPROC_WRITE(writeargs) = 8;
+
+struct createargs {
+        diropargs where;
+        sattr attributes;
+};
+
+diropres NFSPROC_CREATE(createargs) = 9;
+

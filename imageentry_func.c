@@ -166,7 +166,7 @@ os_error *func_readdirinfo(int info, const char *dirname, void *buffer, int numo
 
 #define return_error(msg) do { strcpy(err_buf.errmess,msg); return &err_buf; } while (0)
 
-static os_error *filename_to_finfo(char *filename, struct diropok **finfo, struct conn_info *conn)
+static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct diropok **finfo, char **leafname, struct conn_info *conn)
 {
 	char *start = filename;
 	char *end;
@@ -174,6 +174,10 @@ static os_error *filename_to_finfo(char *filename, struct diropok **finfo, struc
 	struct diropargs current;
 	static struct diropres next;
 	os_error *err;
+
+/*return_error("foo");*/
+	if (dinfo) *dinfo = NULL;
+	if (finfo) *finfo = NULL;
 
 	do {
 		end = start;
@@ -186,40 +190,69 @@ static os_error *filename_to_finfo(char *filename, struct diropok **finfo, struc
 		err = NFSPROC_LOOKUP(&current, &next, conn);
 		if (err) return err;
 
-		if (next.status == NFSERR_NOENT) return (os_error *)1; /* Make this nicer */
-		if (next.status != NFS_OK) return_error("Lookup failed"); /* Should cope with leafname not found */
-		if (*end == '.' && next.u.diropok.attributes.type != NFDIR) return_error("not a directory");
+		if (leafname) *leafname = start;
+		if (next.status != NFS_OK && next.status != NFSERR_NOENT) return_error("Lookup failed");
+		if (*end != '\0') {
+			if (next.u.diropok.attributes.type != NFDIR) return_error("not a directory");
+			if (dinfo) *dinfo = &(next.u.diropok);
+		}
 		dirhandle = next.u.diropok.file;
 		start = end + 1;
 	} while (*end != '\0');
-	*finfo = &(next.u.diropok);
+	if (finfo) *finfo = &(next.u.diropok);
 	return NULL;
 }
 
-os_error *open_file(char *filename, struct conn_info *conn, int *file_info_word, int *internal_handle, int *extent)
+os_error *open_file(char *filename, int access, struct conn_info *conn, int *file_info_word, int *internal_handle, int *extent)
 {
 	struct file_handle *handle;
+    struct diropok *dinfo;
     struct diropok *finfo;
+    struct createargs createargs;
+    struct diropres createres;
     os_error *err;
+    char *leafname;
 
-	if (filename == NULL) return_error("ofla avoidance2");
 	handle = malloc(sizeof(struct file_handle));
 	if (handle == NULL) return_error("out of mem");
-	err = filename_to_finfo(filename, &finfo, conn);
+	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, conn);
 	if (err) {
 		free(handle);
-		if (err == (os_error *)1) {
+		return err;
+	}
+	if (finfo == NULL) {
+/*		char tmp[20];
+		sprintf(tmp,"access = %x",access);
+		return_error(tmp);*/
+		if (access ==1) {
+			memcpy(createargs.where.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
+			createargs.where.name.data = leafname;
+			createargs.where.name.size = strlen(leafname);
+			createargs.attributes.mode = 0x00008180; /**/
+			createargs.attributes.uid = -1;
+			createargs.attributes.gid = -1;
+			createargs.attributes.size = access;
+			createargs.attributes.atime.seconds = -1;
+			createargs.attributes.atime.useconds = -1;
+			createargs.attributes.mtime.seconds = -1;
+			createargs.attributes.mtime.useconds = -1;
+			err = NFSPROC_CREATE(&createargs, &createres, conn);
+			if (err) {
+				free(handle);
+				return err;
+			}
+			if (createres.status != NFS_OK) return_error("create file failed");
+			finfo = &(createres.u.diropok);
+		} else {
 			*internal_handle = 0;
 			return NULL;
-		} else {
-			return err;
 		}
 	}
 	handle->conn = conn;
 	memcpy(handle->fhandle, finfo->file, FHSIZE);
 
 	*internal_handle = (int)handle;
-	*file_info_word = 0xC0000000;/*((finfo->attributes.mode & 0x400) << 20) | ((finfo->attributes.mode & 0x200) << 22);*/
+	*file_info_word = (int)0xC0000000;/*((finfo->attributes.mode & 0x400) << 20) | ((finfo->attributes.mode & 0x200) << 22);*/
 	*extent = finfo->attributes.size;
 	return NULL;
 }
@@ -273,15 +306,12 @@ os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype,
     struct diropok *finfo;
     os_error *err;
 
-	if (filename == NULL) return_error("ofla avoidance");
-	err = filename_to_finfo(filename, &finfo, conn);
-	if (err) {
-		if (err == (os_error *)1) {
-			*objtype = 0;
-			return NULL;
-		} else {
-			return err;
-		}
+/*	return_error("ofla avoidance");*/
+	err = filename_to_finfo(filename, NULL, &finfo, NULL, conn);
+	if (err) return err;
+	if (finfo == NULL) {
+		*objtype = 0;
+		return NULL;
 	}
 
 	*objtype = finfo->attributes.type == NFDIR ? 2 : 1;
@@ -289,5 +319,45 @@ os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype,
 	*exec = 0;
 	*len = finfo->attributes.size;
 	*attr = 3;/*((finfo->attributes.mode & 0x400) >> 10) | ((finfo->attributes.mode & 0x200) >> 8);*/
+	return NULL;
+}
+
+os_error *file_savefile(char *filename, int load, int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname)
+{
+    struct diropok *dinfo;
+    os_error *err;
+    struct createargs createargs;
+    struct diropres createres;
+	struct writeargs writeargs;
+	struct attrstat writeres;
+
+syslogf("NFS",25,"foo0");
+	if (buffer_end - buffer > 7000/*tx_buffersize*/) return_error("file too big");
+syslogf("NFS",25,"foo1");
+	err = filename_to_finfo(filename, &dinfo, NULL, leafname, conn);
+syslogf("NFS",25,"foo2");
+	if (err) return err;
+syslogf("NFS",25,"foo3");
+
+	memcpy(createargs.where.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
+	createargs.where.name.data = *leafname;
+	createargs.where.name.size = strlen(*leafname);
+	createargs.attributes.mode = 0x00008180; /**/
+	createargs.attributes.uid = -1;
+	createargs.attributes.gid = -1;
+	createargs.attributes.size = buffer_end - buffer;
+	createargs.attributes.atime.seconds = -1;
+	createargs.attributes.atime.useconds = -1;
+	createargs.attributes.mtime.seconds = -1;
+	createargs.attributes.mtime.useconds = -1;
+	err = NFSPROC_CREATE(&createargs, &createres, conn);
+	if (err) return err;
+	if (createres.status != NFS_OK && createres.status != NFSERR_EXIST) return_error("create file failed");
+	memcpy(writeargs.file, createres.u.diropok.file, FHSIZE);
+	writeargs.offset = 0;
+	writeargs.data.size = buffer_end - buffer;
+	writeargs.data.data = buffer;
+	err = NFSPROC_WRITE(&writeargs, &writeres, conn);
+	
 	return NULL;
 }
