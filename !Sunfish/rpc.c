@@ -366,19 +366,20 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 
 			if (len > 0) {
 				int i;
+				int xid;
 	
 				if (enablelog) logdata(1, buffers[freebuffer].buffer, len);
-				buf = buffers[freebuffer].buffer;
-				bufend = buf + len;
-				process_struct_rpc_msg(INPUT, reply_header, 0);
-				/*FIXME: we only need the xid, so don't bother to parse the whole header */
 
 				/* Check to see if it a reply that we are waiting for, and
 				   fill in the appropriate fifo entry. Ignore any unknown
 				   replies (They could be replies from earlier calls that
 				   we retransmitted because of timeouts) */
+				buf = buffers[freebuffer].buffer;
+				bufend = buf + len;
+				process_int(INPUT, xid, 0);
+
 				for (i = 0; i < FIFOSIZE; i++) {
-					if (reply_header.xid == fifo[i].xid) {
+					if (xid == fifo[i].xid) {
 						fifo[i].rx = &(buffers[freebuffer]);
 						buffers[freebuffer].len = len;
 						break;
