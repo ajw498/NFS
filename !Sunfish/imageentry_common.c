@@ -179,7 +179,8 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 				|| name[i] == '?'
 				|| name[i] == '@'
 				|| name[i] == '\\'
-				|| name[i] == 127) {
+				|| name[i] == 127
+				|| name[i] == 160) {
 			int val;
 
 			/* Turn illegal chars into ?XX escape sequences */
