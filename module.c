@@ -55,15 +55,19 @@ void tm_service(int service_number, _kernel_swi_regs *r, void *private_word)
 static int enablelog = 1;
 
 
-os_error *gen_error(int num, char *msg)
+os_error *gen_error(int num, char *msg, ...)
 {
 	static os_error module_err_buf; /* FIXME - remove duplication with other files */
+	va_list ap;
+
+	va_start(ap, msg);
+	vsnprintf(module_err_buf.errmess, sizeof(module_err_buf.errmess), msg, ap);
+	va_end(ap);
 	module_err_buf.errnum = num;
-	strcpy(module_err_buf.errmess,msg);
 	return &module_err_buf;
 }
 
-void syslogf(char *logname, int level, char *fmt, ...)
+static void syslogf(char *logname, int level, char *fmt, ...)
 {
 	static char syslogbuf[1024];
 	va_list ap;

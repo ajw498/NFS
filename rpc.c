@@ -10,6 +10,8 @@
 #include "nfs-calls.h"
 #include "rpc.h"
 
+#include "imageentry_func.h" /**/
+
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
@@ -23,6 +25,7 @@
 #include <sys/time.h>
 #include <swis.h>
 #include <sys/errno.h>
+#include <unixlib.h>
 
 
 static unsigned int xid;
@@ -48,7 +51,7 @@ void swap_rxbuffers(void)
 /* Initialise parts of the header that are the same for all calls */
 void rpc_init_header(void)
 {
-	xid = time(NULL);
+	xid = 1;
 /*	printf("init xid = %d\n",xid); */
 	call_header.body.mtype = CALL;
 	call_header.body.u.cbody.rpcvers = RPC_VERSION;
@@ -75,22 +78,15 @@ buffer_overflow: /* Should be impossible, but... */
 	return;
 }
 
-os_error err_buf = {1, ""};
-
-#define rpc_error(msg) do { \
- strcpy(err_buf.errmess,msg); \
- return &err_buf; \
-} while (0)
-
 os_error *rpc_init_connection(struct conn_info *conn)
 {
 	struct hostent *hp;
 
 	conn->sock = socket(AF_INET, SOCK_DGRAM, 0);
-	if (conn->sock < 0) rpc_error("opening dgram socket");
+	if (conn->sock < 0) return gen_error(RPCERRBASE + 0,"Unable to open socket (%s)", xstrerror(errno));
 
 	hp = gethostbyname(conn->server);
-	if (hp == NULL) rpc_error("Unable to resolve hostname");
+	if (hp == NULL) return gen_error(RPCERRBASE + 1, "Unable to resolve hostname '%s' (%s)", conn->server, xstrerror(errno));
 
 	memcpy(&(conn->sockaddr.sin_addr), hp->h_addr, hp->h_length);
 	conn->sockaddr.sin_family = AF_INET;
@@ -100,10 +96,9 @@ os_error *rpc_init_connection(struct conn_info *conn)
 
 os_error *rpc_close_connection(struct conn_info *conn)
 {
-	if (socketclose(conn->sock)) rpc_error("socketclose failed");
+	if (socketclose(conn->sock)) return gen_error(RPCERRBASE + 2, "Socketclose failed (%s)", xstrerror(errno));
 	return NULL;
 }
-void syslogf(char *logname, int level, char *fmt, ...);
 
 os_error *rpc_do_call(struct conn_info *conn)
 {
@@ -111,7 +106,6 @@ os_error *rpc_do_call(struct conn_info *conn)
 	int port;
 	int tries = 0;
 	int ret;
-	os_error *err;
 
 	switch (call_header.body.u.cbody.prog) {
 	case PMAP_RPC_PROGRAM:
@@ -121,55 +115,61 @@ os_error *rpc_do_call(struct conn_info *conn)
 		port = htons(conn->mount_port);
 		break;
 	case NFS_RPC_PROGRAM:
+	default:
 		port = htons(conn->nfs_port);
 		break;
-	default:
-		rpc_error("Unknown rpc program");
 	}
+
 	if (port != conn->sockaddr.sin_port) {
 		conn->sockaddr.sin_port = port;
-		if (connect(conn->sock, (struct sockaddr *)&(conn->sockaddr), sizeof(struct sockaddr_in)) < 0) rpc_error("connect failed");
+		if (connect(conn->sock, (struct sockaddr *)&(conn->sockaddr), sizeof(struct sockaddr_in)) < 0) {
+			return gen_error(RPCERRBASE + 3, "Connect on socket failed (%s)", xstrerror(errno));
+		}
 	}
 
 	do {
 		fd_set rfds;
 		struct timeval tv;
 
-		if (send(conn->sock, tx_buffer, buf - tx_buffer, 0) == -1) rpc_error("send failed");
+		if (send(conn->sock, tx_buffer, buf - tx_buffer, 0) == -1) {
+			return gen_error(RPCERRBASE + 4, "Sending data failed (%s)", xstrerror(errno));
+		}
 
 		FD_ZERO(&rfds);
 		FD_SET(conn->sock, &rfds);
 		tv.tv_sec = conn->timeout;
 		tv.tv_usec = 0;
 		ret = select(conn->sock + 1, &rfds, NULL, NULL, &tv);
-		if (ret == -1) rpc_error("select failed");
+		if (ret == -1) return gen_error(RPCERRBASE + 5, "Select on socket failed (%s)", xstrerror(errno));
 		if (ret > 0) {
 			len = socketread(conn->sock, rx_buffer, sizeof(rx_buffer1));
-			if (len == -1) rpc_error("socketread failed");
+			if (len == -1) return gen_error(RPCERRBASE + 6,"Read from socket failed (%s)", xstrerror(errno));
+
+			buf = rx_buffer;
+			bufend = rx_buffer + len;
+			/* Check len > header size? */
+			process_struct_rpc_msg(INPUT, reply_header, 0);
+
+			if (reply_header.xid < call_header.xid) {
+				/* Must be a duplicate from an earlier timeout */
+				ret = 0;
+				tries--;
+			}
 		}
 	} while ((ret == 0) && (tries++ < conn->retries));
-	if (ret == 0) rpc_error("connection timed out");
+	if (ret == 0) return gen_error(RPCERRBASE + 7, "Connection timed out");
 
-	buf = rx_buffer;
-	bufend = rx_buffer + len;
-	process_struct_rpc_msg(INPUT, reply_header, 0);
-
-	if (reply_header.xid != call_header.xid) rpc_error("xid mismatch");
-	if (reply_header.body.mtype != REPLY) {
-		/*printf("type = %d\n",reply_header.body.mtype);*/
-		rpc_error("Not a reply");
+	if (reply_header.xid != call_header.xid) return gen_error(RPCERRBASE + 8, "Unexpected response (xid mismatch)");
+	if (reply_header.body.mtype != REPLY) return gen_error(RPCERRBASE + 9, "Unexpected response (not an rpc reply)");
+	if (reply_header.body.u.rbody.stat != MSG_ACCEPTED) {
+		if (reply_header.body.u.rbody.u.rreply.stat == AUTH_ERROR) {
+			return gen_error(RPCERRBASE + 10, "RPC message rejected (Authentication error)");
+		} else {
+			return gen_error(RPCERRBASE + 11, "RPC message rejected");
+		}
 	}
-	if (reply_header.body.u.rbody.stat == MSG_ACCEPTED) {
-		/*printf("msg accepted\n");*/
-	} else {
-		/*printf("reply_stat = %d\n",reply_header.body.u.rbody.stat);*/
-		rpc_error("msg denied");
-	}
-	if (reply_header.body.u.rbody.u.areply.reply_data.stat == SUCCESS) {
-		/*printf("call successfull\n");*/
-	} else {
-		/*printf("accept_stat = %d\n",reply_header.body.u.rbody.u.areply.reply_data.stat);*/
-		rpc_error("call failed");
+	if (reply_header.body.u.rbody.u.areply.reply_data.stat != SUCCESS) {
+		return gen_error(RPCERRBASE + 12, "RPC failed (%d)", reply_header.body.u.rbody.u.areply.reply_data.stat);
 	}
 	return NULL;
 

@@ -1,7 +1,7 @@
 
 NETINCLUDE = TCPIPLibs:
 #NETLIBS    = TCPIPLibs:o.socklib5 TCPIPLIBS:o.inetlib
-NETLIBS    = TCPIPLibs:o.socklib5zm TCPIPLIBS:o.inetlibzm
+NETLIBS    = TCPIPLibs:o.socklib5zm TCPIPLIBS:o.inetlibzm TCPIPLIBS:o.unixlibzm
 
 THROWBACK = -throwback
 

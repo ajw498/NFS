@@ -172,7 +172,7 @@ struct dir_entry {
 /*	char name[1];*/
 };
 
-#define return_error(msg) do { strcpy(err_buf.errmess,msg); return &err_buf; } while (0)
+#define return_error(msg) return gen_error(1,msg)
 
 #define OBJ_NONE 0
 #define OBJ_FILE 1
@@ -189,6 +189,9 @@ static char *filename_unixify(char *name, int len)
 		switch (name[i]) {
 			case '/':
 				namebuffer[i] = '.';
+				break;
+			case 160: /*hard space*/
+				namebuffer[i] = ' ';
 				break;
 			/*case '&': etc */
 			default:
@@ -208,6 +211,9 @@ static int filename_riscosify(char *name, int len, char **buffer)
 		switch (name[i]) {
 			case '.':
 				(*buffer)[i] = '/';
+				break;
+			case ' ':
+				(*buffer)[i] = 160;
 				break;
 			/*case '&': etc */
 			case ',':
@@ -477,22 +483,30 @@ os_error *close_file(struct file_handle *handle, int load, int exec)
 	return NULL;
 }
 
+#define MAX_PAYLOAD 7000
+/*FIXME*/
+
+
 os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned len, unsigned offset)
 {
 	os_error *err;
 	struct readargs args;
 	struct readres res;
 
-/* FIXME */
-	if (len > 7000/*rx_buffersize*/) return_error("file too big");
 	memcpy(args.file, handle->fhandle, FHSIZE);
-	args.offset = offset;
-	args.count = len;
-	err = NFSPROC_READ(&args, &res, handle->conn);
-	if (err) return err;
-	if (res.status != NFS_OK) return_error("read failed");
-	/*if (res.u.data.size != len )return_error("unexpected amount of data read");*/
-	memcpy(buffer, res.u.data.data, res.u.data.size);
+	do {
+		args.offset = offset;
+		args.count = len;
+		if (args.count > MAX_PAYLOAD) args.count = MAX_PAYLOAD;
+		offset += args.count;
+		err = NFSPROC_READ(&args, &res, handle->conn);
+		if (err) return err;
+		if (res.status != NFS_OK) return_error("read failed");
+		if (res.u.data.size > args.count)return_error("unexpectedly large amount of data read");
+		memcpy(buffer, res.u.data.data, res.u.data.size);
+		buffer += args.count;
+		len -= args.count;
+	} while (len > 0 && res.u.data.size == args.count);
 	return NULL;
 }
 
@@ -502,15 +516,19 @@ os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned len, unsi
 	struct writeargs args;
 	struct attrstat res;
 
-/* FIXME */
-	if (len > 7000/*tx_buffersize*/) return_error("file too big");
 	memcpy(args.file, handle->fhandle, FHSIZE);
-	args.offset = offset;
-	args.data.size = len;
-	args.data.data = buffer;
-	err = NFSPROC_WRITE(&args, &res, handle->conn);
-	if (err) return err;
-	if (res.status != NFS_OK) return_error("write failed");
+	do {
+		args.offset = offset;
+		args.data.size = len;
+		if (args.data.size > MAX_PAYLOAD) args.data.size = MAX_PAYLOAD;
+		offset += args.data.size;
+		len -= args.data.size;
+		args.data.data = buffer;
+		buffer += args.data.size;
+		err = NFSPROC_WRITE(&args, &res, handle->conn);
+		if (err) return err;
+		if (res.status != NFS_OK) return_error("write failed");
+	} while (len > 0);
 	return NULL;
 }
 

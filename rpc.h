@@ -38,8 +38,12 @@ void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, s
 
 os_error *rpc_do_call(struct conn_info *conn);
 
-extern os_error err_buf;
-#define rpc_buffer_overflow() (strcpy(err_buf.errmess,"Buffer overflow"),&err_buf)
+#define rpc_buffer_overflow() gen_error(1,"rpc Buffer overflow")
+
+os_error *gen_error(int num, char *msg, ...); /* This shouldn't be in this file */
+
+#define ERRBASE 1
+#define RPCERRBASE 1
 
 void *llmalloc(size_t size);
 
