@@ -148,7 +148,8 @@ _kernel_oserror *initialise(const char *cmd_tail, int podule_base, void *private
 
 _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 {
-	os_error *err;
+	os_error *err = NULL;
+	static int finalised = 0;
 
     (void)fatal;
     (void)podule_base;
@@ -156,7 +157,13 @@ _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 
 	if (enablelog) syslogf(LOGNAME, LOGENTRY, "Module finalisation %s %s %s", Module_Title, Module_VersionString, Module_Date);
 
-    err = _swix(OS_FSControl, _INR(0,1), 36, IMAGE_FILETYPE);
+    if (!finalised) err = _swix(OS_FSControl, _INR(0,1), 36, IMAGE_FILETYPE);
+    finalised = 1;
+    /* OS_FSControl 36 can return an error which we want to notify the caller
+       of, but that prevents the module from dying, and the next time
+       finalisation is called the FSControl call will fail as the imagefs
+       is no longer registered, so the module can never be killed.
+       So we make sure that we only deregister once. */
 
     return err;
 }
