@@ -306,6 +306,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->followsymlinks = 5;
 	conn->pipelining = 0;
 	conn->casesensitive = 0;
+	conn->laststart = 0;
 
 	/* Read details from file */
 	err = parse_file(fileswitchhandle, conn);
@@ -440,7 +441,12 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 	bufferpos = buffer;
 	*objsread = 0;
 
-	if (dirname[0] == '\0') {
+	if (start != 0 && start == conn->laststart && strcmp(dirname, conn->lastdir) == 0) {
+		/* Used cached values */
+		memcpy(rddir.dir, conn->lastdirhandle, FHSIZE);
+		cookie = conn->lastcookie;
+		dirpos = start;
+	} else if (dirname[0] == '\0') {
 		/* An empty dirname specifies the root directory */
 		memcpy(rddir.dir, conn->rootfh, FHSIZE);
 	} else {
@@ -534,10 +540,13 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 
 	if (direntry == NULL && rdres.u.readdirok.eof) {
 		*continuepos = -1;
+		conn->laststart = 0;
 		/* If there are entries still in the buffer that won't fit in the
 		   output buffer then we should cache them to save rerequesting
 		   them on the next iteration */
 	} else {
+		int len;
+
 		/* Ideally, we would just return the cookie to the user, but
 		   RISC OS seems to treat any value with the top bit set
 		   as if it were -1
@@ -545,7 +554,16 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 		   really shouldn't, and treats the value being the position
 		   within the directory */
 		*continuepos = dirpos;
-
+        conn->lastcookie = cookie;
+		memcpy(conn->lastdirhandle, rddir.dir, FHSIZE);
+        len = strlen(dirname);
+        if (len < MAXNAMLEN) {
+        	memcpy(conn->lastdir, dirname, len + 1);
+        	conn->laststart = dirpos;
+        } else {
+        	/* No room to cache dirname, so don't bother */
+        	conn->laststart = 0;
+        }
 		/* At this point we could speculatively request the next set of
 		   entries to reduce the latency on the next request */
 	}

@@ -138,6 +138,10 @@ struct conn_info {
 	int followsymlinks;
 	int pipelining;
 	int casesensitive;
+	char lastdir[MAXNAMLEN];
+	int lastcookie;
+	int laststart;
+	char lastdirhandle[FHSIZE];
 };
 
 /* The default port range to bind to. */
