@@ -124,7 +124,7 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
     struct diropok *finfo;
     os_error *err;
     struct createargs createargs;
-    struct diropres createres;
+    static struct diropres createres;
     int filetype;
     int newfiletype;
     int extfound;
