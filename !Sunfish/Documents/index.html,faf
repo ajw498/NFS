@@ -24,6 +24,7 @@ An NFS client, implemented as an image filing system. Habitat: RISC OS.
 <ul>
 <li><a href="#license">License</a><br>
 <li><a href="#requirements">Requirements</a><br>
+<li><a href="#servers">Servers</a><br>
 <li><a href="#setup">Setting up a Mount</a><br>
 <li><a href="#options">Options</a><br>
 <li><a href="#performance">Improving Performance</a><br>
@@ -63,12 +64,25 @@ Sunfish requires a working network connection and an NFS server to connect to. T
 <p>
 Sunfish should run on any version of RISC OS from 3.11 onwards. It has been reported to work on RISC OS 3.7, RISC OS 4 (including under Virtual RPC), Select, and RISC OS 5. It is 26/32bit neutral.
 <p>
-Sunfish has been reported to work with the Linux 2.4 kernel server in various distibutions, a Solaris 7/8 server, the TrueGrid NFS server on Windows, and Netware 6.5SP1a. It partially works with Allegro NFSd 1.1.4 on Windows, but a bug in that version of the server can cause file not found errors when copying files onto the server.
-<p>
+
 The rest of this document assumes your server is correctly setup. You may wish to refer to <a href="linuxnfs.html">Allan Curtis' notes</a> on setting up a Linux NFS server, or the <a href="http://www.drobe.co.uk/riscos/artifact1172.html">Drobe article</a> on setting up the TrueGrid server for use with Sunfish.
 <p>
 Any updates will be available from <a href="http://www.alexwaugh.com/">http://www.alexwaugh.com/</a>
 
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="servers">Servers</a></font></h2>
+</td></tr></table>
+<p>
+Sunfish has been reported to work with the following servers:
+<table border=1><tr>
+<tr><td>Server</td><td>Notes</td></tr>
+<tr><td>Linux 2.4 kernel server</td><td>No known issues</td></tr>
+<tr><td>Linux 2.6 kernel server</td><td>No known issues</td></tr>
+<tr><td>Solaris 7/8 server</td><td>No known issues</td></tr>
+<tr><td>TrueGrid NFS server on Windows</td><td>Question marks in filenames (and possibly other characters) can cause "No such device" errors.</td></tr>
+<tr><td>Netware 6.5SP1a.</td><td>No known issues</td></tr>
+<tr><td>Allegro NFSd on Windows</td><td>Version 1.1.4 has but a bug in that can cause file not found errors when copying files onto the server. Allegedly fixed in later versions.</td></tr>
+</table>
 <p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="setup">Setting up a mount</a></font></h2>
@@ -275,8 +289,6 @@ Devices and other non regular files are not supported, as they don't map to RISC
 If ShowHidden == 0 and you try to delete a directory that contains hidden files then it will fail with a directory not empty error.
 <p>
 Sunfish does not support programs accessing files from callbacks, and will give an error if this causes reentrancy. This could be fixed if the internet stack didn't require callbacks to be triggered before it notices new data has arrived.
-<p>
-Some operations are not as fast as they could be. For the first release I have concentrated on getting a functional and stable program, and there are some places where performance could be improved in the future. In particular, file attributes and mappings between filenames and NFS file handles should be cached, as this would reduce network traffic and delay for directory listings and many other operations.
 <p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="recompiling">Recompiling</a></font></h2>
