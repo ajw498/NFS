@@ -550,3 +550,10 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 	return NULL;
 }
 
+/* This entry point is meaningless, but we must support it as *ex et al call it. */
+os_error *func_readboot(int *option)
+{
+	*option = 0;
+
+	return NULL;
+}

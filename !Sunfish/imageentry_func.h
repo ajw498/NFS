@@ -18,4 +18,5 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 
 os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *conn, int *renamefailed);
 
+os_error *func_readboot(int *option);
 

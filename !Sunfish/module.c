@@ -322,12 +322,14 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 		case IMAGEENTRY_FUNC_CLOSEIMAGE:
 			err = func_closeimage((struct conn_info *)(r->r[1]));
 			break;
+		case IMAGEENTRY_FUNC_READBOOT:
+			err = func_readboot(&(r->r[2]));
+			break;
 
 		/* The following entrypoints are meaningless for NFS.
 		   We could fake them, but I think it is better to give an error */
 		case IMAGEENTRY_FUNC_READDEFECT:
 		case IMAGEENTRY_FUNC_ADDDEFECT:
-		case IMAGEENTRY_FUNC_READBOOT:
 		case IMAGEENTRY_FUNC_WRITEBOOT:
 		case IMAGEENTRY_FUNC_READUSEDSPACE:
 		case IMAGEENTRY_FUNC_READFREESPACE:
