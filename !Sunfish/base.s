@@ -1,3 +1,9 @@
+;
+;    $Id$
+;    $URL$
+;
+;    Export the base address of the module in a format that can be used from C
+;
 
 	AREA	|C$$Code|, DATA, READONLY, REL
 	IMPORT	|Image$$RO$$Base|
