@@ -1,5 +1,6 @@
 /*
 	$Id$
+	$URL$
 
 	Routines for ImageEntry_Args
 */

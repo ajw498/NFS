@@ -1,7 +1,25 @@
 /*
 	$Id$
+	$URL$
 
 	Common routines shared between entry points
+
+
+	Copyright (C) 2003 Alex Waugh
+	
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 2 of the License, or
+	(at your option) any later version.
+	
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+	
+	You should have received a copy of the GNU General Public License
+	along with this program; if not, write to the Free Software
+	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
 
@@ -16,7 +34,6 @@
 
 #include "nfs-calls.h"
 
-/*FIXME - verify stack usage is < 1024 bytes */
 
 
 /* Generate a RISC OS error block based on the given number and message */
@@ -134,9 +151,10 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 		} else if (name[i] == ' ') {
 			buffer[j++] = 160; /* spaces to hard spaces */
 		} else if (name[i] == ',') {
-			if (conn->xyzext != NEVER
-			    && namelen - i == 4
-			    && isxdigit(name[i+1]) && isxdigit(name[i+2]) && isxdigit(name[i+3])) {
+			if (conn->xyzext != NEVER && namelen - i == 4
+			     && isxdigit(name[i+1])
+			     && isxdigit(name[i+2])
+			     && isxdigit(name[i+3])) {
 				char tmp[4];
 
 				tmp[0] = name[i+1];

@@ -1,5 +1,6 @@
 /*
 	$Id$
+	$URL$
 
 	Common bits for all entry points
 */
@@ -75,13 +76,13 @@
 #define BYTESERRBASE (ERRBASE + 2)
 
 /* 3 errors */
-#define FUNCERRBASE (ERRBASE + 10)
+#define FUNCERRBASE (ERRBASE + 8)
 
 /* 1 error */
-#define NFSSTATBASE (ERRBASE + 20)
+#define NFSSTATBASE (ERRBASE + 16)
 
 /* 14 errors */
-#define RPCERRBASE (ERRBASE + 30)
+#define RPCERRBASE (ERRBASE + 24)
 #define RPCBUFOVERFLOW (RPCERRBASE + 0)
 #define RPCBUFOVERFLOWMESS "RPC buffer overflow"
 

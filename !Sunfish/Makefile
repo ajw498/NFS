@@ -1,5 +1,6 @@
 #
 #    $Id$
+#    $URL$
 #
 
 INCLUDE = -IC:,TCPIPLibs:
@@ -59,7 +60,7 @@ $(OBJS) $(GENOBJS): $(GENHDRS) imageentry_common.h
 Sunfish: $(OBJS) $(GENOBJS)
 	link -m -o Sunfish $(OBJS) $(GENOBJS) $(LIBS)
 
-module.o: module.c moduledefs.h
+module.o: moduledefs.h
 
 moduledefs.h modulehdr.o: @.cmhg.modulehdr
 	cmhg  -throwback modulehdr.cmhg -o modulehdr.o moduledefs.h
@@ -72,10 +73,12 @@ moduledefs.h modulehdr.o: @.cmhg.modulehdr
 .s.o:
 	$(CC) -c  $(CFLAGS) -o $@ $<
 
+
 clean:
+	-remove Sunfish
+	-remove h.moduledefs
 	-wipe o.* ~CFR~V
 	-wipe c.*-calls ~CFR~V
 	-wipe h.*-calls ~CFR~V
 	-wipe h.*-process* ~CFR~V
 	-wipe h.*-structs ~CFR~V
-	-wipe h.moduledefs ~CFR~V
