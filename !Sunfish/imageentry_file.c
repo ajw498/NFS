@@ -125,7 +125,9 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
     os_error *err;
     struct createargs createargs;
     struct diropres createres;
+    int filetype;
     int newfiletype;
+    int extfound;
 
 	if ((load & 0xFFF00000) == 0xFFF00000) {
 		newfiletype = (load & 0xFFF00) >> 8;
@@ -133,15 +135,8 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 		newfiletype = conn->defaultfiletype;
 	}
 
-	err = filename_to_finfo(filename, &dinfo, &finfo, leafname, NULL, NULL, conn);
+	err = filename_to_finfo(filename, &dinfo, &finfo, leafname, &filetype, &extfound, conn);
 	if (err) return err;
-
-	if (finfo) {
-		/* A file already exists */
-		if (fhandle) *fhandle = finfo->file;
-
-		return NULL;
-	}
 
 	memcpy(createargs.where.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
 
@@ -150,7 +145,49 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 		createargs.where.name.size = strlen(*leafname);
 	} else {
 		/* We may need to add a ,xyz extension */
-		createargs.where.name.data = addfiletypeext(*leafname, strlen(*leafname), 0, newfiletype, &(createargs.where.name.size), conn);
+		createargs.where.name.data = addfiletypeext(*leafname, strlen(*leafname), extfound, newfiletype, &(createargs.where.name.size), conn);
+
+		/* If a file already exists then we must overwrite it */
+		if (finfo && finfo->attributes.type == NFREG) {
+			struct sattrargs sattrargs;
+			struct attrstat sattrres;
+	
+			/* If the filetype has changed we may need to rename the file */
+			if (conn->xyzext != NEVER && newfiletype != filetype) {
+			    struct renameargs renameargs;
+			    enum nstat renameres;
+		
+				memcpy(renameargs.from.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
+				renameargs.from.name.data = *leafname;
+				renameargs.from.name.size = strlen(*leafname);
+		
+				memcpy(renameargs.to.dir, renameargs.from.dir, FHSIZE);
+				renameargs.to.name.data = createargs.where.name.data;
+				renameargs.to.name.size = createargs.where.name.size;
+		
+				err = NFSPROC_RENAME(&renameargs, &renameres, conn);
+				if (err) return err;
+				if (renameres != NFS_OK) return gen_nfsstatus_error(renameres);
+			}
+	
+			/* Set the file size */
+			memcpy(sattrargs.file, finfo->file, FHSIZE);
+			sattrargs.attributes.mode = NOVALUE;
+			sattrargs.attributes.uid = NOVALUE;
+			sattrargs.attributes.gid = NOVALUE;
+			sattrargs.attributes.size = buffer_end - buffer;
+			sattrargs.attributes.mtime.seconds = NOVALUE;
+			sattrargs.attributes.mtime.useconds = NOVALUE;
+			sattrargs.attributes.atime.seconds = NOVALUE;
+			sattrargs.attributes.atime.useconds = NOVALUE;
+			err = NFSPROC_SETATTR(&sattrargs, &sattrres, conn);
+			if (err) return err;
+			if (sattrres.status != NFS_OK) return gen_nfsstatus_error(sattrres.status);
+
+			if (fhandle) *fhandle = finfo->file;
+	
+			return NULL;
+		}
 	}
 
 	createargs.attributes.mode = 0x00008000 | ((dir ? 0777 : 0666) & ~(conn->umask));
