@@ -9,6 +9,13 @@ struct opaque {
 	char *data;
 };
 
+struct void {
+	int dummy;
+};
+
+#define OUTPUT 0
+#define INPUT 1
+
 /* buf points to next input or outut byte
    bufend points to byte after the end of buffer */
 
@@ -44,11 +51,13 @@ if (input) { \
 #define process_opaque(input,structbase,maxsize) do { \
  process_int(input,structbase.size); \
  assert(structbase.size <= maxsize); \
- check_bufspace(structbase.size); \
- if (input) { \
-  structbase.data = input_bytes(structbase.size); \
- } else { \
-  output_bytes(structbase.data, structbase.size); \
+ if (structbase.size > 0) { \
+  check_bufspace(structbase.size); \
+  if (input) { \
+   structbase.data = input_bytes(structbase.size); \
+  } else { \
+   output_bytes(structbase.data, structbase.size); \
+  } \
  } \
 } while (0);
 
@@ -60,4 +69,6 @@ if (input) { \
   output_bytes(structbase, maxsize); \
  } \
 } while (0);
+
+#define process_struct_void(input,structbase)
 

@@ -9,18 +9,24 @@ my %types;
 my $nextunnamed = 1;
 my @unnamed;
 
-open(PROCS,">procsout") or die $^E;
-open(UNIONS,">unionprocsout") or die $^E;
-open(STRUCTS,">structsout") or die $^E;
-open(CALLS,">callsout") or die $^E;
-open(CALLSH,">callshout") or die $^E;
+open(PROCS,">processstructs.h") or die $^E;
+open(UNIONS,">processunions.h") or die $^E;
+open(STRUCTS,">nfsstructs.h") or die $^E;
+open(CALLS,">nfsrpccalls.c") or die $^E;
+open(CALLSH,">nfsrpccalls.h") or die $^E;
 
-print PROCS   "/* StrongEd\$Mode=C */\n\n";
-print UNIONS  "/* StrongEd\$Mode=C */\n\n";
-print STRUCTS "/* StrongEd\$Mode=C */\n\n";
-print CALLS   "/* StrongEd\$Mode=C */\n\n";
-print CALLSH  "/* StrongEd\$Mode=C */\n\n";
+my $header = "/* Automatically generated */\n\n";
 
+print PROCS   $header;
+print UNIONS  $header;
+print STRUCTS $header;
+print CALLS   $header;
+print CALLS   "#include nfsrpccalls.h\n\n";
+print CALLS   "#include rpc.h\n\n";
+print CALLSH  $header;
+print CALLSH  "#include nfsstructs.h\n";
+print CALLSH  "#include processstructs.h\n";
+print CALLSH  "#include processunions.h\n\n";
 $types{"unsigned int"} = "int";
 
 while (<>) {
@@ -35,6 +41,8 @@ while (<>) {
       }
       print PROCS "} while (0);\n\n";
       $state = "none";
+    } elsif (/\}.+\;/) {
+      die "struct/union instance: $_";
     } elsif (/case (\w*)\:/) {
       print UNIONS "case $1:\\\n";
       print UNIONS "process_union_body_${name}_$1(input,structbase.u);\\\n";
@@ -45,14 +53,15 @@ while (<>) {
       print STRUCTS "${1}struct opaque $2;\n";
       print STRUCTS "#define OPAQUE_${name}_${2}_MAX $3\n";
       print PROCS "process_opaque(input,structbase.$2,$3);\\\n";
-    } elsif (/\s*(.*)\s+(\w+)\;/) {
-      my $type = $types{$1};
-      die "Unknown type $1\n" unless defined $type;
-      print STRUCTS;
+    } elsif (/(\s*)(.*)\s+(\w+)\;/) {
+      my $type = $types{$2};
+      die "Unknown type $2\n" unless defined $type;
       if (($type eq "struct") || ($type eq "union")) {
-        print PROCS "process_${type}_$2(input,structbase.$2);\\\n";
+        print STRUCTS "${1}struct $2 $3;\n";
+        print PROCS "process_${type}_$3(input,structbase.$3);\\\n";
       } else {
-        print PROCS "process_$type(input,structbase.$2);\\\n";
+        print STRUCTS "${1}$2 $3;\n";
+        print PROCS "process_$type(input,structbase.$3);\\\n";
       }
     } elsif (/\/\*.*\*\//) {
       print STRUCTS;
@@ -93,12 +102,14 @@ while (<>) {
       print STRUCTS;
       $types{$2} = $1;
     } elsif (/(\w*) (\w*)\((\w*)\) = (\w*)\;/) {
-      print CALLSH "\nint $2(struct $3 *args, struct $1 *res);\n";
-      print CALLS  "\nint $2(struct $3 *args, struct $1 *res)\n";
+      print CALLSH "\nint $2(struct $3 *args, struct $1 *res, struct opaque_auth *cred);\n";
+      print CALLS  "\nint $2(struct $3 *args, struct $1 *res, struct opaque_auth *cred)\n";
       print CALLS "{\n";
       print CALLS "\tprepare_call($4);\n";
       print CALLS "\tprocess_struct_$3(OUTPUT,(*args));\n";
+      # Read results
       print CALLS "\tdo_call();\n";
+      print CALLS "\tprocess_struct_$1(INPUT,(*res));\n";
       print CALLS "}\n";
     } elsif (/\/\*.*\*\//) {
       print STRUCTS;
