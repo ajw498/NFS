@@ -46,6 +46,7 @@ pcnfsd-calls.o
 OBJS = \
 rpc.o \
 base.o \
+callback.o \
 module.o \
 modulehdr.o \
 imageentry_func.o \

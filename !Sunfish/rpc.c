@@ -70,11 +70,18 @@ static struct rpc_msg call_header;
 static struct rpc_msg reply_header;
 
 
+/* A pool of rx buffers. There should be the same number of rx buffers
+   as possible outstanding calls */
 struct buffer_list {
 	int len;
 	char buffer[BUFFERSIZE];
 };
 
+static struct buffer_list buffers[FIFOSIZE];
+
+/* A FIFO for keeping track of requests and their replies. We need to
+   remember the entire call buffer in case the call gets lost and we
+   need to retransmit */
 struct fifo_entry {
 	unsigned int xid;
 	unsigned int retries;
@@ -82,16 +89,12 @@ struct fifo_entry {
 	struct buffer_list *rx;
 };
 
-/* FIFO for keeping track of requests and their replies */
 static struct fifo_entry fifo[FIFOSIZE];
-static int head;
-static int tail;
-
-/* Pool of rx buffers */
-static struct buffer_list buffers[FIFOSIZE];
+static unsigned int head;
+static unsigned int tail;
 
 /* The position within to buffer list to start looking for a free rx buffer */
-static int freebufferstart;
+static unsigned int freebufferstart;
 
 /* Buffer to allocate linked list structures from. Should be significanly
    faster than using the RMA, doesn't require freeing each element of
@@ -105,13 +108,17 @@ static char *nextmalloc;
 char *buf;
 char *bufend;
 
-/* Swap the active rx buffer */
-void swap_rxbuffers(void)
-{
-	freebufferstart++;
-	if (freebufferstart >= FIFOSIZE) freebufferstart = 0;
-}
+/* Execute a send or read, repeating until the data is sent/read or a
+   timeout occurs */
+#define blocking_timeout(ret,call) do { \
+	time_t t = clock(); \
+	do { \
+		trigger_callback(); \
+		ret = call; \
+	} while (ret == -1 && errno == EWOULDBLOCK && clock() < (t + (conn->timeout * CLOCKS_PER_SEC))); \
+} while (0)
 
+/* Reset all fifo entries and rx buffers to an unallocated state */
 void rpc_resetfifo(void)
 {
 	int i;
@@ -123,6 +130,13 @@ void rpc_resetfifo(void)
 		fifo[i].xid = UNALLOCATED;
 		buffers[i].len = 0;
 	}
+}
+
+/* Swap the active rx buffer */
+void swap_rxbuffers(void)
+{
+	freebufferstart++;
+	if (freebufferstart >= FIFOSIZE) freebufferstart = 0;
 }
 
 /* Initialise parts of the header that are the same for all calls */
@@ -188,9 +202,15 @@ os_error *rpc_init_connection(struct conn_info *conn)
 {
 	struct hostent *hp;
 	os_error *err;
+	int on = 1;
 
 	conn->sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if (conn->sock < 0) return gen_error(RPCERRBASE + 2,"Unable to open socket (%s)", xstrerror(errno));
+
+	/* Make the socket non-blocking */
+	if (ioctl(conn->sock, FIONBIO, &on) < 0) {
+		return gen_error(RPCERRBASE + 6,"Unable to ioctl (%s)", xstrerror(errno));
+	}
 
 	if (conn->localportmax != 0) {
 		/* Use a specific local port */
@@ -231,7 +251,7 @@ static void logdata(int rx, char *buf, int len)
 {
 	int i;
 
-	syslogf(LOGNAME, LOGDATA, "%s data (%d):", rx ? "rx" : "tx", len);
+	syslogf(LOGNAME, LOGDATASUMMARY, "%s data (%d):", rx ? "rx" : "tx", len);
 	for (i=0; i<(len & ~3); i+=4) syslogf(LOGNAME, LOGDATA, "  %.2x %.2x %.2x %.2x", buf[i], buf[i+1], buf[i+2], buf[i+3]);
 	for (i=0; i<(len & 3); i++) syslogf(LOGNAME, LOGDATA, "  %.2x", buf[(len &~3) + i]);
 }
@@ -269,10 +289,9 @@ buffer_overflow: /* Should be impossible, but prevent compiler complaining */
    the rpc reply header */
 os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 {
-	int ret;
-
 	if (calltype == TXBLOCKING || calltype == TXNONBLOCKING) {
 		int port;
+		int ret;
 
 		/* Choose the port to use */
 		switch (call_header.body.u.cbody.prog) {
@@ -304,14 +323,16 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 		fifo[head].retries = 0;
 		fifo[head].rx = NULL;
 		if (enablelog) logdata(0, fifo[head].tx.buffer, fifo[head].tx.len);
-		if (send(conn->sock, fifo[head].tx.buffer, fifo[head].tx.len, 0) == -1) {
+		blocking_timeout(ret, send(conn->sock, fifo[head].tx.buffer, fifo[head].tx.len, 0));
+		if (ret == -1) {
 			return gen_error(RPCERRBASE + 5, "Sending data failed (%s)", xstrerror(errno));
 		}
+
 		head++;
 		if (head >= FIFOSIZE) head = 0;
 
 		if (fifo[head].xid != UNALLOCATED && fifo[tail].rx == NULL) {
-			/* The fifo is full, so turn this into a blocking call */
+			/* The fifo is now full, so turn this into a blocking call */
 			if (calltype == TXNONBLOCKING) calltype = TXBLOCKING;
 			if (calltype == RXNONBLOCKING) calltype = RXBLOCKING;
 		}
@@ -322,39 +343,40 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 		   and read one */
 
 		do {
-			fd_set rfds;
-			struct timeval tv;
-			int freebuffer;
+			unsigned int freebuffer;
+			int len;
 	
 			/* Search for a free buffer entry.
-			   There is guaranteed to be at least one */
+			   There should always be at least one */
 			for (freebuffer = freebufferstart; freebuffer < freebufferstart + FIFOSIZE; freebuffer++) {
 				if (buffers[freebuffer % FIFOSIZE].len == 0) {
 					freebuffer = freebuffer % FIFOSIZE;
 					break;
 				}
 			}
-	
-			FD_ZERO(&rfds);
-			FD_SET(conn->sock, &rfds);
-			tv.tv_sec = (calltype == TXNONBLOCKING || calltype == RXNONBLOCKING) ? 0 : conn->timeout;
-			tv.tv_usec = 0;
-			ret = select(conn->sock + 1, &rfds, NULL, NULL, &tv);
-			if (ret == -1) return gen_error(RPCERRBASE + 6, "Select on socket failed (%s)", xstrerror(errno));
-			if (ret > 0) {
-				int len;
-				int i;
-	
+			if (freebuffer >= FIFOSIZE) return gen_error(RPCERRBASE + 9, "No free rxbuffer found");
+
+			if (calltype == TXBLOCKING || calltype == RXBLOCKING) {
+				blocking_timeout(len, read(conn->sock, buffers[freebuffer].buffer, BUFFERSIZE));
+			} else {
+				trigger_callback();
 				len = read(conn->sock, buffers[freebuffer].buffer, BUFFERSIZE);
-				if (len == -1) return gen_error(RPCERRBASE + 7,"Read from socket failed (%s)", xstrerror(errno));
+			}
+			if (len == -1 && errno != EWOULDBLOCK) return gen_error(RPCERRBASE + 7,"Read from socket failed (%s)", xstrerror(errno));
+
+			if (len > 0) {
+				int i;
 	
 				if (enablelog) logdata(1, buffers[freebuffer].buffer, len);
 				buf = buffers[freebuffer].buffer;
 				bufend = buf + len;
 				process_struct_rpc_msg(INPUT, reply_header, 0);
 				/*FIXME: we only need the xid, so don't bother to parse the whole header */
-	
-				/* Check to see if it a reply that we are waiting for */
+
+				/* Check to see if it a reply that we are waiting for, and
+				   fill in the appropriate fifo entry. Ignore any unknown
+				   replies (They could be replies from earlier calls that
+				   we retransmitted because of timeouts) */
 				for (i = 0; i < FIFOSIZE; i++) {
 					if (reply_header.xid == fifo[i].xid) {
 						fifo[i].rx = &(buffers[freebuffer]);
@@ -363,18 +385,21 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 					}
 				}
 			} else if (calltype == TXBLOCKING || calltype == RXBLOCKING) {
+				int ret;
+
 				/* No data recived, so retransmit the oldest fifo entry if it
 				   is still pending, unless we are non blocking */
 	
+				fifo[tail].retries++;
 				if (fifo[tail].rx == NULL && fifo[tail].retries > conn->retries) {
 					return gen_error(RPCERRBASE + 8, "Connection timed out");
 				}
 	
 				if (enablelog) logdata(0, fifo[tail].tx.buffer, fifo[tail].tx.len);
-				if (send(conn->sock, fifo[tail].tx.buffer, fifo[tail].tx.len, 0) == -1) {
+				blocking_timeout(ret, send(conn->sock, fifo[tail].tx.buffer, fifo[tail].tx.len, 0));
+				if (ret == -1) {
 					return gen_error(RPCERRBASE + 5, "Sending data failed (%s)", xstrerror(errno));
 				}
-				fifo[tail].retries++;
 			}
 		} while ((calltype == TXBLOCKING || calltype == RXBLOCKING) && fifo[tail].rx == NULL);
 	}
@@ -383,16 +408,18 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 	   ever be the case if we are non-blocking */
 	if (fifo[tail].rx == NULL) return ERR_WOULDBLOCK;
 
+	/* Setup buffers and parse header */
 	buf = fifo[tail].rx->buffer;
 	bufend = buf + fifo[tail].rx->len;
 	process_struct_rpc_msg(INPUT, reply_header, 0);
+
 	/* Check that the RPC completed successfully */
 	if (reply_header.body.mtype != REPLY) return gen_error(RPCERRBASE + 10, "Unexpected response (not an RPC reply)");
 	if (reply_header.body.u.rbody.stat != MSG_ACCEPTED) {
 		if (reply_header.body.u.rbody.u.rreply.stat == AUTH_ERROR) {
 			return gen_error(RPCERRBASE + 11, "RPC message rejected (Authentication error)");
 		} else {
-			return gen_error(RPCERRBASE + 12, "RPC message rejected");
+			return gen_error(RPCERRBASE + 12, "RPC message rejected (%d)", reply_header.body.u.rbody.u.rreply.stat);
 		}
 	}
 	if (reply_header.body.u.rbody.u.areply.reply_data.stat != SUCCESS) {

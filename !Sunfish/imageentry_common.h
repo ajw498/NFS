@@ -160,6 +160,7 @@ os_error *gen_error(int num, char *msg, ...);
 #define LOGENTRY 40
 #define LOGEXIT  60
 #define LOGERROR 20
+#define LOGDATASUMMARY 70
 #define LOGDATA  80
 
 
@@ -194,6 +195,9 @@ unsigned int attr_to_mode(unsigned int attr, unsigned int oldmode, struct conn_i
 
 /* Add ,xyz onto the leafname if necessary */
 char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, struct conn_info *conn);
+
+/* Drop to user mode to trigger any pending callbacks */
+void trigger_callback(void);
 
 #endif
 
