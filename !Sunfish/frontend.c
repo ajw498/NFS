@@ -106,7 +106,7 @@
 #define gadget_main_DONTUSEPCNFSD         0x5
 #define gadget_main_LEAFNAME              0x15
 
-#define gadget_menu_REMOVE                0x4
+#define gadget_menu_REMOVE                0x3
 
 #define UNUSED(x) ((void)x)
 
@@ -339,7 +339,7 @@ static osbool mount_remove(bits event_code, toolbox_action *event, toolbox_block
 		remove = iconhead;
 		if (iconhead->next == NULL) {
 			E(xtoolbox_show_object(0, unmountedicon, toolbox_POSITION_DEFAULT, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
-			E(xmenu_set_fade(0, mainmenuid, gedget_menu_REMOVE, TRUE));
+			E(xmenu_set_fade(0, mainmenuid, gadget_menu_REMOVE, TRUE));
 		}
 		iconhead = iconhead->next;
 	} else {
