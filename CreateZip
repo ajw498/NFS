@@ -5,3 +5,13 @@
 Dir <Obey$Dir>
 remove sunfish/zip
 zip -r -9 -I sunfish/zip !Sunfish COPYING -x *CVS* *svn* *.o.* *.c.*calls *.h.*structs *.h.*process* *.h.*calls *.h.moduledefs
+
+remove sunfish-pkg/zip
+perl CreatePackage
+IfThere pkg.Apps Then wipe pkg.Apps ~CR~V
+cdir pkg.Apps
+cdir pkg.Apps.Misc
+copy !Sunfish pkg.Apps.Misc.!Sunfish ~CR~V
+dir pkg
+zip -r -9 -I ^.sunfish-pkg/zip Apps RiscPkg Sprites SysVars -x *CVS* *svn* *.o.* *.c.*calls *.h.*structs *.h.*process* *.h.*calls *.h.moduledefs
+dir ^
