@@ -60,9 +60,26 @@ extern char *buf, *bufend;
   output_byte((structbase & 0x0000FF00) >> 8); \
   output_byte((structbase & 0x000000FF)); \
  } \
+printf("processing int " ###structbase ", %d\n",##structbase);\
 } while (0)
 
-#define process_enum(input, structbase, maxsize) process_int(input, structbase, maxsize)
+#define process_enum(input, structbase, name) do { \
+ check_bufspace(4); \
+ if (input) { \
+  int tmp; \
+  tmp  = input_byte() << 24; \
+  tmp |= input_byte() << 16; \
+  tmp |= input_byte() << 8; \
+  tmp |= input_byte(); \
+  structbase = (enum name)tmp; \
+ } else { \
+  output_byte((structbase & 0xFF000000) >> 24); \
+  output_byte((structbase & 0x00FF0000) >> 16); \
+  output_byte((structbase & 0x0000FF00) >> 8); \
+  output_byte((structbase & 0x000000FF)); \
+ } \
+printf("processing enum " ###structbase ", %d\n",##structbase);\
+} while (0)
 
 #define process_opaque(input, structbase, maxsize) do { \
 printf("processing opaque " ###structbase ", size = %d, maxsize = %d\n",##structbase.size,maxsize);\

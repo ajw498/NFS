@@ -33,8 +33,10 @@ print CALLSH  "#include \"$spectype-process1.h\"\n";
 print CALLSH  "#include \"$spectype-process2.h\"\n\n";
 
 $types{"unsigned int"} = "int";
+$types{"unsigned"} = "int";
 $types{"int"} = "int";
 $types{"void"} = "void";
+$types{"bool"} = "enum";
 $typessize{"void"} = 0;
 $typessize{"int"} = 0;
 
@@ -72,30 +74,33 @@ while (<>) {
       print STRUCTS "${1}struct opaque $2;\n";
 #      print STRUCTS "#define OPAQUE_${name}_${2}_MAX $3\n";
       print PROCS "process_opaque(input,##structbase.$2,$3);\\\n";
-    } elsif (/(\s*)(.*)\s+(\w+)\;$/) {
+    } elsif (/(\s*)(\w+(\s+\w+)*)\s+(\w+)\;$/) {
       my $type = $types{$2};
       my $typesize = $typessize{$2};
-      die "Unknown type $2\n" unless defined $type;
+      die "Unknown type \"$2\"\n" unless defined $type;
       if (($type eq "struct") || ($type eq "union")) {
         my $ptr = "";
         $ptr = "*" if ($2 eq $name);
-        print STRUCTS "${1}struct $2 $ptr$3;\n";
-        print PROCS "process_${type}_$2(input, ##structbase.$3, $typesize);\\\n";
+        print STRUCTS "${1}struct $2 $ptr$4;\n";
+        print PROCS "process_${type}_$2(input, ##structbase.$4, $typesize);\\\n";
       } elsif (($type eq "opaque") || ($type eq "string")) {
-        print STRUCTS "${1}struct opaque $3;\n";
-        print PROCS "process_${type}(input, ##structbase.$3, $typesize);\\\n";
+        print STRUCTS "${1}struct opaque $4;\n";
+        print PROCS "process_${type}(input, ##structbase.$4, $typesize);\\\n";
       } elsif (($type eq "fixed_opaque") || ($type eq "fixed_string")) {
-        print STRUCTS "${1}char $3\[$typesize\];\\\n";
-        print PROCS "process_${type}(input, ##structbase.$3, $typesize);\\\n";
+        print STRUCTS "${1}char $4\[$typesize\];\n";
+        print PROCS "process_${type}(input, ##structbase.$4, $typesize);\\\n";
       } else {
         if ($type eq "enum") {
-          print STRUCTS "${1}enum $2 $3;\n";
+          print STRUCTS "${1}enum $2 $4;\n";
+          print PROCS "process_enum(input,##structbase.$4, $2);\\\n";
         } else {
-          print STRUCTS "${1}$2 $3;\n";
+          print STRUCTS "${1}$2 $4;\n";
+          print PROCS "process_$type(input,##structbase.$4, 0);\\\n";
         }
-        print PROCS "process_$type(input,##structbase.$3, 0);\\\n";
       }
     } elsif (/\/\*.*\*\//) {
+      print STRUCTS;
+    } elsif (/^\s*$/) {
       print STRUCTS;
     } else {
       die "Unknown struct field: $_\n";
@@ -123,10 +128,15 @@ while (<>) {
       print STRUCTS "union {\n";
       $firstcase = 1;
       print UNIONS "#define process_union_${name}(input,structbase, maxsize) do {\\\n";
-      print UNIONS "process_int(input,##structbase.$3, 0);\\\n";
+      if ($2 eq "unsigned") {
+        print UNIONS "process_int(input,##structbase.$3, 0);\\\n";
+      } else {
+        print UNIONS "process_enum(input,##structbase.$3, $2);\\\n";
+      }
       print UNIONS "switch (##structbase.$3) {\\\n";
     } elsif (/^\s*struct *\*(\w*) /) {
       # Linked list
+      die "linked lists currently broken\n";
       $name = $1;
       $types{$name} = $state = "union";
       $typessize{$name} = 0;
@@ -134,7 +144,7 @@ while (<>) {
       print STRUCTS "enum bool opted;\n";
       print STRUCTS "union {\n";
       print UNIONS "#define process_union_${name}(input,structbase, maxsize) do {\\\n";
-      print UNIONS "process_int(input,##structbase.opted, 0);\\\n";
+      print UNIONS "process_enum(input,##structbase.opted, bool);\\\n";
       print UNIONS "switch (##structbase.opted) {\\\n";
       print UNIONS "case TRUE:\\\n";
       print UNIONS "process_union_body_${name}_TRUE(input, ##structbase.u, 0);\\\n";
@@ -159,6 +169,10 @@ while (<>) {
       print STRUCTS;
       $types{$2} = $1;
       $typessize{$2} = 0;
+    } elsif (/^\s*const (\w+) *= *(\w+)\;/) {
+      print STRUCTS "#ifndef $1\n";
+      print STRUCTS "#define $1 $2\n";
+      print STRUCTS "#endif\n";
     } elsif (/^\s*(\w*) (\w*)\((\w*)\) = (\w*)\;/) {
       my $res = $1;
       my $procname = $2;
@@ -211,7 +225,7 @@ while (<>) {
     } elsif (/^\s*$/) {
       print STRUCTS;
     } else {
-      die "Unknown input\n";
+      die "Unknown input: $_\n";
     }
   } else {
     die "Unknown state\n";

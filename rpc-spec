@@ -62,8 +62,34 @@ struct call_body {
    /* procedure specific parameters start here */
 };
 
-typedef int accepted_reply; /* FIXME */
-typedef int rejected_reply; /* FIXME */
+struct mismatch_info {
+   unsigned int low;
+   unsigned int high;
+};
+
+union reply_data switch (accept_stat stat) {
+case SUCCESS:
+  void;
+  /*opaque results[0];*/
+  /* procedure-specific results start here */
+case PROG_MISMATCH:
+  mismatch_info mismatch_info;
+default:
+  /* Void.  Cases include PROG_UNAVAIL, PROC_UNAVAIL, and GARBAGE_ARGS. */
+  void;
+};
+
+struct accepted_reply {
+   opaque_auth verf;
+   reply_data reply_data;
+};
+
+union rejected_reply switch (reject_stat stat) {
+case RPC_MISMATCH:
+   mismatch_info mismatch_info;
+case AUTH_ERROR:
+   auth_stat stat;
+};
 
 union reply_body switch (reply_stat stat) {
 case MSG_ACCEPTED:
