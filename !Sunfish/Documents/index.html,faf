@@ -36,7 +36,7 @@ An NFS client, implemented as an image filing system. Habitat: RISC OS.
 </td></tr></table>
 
 <p>
-Sunfish is copyright &copy; 2003 Alex Waugh
+Sunfish is copyright &copy; 2003 <a href="mailto:alex@alexwaugh.com">Alex Waugh</a>
 <p>
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
