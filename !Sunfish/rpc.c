@@ -128,6 +128,7 @@ void rpc_resetfifo(void)
 	freebufferstart = 0;
 	for (i = 0; i < FIFOSIZE; i++) {
 		fifo[i].xid = UNALLOCATED;
+		fifo[i].rx = NULL;
 		buffers[i].len = 0;
 	}
 }
