@@ -10,63 +10,119 @@ my $nextunnamed = 1;
 my @unnamed;
 
 open(PROCS,">procsout") or die $^E;
+open(UNIONS,">unionprocsout") or die $^E;
 open(STRUCTS,">structsout") or die $^E;
+open(CALLS,">callsout") or die $^E;
+open(CALLSH,">callshout") or die $^E;
+
+print PROCS   "/* StrongEd\$Mode=C */\n\n";
+print UNIONS  "/* StrongEd\$Mode=C */\n\n";
+print STRUCTS "/* StrongEd\$Mode=C */\n\n";
+print CALLS   "/* StrongEd\$Mode=C */\n\n";
+print CALLSH  "/* StrongEd\$Mode=C */\n\n";
+
+$types{"unsigned int"} = "int";
 
 while (<>) {
-  print "$state - $_\n";
-  if (/\} *\;/) {
+  #print "$state - $_";
+  if ($state eq "struct" or $state eq "union") {
+    if (/\}\;/) {
+      if ($state eq "union") {
+        print STRUCTS "} u;\n};\n";
+        print UNIONS "}} while (0);\n\n";
+      } else {
+        print STRUCTS;
+      }
+      print PROCS "} while (0);\n\n";
+      $state = "none";
+    } elsif (/case (\w*)\:/) {
+      print UNIONS "case $1:\\\n";
+      print UNIONS "process_union_body_${name}_$1(input,structbase.u);\\\n";
+      print PROCS "} while (0);\n";
+      print PROCS "#define process_union_body_${name}_$1(input,structbase) do {\\\n";
+
+    } elsif (/(.*)opaque (\w*)\<(\w*)\>\;/) {
+      print STRUCTS "${1}struct opaque $2;\n";
+      print STRUCTS "#define OPAQUE_${name}_${2}_MAX $3\n";
+      print PROCS "process_opaque(input,structbase.$2,$3);\\\n";
+    } elsif (/\s*(.*)\s+(\w+)\;/) {
+      my $type = $types{$1};
+      die "Unknown type $1\n" unless defined $type;
+      print STRUCTS;
+      if (($type eq "struct") || ($type eq "union")) {
+        print PROCS "process_${type}_$2(input,structbase.$2);\\\n";
+      } else {
+        print PROCS "process_$type(input,structbase.$2);\\\n";
+      }
+    } elsif (/\/\*.*\*\//) {
+      print STRUCTS;
+    } else {
+      die "Unknown struct field\n";
+    }
+  } elsif ($state eq "enum") {
     print STRUCTS;
-    $state = pop @states;
-    $name = pop @names;
-    print PROCS "while (0);\n";
-  } elsif (/\} *(\w*) *\;/) {
+    $state = "none" if (/\}\;/);
+  } elsif ($state eq "comment") {
     print STRUCTS;
-    die "ERROR\n";
-#    print "#define $1 ".pop @unnamed;
-    $state = pop @states;
-    $name = pop @names;
-  } elsif (/(.*)opaque *(\w*)\[(\d*)\]/) {
-    print STRUCTS "#define ".$name."_"."$2"."_max $3\n";
-    print STRUCTS "$1char $2[$3];\n";
-  } elsif (/(.*)opaque *(\w*)\<(\d*)\>/) {
-    print STRUCTS "#define $name"."_"."$2"."_max $3\n";
-    print STRUCTS "$1int $2_size;\n";
-    print STRUCTS "$1char *$2;\n";
-  } elsif (/case *(\w*)\:/) {
-    ##
-  } elsif (/(.*)union *switch *\( *(\w*) *(\w*)\)/) {
-    push @states, $state;
-    push @names, $name;
-    $name = "unnamed".$nextunnamed;
-    $nextunnamed++;
-    push @unnamed, $name;
-    $types{$name} = $state = "union";
-    print STRUCTS "$1$2 $3;\n";
-    print STRUCTS "$1union $name {\n";
-  } elsif (/enum *(\w*) /) {
-    print STRUCTS;
-    push @states, $state;
-    push @names, $name;
-    $name = $1;
-    $types{$name} = $state = "enum";
-  } elsif (/struct *(\w*) /) {
-    print STRUCTS;
-    push @states, $state;
-    push @names, $name;
-    $name = $1;
-    $types{$name} = $state = "struct";
-    print PROCS "#define print_struct_$name do {\\\n";
-  } elsif ($state eq "struct") {
-#  } elsif (($state eq "struct") && /(\S*)\s*(\S*)\;/) {
-#    my $type = $types{$1};
-#    print STRUCTS;
-#    if (($type eq "struct") || ($type eq "union")) {
-#      print PROCS "print_$type_$2();\\\n";
-#    } else {
-#      print PROCS "print_$type();\\\n";
-#    }
+    $state = "none" if (/\*\//);
+  } elsif ($state eq "none") {
+
+    if (/enum *(\w*)/) {
+      print STRUCTS;
+      $name = $1;
+      $types{$name} = $state = "enum";
+    } elsif (/struct *(\w*) /) {
+      print STRUCTS;
+      $name = $1;
+      $types{$name} = $state = "struct";
+      print PROCS "#define process_struct_${name}(input,structbase) do {\\\n";
+    } elsif (/union *(\w*) *switch *\( *(\w*) *(\w*)\)/) {
+      $name = $1;
+      $types{$name} = $state = "union";
+      print STRUCTS "struct ${name} {\n";
+      print STRUCTS "$2 $3;\n";
+      print STRUCTS "union {\n";
+      print PROCS "#define process_union_${name}_dummy do {\\\n";
+      print UNIONS "#define process_union_${name}(input,structbase) do {\\\n";
+      print UNIONS "process_int(input,structbase.$3);\\\n";
+      print UNIONS "switch (structbase.$3) {\\\n";
+    } elsif (/\#define/) {
+      print STRUCTS;
+    } elsif (/typedef (.*) (\S+)\;/) {
+      # doesnt yet cope with unsigned foo or string or opaque
+      print STRUCTS;
+      $types{$2} = $1;
+    } elsif (/(\w*) (\w*)\((\w*)\) = (\w*)\;/) {
+      print CALLSH "\nint $2(struct $3 *args, struct $1 *res);\n";
+      print CALLS  "\nint $2(struct $3 *args, struct $1 *res)\n";
+      print CALLS "{\n";
+      print CALLS "\tprepare_call($4);\n";
+      print CALLS "\tprocess_struct_$3(OUTPUT,(*args));\n";
+      print CALLS "\tdo_call();\n";
+      print CALLS "}\n";
+    } elsif (/\/\*.*\*\//) {
+      print STRUCTS;
+    } elsif (/\/\*/) {
+      print STRUCTS;
+      $state = "comment";
+    } elsif (/^\s*$/) {
+      print STRUCTS;
+    } else {
+      die "Unknown input\n";
+    }
   } else {
-    print STRUCTS;
+    die "Unknown state\n";
   }
 }
 
+#  } elsif (/(.*)opaque *(\w*)\[(\d*)\]/) {
+#    print STRUCTS "#define ".$name."_"."$2"."_max $3\n";
+#    print STRUCTS "$1char $2[$3];\n";
+#  } elsif (/(.*)opaque *(\w*)\<(\d*)\>/) {
+#    print STRUCTS "#define $name"."_"."$2"."_max $3\n";
+#    print STRUCTS "$1int $2_size;\n";
+#    print STRUCTS "$1char *$2;\n";
+#  } elsif (/case *(\w*)\:/) {
+#    ##
+#  } elsif (/(.*)union *switch *\( *(\w*) *(\w*)\)/) {
+#    die "Unnamed union\n";
