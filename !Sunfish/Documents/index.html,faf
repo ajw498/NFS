@@ -10,6 +10,14 @@
 
 <p>
 
+<b>Blackbanded Sunfish</b>, <i>Enneacanthus chaetodon</i><br>
+A 30-60mm long fish with a very compressed, deep body, a thin pointed pectoral fin and round tail fin. Habitat: swamps, ponds and river pools.
+<p>
+<b>Sunfish</b><br>
+An NFS client, implemented as an image filing system. Habitat: RISC OS.
+
+
+<p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff">Contents</font></h2>
 </td></tr></table>
@@ -48,8 +56,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="requirements">Requirements</a></font></h2>
 </td></tr></table>
-
-Sunfish requires a working network connection and an NFS server to connect to. The server should be running version 2 of the NFS protocol, version 1 of the Mount protocol, version 2 of the portmapper protocol, and optionally version 2 of the pcnfsd protocol. It has currently only been tested with the Linux kernel server present in Debian Woody, but it should work with other servers.
+<p>
+Sunfish requires a working network connection and an NFS server to connect to. The server should be running version 2 of the NFS protocol, version 1 of the Mount protocol, version 2 of the portmapper protocol, and optionally version 2 of the pcnfsd protocol. It has currently only been tested with the Linux kernel server present in Debian Woody, but it should work with other servers. Only UDP connections are supported at present.
 <p>
 Sunfish should run on RISC OS 3.11 or later, but has only been tested on RISC OS 5 at present. It is 26/32bit neutral.
 
@@ -176,6 +184,7 @@ Controls adding of a ,xyz extension. When 0, no ,xyz extensions are added, and a
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="reportingbugs">Reporting Bugs</a></font></h2>
 </td></tr></table>
+<p>
 If you discover a bug, please report it to <a href="mailto:alex@alexwaugh.com">me</a>, or better still fix it yourself and send me a patch. When reporting a bug, first load syslog, then set the logging option before doing the operation that triggers the bug. If you have access to a machine that can run ethereal then it would be very useful to use that to save a dump of the network traffic along with the syslog file, a description of the problem and exactly what operation you were doing to trigger the bug. Also details of what OS and NFS version the server is running would be helpful, and the version of the Sunfish module and RISC OS version. 
 <p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
@@ -193,6 +202,8 @@ Some operations are not as fast as they could be. For the first release I have c
 </td></tr></table>
 <p>
 Full source code is provided. To recompile the module, you will need Norcroft v5.53 or later, cmhg 5.42 or later, TCPIPLibs, and Perl. Earlier 26bit versions of Norcroft will not work because the code makes use of 64bit integers and some C99 functions.
+<p>
+For some unknown reason, if you use amu then it will give an error <code>AMU: Don't know how to make 'o.pcnfsd-calls'</code> after generating pcnfsd-calls.c, but if you rerun amu then it will work. GNU make does not give this problem.
 
 </body>
 </html>
