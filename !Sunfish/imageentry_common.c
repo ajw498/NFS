@@ -173,7 +173,6 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 		} else if (name[i] < '\''
 				|| name[i] == '/'
 				|| name[i] == ':'
-				|| name[i] == ';'
 				|| name[i] == '?'
 				|| name[i] == '@'
 				|| name[i] == '\\'
