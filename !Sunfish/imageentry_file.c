@@ -59,8 +59,14 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 		newfiletype = conn->defaultfiletype;
 	}
 
+	if (finfo->attributes.type == NFDIR) {
+		/* It seems that RISC OS assumes the owner read/write bits are set
+		   for directories, yet doesn't set them. */
+		attr |= 3;
+	}
+	
 	/* If the filetype has changed we may need to rename the file */
-	if (conn->xyzext != NEVER && newfiletype != filetype) {
+	if (conn->xyzext != NEVER && newfiletype != filetype && finfo->attributes.type == NFREG) {
 	    struct renameargs renameargs;
 	    enum nstat renameres;
 

@@ -274,12 +274,24 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 		/* It is not an error if the file isn't found, but the
 		   containing directory must exist */
 		if (*end == '\0' && next.status == NFSERR_NOENT) break;
+
+		if (dinfo == NULL && (next.status == NFSERR_NOENT || next.status == NFSERR_NOTDIR)) {
+			/* If the caller wants info on the directory then it is an error if
+			   the dir isn't found, but if they only want info on the file
+			   (eg. read cat info) then it is not an error if we can't find it */
+			return NULL;
+		}
+
 		if (next.status != NFS_OK) return gen_nfsstatus_error(next.status);
 
 		if (*end != '\0') {
 			if (next.u.diropok.attributes.type != NFDIR) {
 				/* Every segment except the leafname must be a directory */
-				return gen_nfsstatus_error(NFSERR_NOTDIR);
+				if (dinfo) {
+					return gen_nfsstatus_error(NFSERR_NOTDIR);
+				} else {
+					return NULL;
+				}
 			}
 			if (dinfo) {
 				dirinfo = next.u.diropok;
