@@ -86,6 +86,9 @@
 #define RPCBUFOVERFLOW (RPCERRBASE + 0)
 #define RPCBUFOVERFLOWMESS "RPC buffer overflow"
 
+/* Directory not empty error number must match what filecore uses */ 
+#define ERRDIRNOTEMPTY 67764
+
 
 #define MAX_GIDS 16
 

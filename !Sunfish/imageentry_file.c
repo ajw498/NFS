@@ -266,7 +266,17 @@ os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, unsi
 			err = NFSPROC_REMOVE(&removeargs, &removeres, conn);
 		}
 		if (err) return err;
-		if (removeres != NFS_OK) return gen_nfsstatus_error(removeres);
+		switch (removeres) {
+			case NFS_OK:
+				break;
+			case NFSERR_EXIST:
+			case NFSERR_NOTEMPTY:
+				/* We must return a specific error for this case otherwise
+				   Filer_Action may not delete directories properly */
+				return gen_error(ERRDIRNOTEMPTY,"Directory not empty");
+			default:
+				return gen_nfsstatus_error(removeres);
+		}
 
 		/* Treat all special files as if they were regular files */
 		*objtype = finfo->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
