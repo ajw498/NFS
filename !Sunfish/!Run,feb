@@ -6,7 +6,7 @@
 Set Sunfish$Dir <Obey$Dir>
 
 If "<Choices$Write>" <> "" Then Set Sunfish$Write <Choices$Write>.Sunfish Else Set Sunfish$Write <Sunfish$Dir>
-If "<Choices$Write>" <> "" Then Set Sunfish$Path Choices:Sunfish. Else Set Sunfish$Path <Sunfish$Dir>.
+If "<Choices$Write>" <> "" Then Set Sunfish$Path <Sunfish$Write>. Else Set Sunfish$Path <Sunfish$Dir>.
 
 Set File$Type_1B6 Sunfish
 
