@@ -5,6 +5,8 @@
 
 Set File$Type_1B6 Sunfish
 
-IconSprites <Obey$Dir>.!Sprites
+Set Sunfish$Dir <Obey$Dir>
 
-Set Alias$@RunType_1B6 Run <Obey$Dir>.!Run %%*0
+IconSprites <Sunfish$Dir>.!Sprites
+
+Set Alias$@RunType_1B6 Run <Sunfish$Dir>.!Run %%*0
