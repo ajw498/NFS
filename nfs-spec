@@ -197,3 +197,13 @@ struct createargs {
 
 diropres NFSPROC_CREATE(createargs) = 9;
 
+nstat NFSPROC_RMDIR(diropargs) = 15;
+
+nstat NFSPROC_REMOVE(diropargs) = 10;
+
+struct renameargs {
+        diropargs from;
+        diropargs to;
+};
+
+nstat NFSPROC_RENAME(renameargs) = 11;

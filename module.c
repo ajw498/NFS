@@ -161,6 +161,8 @@ _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 		return file_savefile((char *)(r->r[1]), r->r[2], r->r[3], (char *)(r->r[4]), (char *)(r->r[5]),  (struct conn_info *)(r->r[6]), (char **)(&(r->r[6])));
 	case IMAGEENTRY_FILE_READCATINFO:
 		return file_readcatinfo((char *)(r->r[1]), (struct conn_info *)(r->r[6]), &(r->r[0]), &(r->r[2]), &(r->r[3]), &(r->r[4]), &(r->r[5]));
+	case IMAGEENTRY_FILE_DELETE:
+		return file_delete((char *)(r->r[1]), (struct conn_info *)(r->r[6]), &(r->r[0]), &(r->r[2]), &(r->r[3]), &(r->r[4]), &(r->r[5]));
 	default:
 		sprintf(err.errmess,"nfs file %d '%s' not yet implemented",r->r[0],r->r[0] == 5? (char*)(r->r[1]) : "!!!");
 	}
@@ -182,6 +184,7 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 	case IMAGEENTRY_FUNC_CLOSEIMAGE:
 		return func_closeimage((struct conn_info *)(r->r[1]));
 	case IMAGEENTRY_FUNC_RENAME:
+		return file_rename((char *)(r->r[1]), (char *)(r->r[2]), (struct conn_info *)(r->r[6]));
 	case IMAGEENTRY_FUNC_READDIR:
 	case IMAGEENTRY_FUNC_READDEFECT:
 	case IMAGEENTRY_FUNC_ADDDEFECT:

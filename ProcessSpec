@@ -123,7 +123,7 @@ while (<>) {
       print STRUCTS;
       $name = $1;
       $types{$name} = $state = "enum";
-      $typessize{$name} = 0;
+      $typessize{$name} = $name;
     } elsif (/^\s*union *(\w*) *switch *\( *(\w*) *(\w*)\)/) {
       $name = $1;
       $types{$name} = $state = "union";

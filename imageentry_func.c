@@ -199,7 +199,7 @@ static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struc
 		dirhandle = next.u.diropok.file;
 		start = end + 1;
 	} while (*end != '\0');
-	if (finfo) *finfo = &(next.u.diropok);
+	if (finfo && next.status != NFSERR_NOENT) *finfo = &(next.u.diropok);
 	return NULL;
 }
 
@@ -359,5 +359,76 @@ syslogf("NFS",25,"foo3");
 	writeargs.data.data = buffer;
 	err = NFSPROC_WRITE(&writeargs, &writeres, conn);
 	
+	return NULL;
+}
+
+os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, int *load, int *exec, int *len, int *attr)
+{
+    struct diropok *dinfo;
+    struct diropok *finfo;
+    os_error *err;
+    char *leafname;
+
+	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, conn);
+	if (err) return err;
+
+	if (finfo == NULL) {
+		*objtype = 0;
+	} else {
+	    struct diropargs removeargs;
+	    enum nstat removeres;
+
+		memcpy(removeargs.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
+		removeargs.name.data = leafname;
+		removeargs.name.size = strlen(leafname);
+		if (finfo->attributes.type == NFDIR) {
+			err = NFSPROC_RMDIR(&removeargs, &removeres, conn);
+		} else {
+			err = NFSPROC_REMOVE(&removeargs, &removeres, conn);
+		}
+		if (err) return err;
+		if (removeres != NFS_OK) return_error("remove failed");
+		*objtype = finfo->attributes.type == NFDIR ? 2 : 1;
+		*load = (int)0xFFFFFF00;
+		*exec = 0;
+		*len = finfo->attributes.size;
+		*attr = 3;/*((finfo->attributes.mode & 0x400) >> 10) | ((finfo->attributes.mode & 0x200) >> 8);*/
+	}
+	return NULL;
+}
+
+os_error *file_rename(char *oldfilename, char *newfilename, struct conn_info *conn)
+{
+    struct diropok *dinfo;
+    struct diropok *finfo;
+    struct renameargs renameargs;
+    enum nstat renameres;
+    os_error *err;
+    char *leafname;
+
+	err = filename_to_finfo(oldfilename, &dinfo, &finfo, &leafname, conn);
+	if (err) return err;
+	if (finfo == NULL) return_error("file not found");
+
+	memcpy(renameargs.from.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
+	renameargs.from.name.data = leafname;
+	renameargs.from.name.size = strlen(leafname);
+
+	if (strncmp(oldfilename, newfilename, leafname - oldfilename) == 0) {
+		/* Both files are in the same directory */
+		memcpy(renameargs.to.dir, renameargs.from.dir, FHSIZE);
+		renameargs.to.name.data = newfilename + (leafname - oldfilename);
+		renameargs.to.name.size = strlen(renameargs.to.name.data);
+	} else {
+		err = filename_to_finfo(newfilename, &dinfo, NULL, &leafname, conn);
+		if (err) return err;
+		memcpy(renameargs.to.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
+		renameargs.to.name.data = leafname;
+		renameargs.to.name.size = strlen(leafname);
+	}
+
+	err = NFSPROC_RENAME(&renameargs, &renameres, conn);
+	if (err) return err;
+	if (renameres != NFS_OK) return_error("rename failed");
 	return NULL;
 }
