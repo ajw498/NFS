@@ -40,13 +40,13 @@ os_error *open_file(char *filename, int access, struct conn_info *conn,
                     unsigned int *allocatedspace)
 {
 	struct file_handle *handle;
-    struct diropok *dinfo;
-    struct diropok *finfo;
-    struct createargs createargs;
-    struct diropres createres;
-    os_error *err;
-    char *leafname;
-    int filetype;
+	struct diropok *dinfo;
+	struct diropok *finfo;
+	struct createargs createargs;
+	struct diropres createres;
+	os_error *err;
+	char *leafname;
+	int filetype;
 
 	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
 	if (err) return err;

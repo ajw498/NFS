@@ -156,7 +156,7 @@ _kernel_oserror *initialise(const char *cmd_tail, int podule_base, void *private
 
 	rpc_init_header();
 
-    return err;
+	return err;
 }
 
 _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)

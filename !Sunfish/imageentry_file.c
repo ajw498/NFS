@@ -57,15 +57,15 @@ os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype,
 
 os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec, int attr, struct conn_info *conn)
 {
-    struct diropok *finfo;
-    struct diropok *dinfo;
+	struct diropok *finfo;
+	struct diropok *dinfo;
 	struct sattrargs sattrargs;
 	struct attrstat sattrres;
-    os_error *err;
-    int filetype;
-    int newfiletype;
-    int extfound;
-    char *leafname;
+	os_error *err;
+	int filetype;
+	int newfiletype;
+	int extfound;
+	char *leafname;
 
 	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, &filetype, &extfound, conn);
 	if (err) return err;
@@ -121,14 +121,14 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 /* Create a new file or directory */
 static os_error *createobj(char *filename, int dir, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **fhandle, char **leafname)
 {
-    struct diropok *dinfo;
-    struct diropok *finfo;
-    os_error *err;
-    struct createargs createargs;
-    static struct diropres createres;
-    int filetype;
-    int newfiletype;
-    int extfound;
+	struct diropok *dinfo;
+	struct diropok *finfo;
+	os_error *err;
+	struct createargs createargs;
+	static struct diropres createres;
+	int filetype;
+	int newfiletype;
+	int extfound;
 
 	if ((load & 0xFFF00000) == 0xFFF00000) {
 		newfiletype = (load & 0xFFF00) >> 8;
@@ -229,8 +229,8 @@ os_error *file_createdir(char *filename, unsigned int load, unsigned int exec, s
 /* Save a block of memory as a file */
 os_error *file_savefile(char *filename, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname)
 {
-    os_error *err;
-    char *fhandle;
+	os_error *err;
+	char *fhandle;
 
 	err = createobj(filename, 0, load, exec, buffer, buffer_end, conn, &fhandle, leafname);
 	if (err) return err;
@@ -241,11 +241,11 @@ os_error *file_savefile(char *filename, unsigned int load, unsigned int exec, ch
 /* Delete a file or directory */
 os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, unsigned int *load, unsigned int *exec, int *len, int *attr)
 {
-    struct diropok *dinfo;
-    struct diropok *finfo;
-    os_error *err;
-    char *leafname;
-    int filetype;
+	struct diropok *dinfo;
+	struct diropok *finfo;
+	os_error *err;
+	char *leafname;
+	int filetype;
 
 	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
 	if (err) return err;
