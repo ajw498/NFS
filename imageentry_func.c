@@ -1,11 +1,12 @@
 /*
-	$Id: $
+	$Id$
 
 	Routines for ImageEntry_Func
 */
 
 
 #include <stdlib.h>
+#include <ctype.h>
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -124,6 +125,97 @@ struct dir_entry {
 #define OBJ_FILE 1
 #define OBJ_DIR  2
 
+static char *filename_unixify(char *name, int len)
+{
+	static char namebuffer[MAXNAMLEN + 1];
+	int i;
+
+	if (len > MAXNAMLEN) len = MAXNAMLEN; /*?*/
+
+	for (i = 0; i < len; i++) {
+		switch (name[i]) {
+			case '/':
+				namebuffer[i] = '.';
+				break;
+			/*case '&': etc */
+			default:
+				namebuffer[i] = name[i];
+		}
+	}
+	namebuffer[len] = '\0';
+	return namebuffer;
+}
+
+static int filename_riscosify(char *name, int len, char **buffer)
+{
+	int i;
+	int filetype = 0xFFF;
+
+	for (i = 0; i < len; i++) {
+		switch (name[i]) {
+			case '.':
+				(*buffer)[i] = '/';
+				break;
+			/*case '&': etc */
+			case ',':
+				if (len - i == 4 && isxdigit(name[i+1]) && isxdigit(name[i+2]) && isxdigit(name[i+3])) {
+					char tmp[4];
+					tmp[0] = name[i+1];
+					tmp[1] = name[i+2];
+					tmp[2] = name[i+3];
+					tmp[3] = '\0';
+					filetype = (int)strtol(tmp, NULL, 16);
+					len -= 4;
+				} else {
+					(*buffer)[i] = name[i];
+				}
+				break;
+			default:
+				(*buffer)[i] = name[i];
+		}
+	}
+	(*buffer)[len] = '\0';
+	(*buffer) += (len + 4) & ~3;
+
+	return filetype;
+}
+
+static os_error *lookup_leafname(char *dhandle, char *leafname, int len,  struct opaque **found, struct conn_info *conn)
+{
+	static struct readdirargs rddir;
+	static struct readdirres rdres;
+	struct entry *direntry;
+	os_error *err;
+
+	memcpy(rddir.dir, dhandle, FHSIZE);
+	rddir.count = 1024; /**/
+	rddir.cookie = 0;
+	do {
+		err = NFSPROC_READDIR(&rddir, &rdres, conn);
+		if (err) return err;
+		if (rdres.status != NFS_OK) return_error("readdir failed");
+		direntry = rdres.u.readdirok.entries;
+		while (direntry) {
+			rddir.cookie = direntry->cookie;
+			if (direntry->name.size == len || direntry->name.size == len + 4) {
+				if (strncmp(direntry->name.data, leafname, len) == 0) {
+					if ((direntry->name.size == len)
+					    || (direntry->name.data[len] == ','
+					        && isxdigit(direntry->name.data[len+1])
+					        && isxdigit(direntry->name.data[len+2])
+					        && isxdigit(direntry->name.data[len+3]))) {
+						*found = &(direntry->name);
+						return NULL;
+					}
+				}
+			}
+			direntry = direntry->next;
+		}
+	} while (rdres.u.readdirok.eof);
+	*found = NULL;
+	return NULL;
+}
+
 static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct diropok **finfo, char **leafname, struct conn_info *conn)
 {
 	char *start = filename;
@@ -142,14 +234,15 @@ static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struc
 		/* Find end of dirname */
 		while (*end && *end != '.') end++;
 
-		current.name.data = start;
+		current.name.data = filename_unixify(start, end - start);
 		current.name.size = end - start;
 		memcpy(current.dir, dirhandle, FHSIZE);
 		err = NFSPROC_LOOKUP(&current, &next, conn);
 		if (err) return err;
 
-		if (leafname) *leafname = start;
-		if (next.status != NFS_OK && next.status != NFSERR_NOENT) return_error("Lookup failed");
+		if (leafname) *leafname = current.name.data;
+		if (next.status == NFSERR_NOENT) break;
+		if (next.status != NFS_OK) return_error("Lookup failed");
 		if (*end != '\0') {
 			if (next.u.diropok.attributes.type != NFDIR) return_error("not a directory");
 			if (dinfo) *dinfo = &(next.u.diropok);
@@ -157,7 +250,23 @@ static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struc
 		dirhandle = next.u.diropok.file;
 		start = end + 1;
 	} while (*end != '\0');
-	if (finfo && next.status != NFSERR_NOENT) *finfo = &(next.u.diropok);
+	if (next.status == NFSERR_NOENT) {
+		if (*end == '\0' && finfo) {
+			struct opaque *file;
+			err = lookup_leafname(dirhandle, current.name.data, current.name.size, &file, conn);
+			if (err) return err;
+			if (file) {
+				current.name.data = file->data;
+				current.name.size = file->size;
+				err = NFSPROC_LOOKUP(&current, &next, conn);
+				if (err) return err;
+				if (next.status != NFS_OK) return_error("Lookup failed");
+				*finfo = &(next.u.diropok);
+			}
+		}
+	} else {
+		if (finfo) *finfo = &(next.u.diropok);
+	}
 	return NULL;
 }
 
@@ -216,10 +325,18 @@ os_error *func_readdirinfo(int info, char *dirname, void *buffer, int numobjs, i
 		} else if (direntry->name.size == 2 && direntry->name.data[0] == '.' && direntry->name.data[1] == '.') {
 			/* parent dir */
 		} else {
+			struct dir_entry *entry = NULL;
+			int filetype;
+
+			/* Check buffer size */
+			if (info) {
+				entry = (struct dir_entry *)bufferpos;
+				bufferpos += sizeof(struct dir_entry);
+			}
+			filetype = filename_riscosify(direntry->name.data,direntry->name.size,&bufferpos);
 			if (info) {
 				struct diropargs lookupargs;
 				struct diropres lookupres;
-				struct dir_entry *entry;
 
 				memcpy(lookupargs.dir, rddir.dir, FHSIZE);
 				lookupargs.name.data = direntry->name.data;
@@ -228,17 +345,11 @@ os_error *func_readdirinfo(int info, char *dirname, void *buffer, int numobjs, i
 				if (err) return err;
 				if (lookupres.status != NFS_OK) return_error("lookup failed");
 
-				entry = (struct dir_entry *)bufferpos;
-				bufferpos += sizeof(struct dir_entry);
-				timeval_to_loadexec(&(lookupres.u.diropok.attributes.mtime), 0xFFF, &(entry->load), &(entry->exec));
+				timeval_to_loadexec(&(lookupres.u.diropok.attributes.mtime), filetype, &(entry->load), &(entry->exec));
 				entry->len = lookupres.u.diropok.attributes.size;
 				entry->attr = mode_to_attr(lookupres.u.diropok.attributes.mode);
 				entry->type = lookupres.u.diropok.attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
 			}
-			memcpy(bufferpos,direntry->name.data,direntry->name.size);
-			bufferpos[direntry->name.size] = '\0';
-			bufferpos += (direntry->name.size + 4) & ~3;
-			/* Check buffer size */
 			(*objsread)++;
 		}
 		start = direntry->cookie;
@@ -280,7 +391,7 @@ os_error *open_file(char *filename, int access, struct conn_info *conn, int *fil
 			createargs.attributes.mode = 0x00008180; /**/
 			createargs.attributes.uid = -1;
 			createargs.attributes.gid = -1;
-			createargs.attributes.size = access;
+			createargs.attributes.size = access; /**/
 			createargs.attributes.atime.seconds = -1;
 			createargs.attributes.atime.useconds = -1;
 			createargs.attributes.mtime.seconds = -1;

@@ -6,7 +6,7 @@ NETLIBS    = TCPIPLibs:o.socklib5zm TCPIPLIBS:o.inetlibzm
 THROWBACK = -throwback
 
 CC = cc
-CFLAGS = -Wp -IC: -I$(NETINCLUDE) -fah $(THROWBACK) -zM
+CFLAGS = -Wp -IC: -I$(NETINCLUDE) -fah $(THROWBACK) -zM -zpq262144
 
 LINK = link
 LINKFLAGS = #-d
