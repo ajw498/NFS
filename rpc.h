@@ -16,14 +16,14 @@ void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, s
 
 os_error *rpc_do_call(struct conn_info *conn);
 
-/* FIXME */
-#define rpc_buffer_overflow() gen_error(1,"rpc Buffer overflow")
+#define rpc_buffer_overflow() gen_error(RPCBUFOVERFLOW, RPCBUFOVERFLOWMESS)
 
 void *llmalloc(size_t size);
 
 void swap_rxbuffers(void);
 
 os_error *rpc_init_connection(struct conn_info *conn);
+
 os_error *rpc_close_connection(struct conn_info *conn);
 
 

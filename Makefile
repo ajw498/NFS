@@ -3,7 +3,7 @@
 #
 
 INCLUDE = -IC:,TCPIPLibs:
-LIBS    = TCPIPLibs:o.socklib5zm TCPIPLIBS:o.inetlibzm TCPIPLIBS:o.unixlibzm C:o.stubs
+LIBS    = TCPIPLIBS:o.unixlibzm TCPIPLIBS:o.inetlibzm TCPIPLibs:o.socklib5zm C:o.stubs
 
 CC = cc
 CFLAGS = -Wp $(INCLUDE) -fah -throwback -zM -zpq262144
@@ -49,7 +49,7 @@ imageentry_bytes.o \
 imageentry_openclose.o \
 imageentry_common.o
 
-$(OBJS) $(GENOBJS): $(GENHDRS)
+$(OBJS) $(GENOBJS): $(GENHDRS) imageentry_common.h
 
 module: $(OBJS) $(GENOBJS)
 	link -m -o module $(OBJS) $(GENOBJS) $(LIBS)

@@ -1,12 +1,18 @@
 /*
-	$Id: $
+	$Id$
 
-	Input and output routines for primitive data types.
+	Input and output routines for primitive XDR data types.
 */
 
 #ifndef PRIMITIVES_H
 #define PRIMITIVES_H
 
+#include <string.h>
+
+#define OPAQUE_MAX 0xFFFFFFFF
+
+#define OUTPUT 0
+#define INPUT 1
 
 struct opaque {
 	unsigned int size;
@@ -18,7 +24,6 @@ struct opaqueint {
 	unsigned int *data;
 };
 
-#define OPAQUE_MAX 0xFFFFFFFF
 
 typedef struct opaque string;
 
@@ -28,13 +33,6 @@ enum bool {
 };
 
 extern char *buf, *bufend;
-
-#include <assert.h>
-#include <string.h>
-#include <stdio.h>
-
-#define OUTPUT 0
-#define INPUT 1
 
 /* buf points to next input or outut byte
    bufend points to byte after the end of buffer */
@@ -51,7 +49,6 @@ extern char *buf, *bufend;
 
 #define output_bytes(data, size) (memcpy(buf, data, size),buf+=size)
 
-/* FIXME: check for remaining assertions */
 
 #define process_int(input, structbase, maxsize) do { \
  check_bufspace(4); \
@@ -68,7 +65,6 @@ extern char *buf, *bufend;
   output_byte((structbase & 0x0000FF00) >> 8); \
   output_byte((structbase & 0x000000FF)); \
  } \
-/*printf("processing int " ###structbase ", %d\n",##structbase);*/\
 } while (0)
 
 #define process_enum(input, structbase, name) do { \
@@ -86,13 +82,11 @@ extern char *buf, *bufend;
   output_byte((structbase & 0x0000FF00) >> 8); \
   output_byte((structbase & 0x000000FF)); \
  } \
-/*printf("processing enum " ###structbase ", %d\n",##structbase);*/\
 } while (0)
 
 #define process_opaque(input, structbase, maxsize) do { \
-/*printf("processing opaque " ###structbase ", size = %d, maxsize = %d\n",##structbase.size,maxsize);*/\
  process_int(input, ##structbase.size, 0); \
- assert(##structbase.size <= maxsize); \
+ if (##structbase.size > maxsize) goto buffer_overflow; \
  if (##structbase.size > 0) { \
   int i; \
   check_bufspace((##structbase.size + 3) & ~3); \
@@ -130,7 +124,7 @@ extern char *buf, *bufend;
 
 #define process_opaqueint(input, structbase, maxsize) do { \
  process_int(input, ##structbase.size, 0); \
- assert(##structbase.size <= maxsize); \
+ if (##structbase.size > maxsize) goto buffer_overflow; \
  if (##structbase.size > 0) { \
   int i; \
   check_bufspace(##structbase.size * 4); \

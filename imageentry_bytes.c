@@ -25,7 +25,7 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 	do {
 		args.offset = offset;
 		args.count = len;
-		if (args.count > MAX_PAYLOAD) args.count = MAX_PAYLOAD;
+		if (args.count > MAXDATA) args.count = MAXDATA;
 		offset += args.count;
 		
 		err = NFSPROC_READ(&args, &res, handle->conn);
@@ -59,7 +59,7 @@ os_error *writebytes(char *fhandle, char *buffer, unsigned int len, unsigned int
 	do {
 		args.offset = offset;
 		args.data.size = len;
-		if (args.data.size > MAX_PAYLOAD) args.data.size = MAX_PAYLOAD;
+		if (args.data.size > MAXDATA) args.data.size = MAXDATA;
 		offset += args.data.size;
 		len -= args.data.size;
 		args.data.data = buffer;

@@ -61,24 +61,30 @@
 /* Pretend to fileswitch that we have a block/sector size */
 #define FAKE_BLOCKSIZE 1024
 
-/*FIXME*/
-#define BYTESERRBASE 20
 
+/* Error numbers */
+#define ERRBASE 0
 
-#define MAX_PAYLOAD 7000
-/*FIXME*/
+#define NOMEM (ERRBASE + 0)
+#define NOMEMMESS "Unable to allocate memory"
 
-#define NOMEM 1
-#define NOMEMMESS "Out of memory"
-
-#define UNSUPP 1
+#define UNSUPP (ERRBASE + 1)
 #define UNSUPPMESS "Unsupported entry point called"
 
-/*FIXME*/
-#define IMAGEERRBASE 20
+/* 1 error */
+#define BYTESERRBASE (ERRBASE + 2)
 
-#define NFSSTATBASE 1
-/*FIXME*/
+/* 1 error */
+#define FUNCERRBASE (ERRBASE + 10)
+
+/* 1 error */
+#define NFSSTATBASE (ERRBASE + 20)
+
+/* 14 errors */
+#define RPCERRBASE (ERRBASE + 30)
+#define RPCBUFOVERFLOW (RPCERRBASE + 0)
+#define RPCBUFOVERFLOWMESS "RPC buffer overflow"
+
 
 
 /* All infomation associated with an open file */
@@ -115,7 +121,6 @@ struct conn_info {
 	char *auth;
 	int authsize;
 	char *machinename;
-	int usemimemap;
 	int defaultfiletype;
 	int xyzext;
 };
@@ -128,10 +133,6 @@ typedef _kernel_oserror os_error;
 /* Generate an os_error block */
 os_error *gen_error(int num, char *msg, ...);
 
-
-/* Error numbers */
-#define ERRBASE 0
-#define RPCERRBASE ERRBASE + 1
 
 
 void syslogf(char *logname, int level, char *fmt, ...);

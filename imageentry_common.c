@@ -10,6 +10,7 @@
 #include <string.h>
 #include <swis.h>
 #include <stdarg.h>
+#include <stdio.h>
 
 #include "imageentry_func.h"
 
@@ -58,7 +59,7 @@ os_error *gen_nfsstatus_error(enum nstat stat)
 	return gen_error(NFSSTATBASE, "NFS call failed (%s)", str);
 }
 
-
+/* FIXME: better conversion of chars */
 static char *filename_unixify(char *name, int len)
 {
 	static char namebuffer[MAXNAMLEN + 1];
@@ -95,7 +96,7 @@ static int lookup_mimetype(char *ext, struct conn_info *conn)
 	os_error *err;
 	int filetype;
 
-	/* Try MimeMap to get a filetype */
+	/* Try MimeMap to get a filetype, use the default type if the call fails */
 	err = _swix(MimeMap_Translate,_INR(0,2) | _OUT(3), MMM_TYPE_DOT_EXTN, ext, MMM_TYPE_RISCOS, &filetype);
 	if (err) filetype = conn->defaultfiletype;
 
@@ -120,7 +121,9 @@ int filename_riscosify(char *name, int len, char **buffer, struct conn_info *con
 				break;
 			/*case '&': etc */
 			case ',':
-				if (len - i == 4 && isxdigit(name[i+1]) && isxdigit(name[i+2]) && isxdigit(name[i+3])) {
+				if (conn->xyzext != NEVER
+				    && len - i == 4
+				    && isxdigit(name[i+1]) && isxdigit(name[i+2]) && isxdigit(name[i+3])) {
 					char tmp[4];
 					tmp[0] = name[i+1];
 					tmp[1] = name[i+2];
@@ -140,7 +143,7 @@ int filename_riscosify(char *name, int len, char **buffer, struct conn_info *con
 	(*buffer) += (len + 4) & ~3;
 
 	if (conn->xyzext != NEVER) {
-		if (filetype == -1 && conn->usemimemap) {
+		if (filetype == -1) {
 			/* No ,xyz found */
 	    	if (lastdot) {
 				filetype = lookup_mimetype(lastdot + 1, conn);
@@ -169,7 +172,7 @@ static os_error *lookup_leafname(char *dhandle, struct opaque *leafname, struct 
 	os_error *err;
 
 	memcpy(rddir.dir, dhandle, FHSIZE);
-	rddir.count = MAX_PAYLOAD;
+	rddir.count = MAXDATA;
 	rddir.cookie = 0;
 
 	do {
@@ -301,7 +304,7 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 
 		/* Work out the filetype */
 		if (filetype) {
-			if (conn->usemimemap) {
+			if (conn->xyzext != NEVER) {
 				int lastdot = current.name.size;
 				while (lastdot > 0 && current.name.data[lastdot] != '.') lastdot--;
 	

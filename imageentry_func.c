@@ -82,7 +82,7 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		/* A comment */
 	} else if (CHECK("Protocol")) {
 		if (strcasecmp(val, "NFS2") != 0) {
-			return gen_error(IMAGEERRBASE + 0, "Unknown protocol '%s'", val);
+			return gen_error(FUNCERRBASE + 0, "Unknown protocol '%s'", val);
 		}
 	} else if (CHECK("Server")) {
 		conn->server = val;
@@ -116,8 +116,6 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		conn->timeout = (int)strtol(val, NULL, 10);
 	} else if (CHECK("Retries")) {
 		conn->retries = (int)strtol(val, NULL, 10);
-	} else if (CHECK("UseMimemap")) {
-		conn->usemimemap = (int)strtol(val, NULL, 10);
 	} else if (CHECK("DefaultFiletype")) {
 		conn->defaultfiletype = 0xFFF & (int)strtol(val, NULL, 16);
 	} else if (CHECK("AddExt")) {
@@ -237,7 +235,6 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->logging = 0;
 	conn->auth = NULL;
 	conn->machinename = NULL;
-	conn->usemimemap = 1;
 	conn->defaultfiletype = 0xFFF;
 	conn->xyzext = NEEDED;
 
@@ -342,7 +339,7 @@ os_error *func_readdirinfo(int info, char *dirname, void *buffer, int numobjs, i
 		memcpy(rddir.dir, finfo->file, FHSIZE);
 	}
 
-	rddir.count = MAX_PAYLOAD;
+	rddir.count = MAXDATA;
 	rddir.cookie = start;
 	err = NFSPROC_READDIR(&rddir, &rdres, conn);
 	if (err) return err;

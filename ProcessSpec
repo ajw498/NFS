@@ -183,6 +183,7 @@ while (<>) {
       print PROCS "process_int(input, opted, 0);\\\n";
       print PROCS "if (opted) {\\\n";
       print PROCS "*ptr = llmalloc(sizeof(struct $name));\\\n";
+      print PROCS "if (*ptr == NULL) goto buffer_overflow;\\\n";
       $structbase = "(*ptr)->";
     } elsif (/^\s*struct *(\w*) /) {
       print STRUCTS;
