@@ -1,0 +1,72 @@
+#!/usr/bin/perl -w
+#use strict;
+
+my @states;
+my $state = "none";
+my @names;
+my $name = "";
+my %types;
+my $nextunnamed = 1;
+my @unnamed;
+
+open(PROCS,">procsout") or die $^E;
+open(STRUCTS,">structsout") or die $^E;
+
+while (<>) {
+  print "$state - $_\n";
+  if (/\} *\;/) {
+    print STRUCTS;
+    $state = pop @states;
+    $name = pop @names;
+    print PROCS "while (0);\n";
+  } elsif (/\} *(\w*) *\;/) {
+    print STRUCTS;
+    die "ERROR\n";
+#    print "#define $1 ".pop @unnamed;
+    $state = pop @states;
+    $name = pop @names;
+  } elsif (/(.*)opaque *(\w*)\[(\d*)\]/) {
+    print STRUCTS "#define ".$name."_"."$2"."_max $3\n";
+    print STRUCTS "$1char $2[$3];\n";
+  } elsif (/(.*)opaque *(\w*)\<(\d*)\>/) {
+    print STRUCTS "#define $name"."_"."$2"."_max $3\n";
+    print STRUCTS "$1int $2_size;\n";
+    print STRUCTS "$1char *$2;\n";
+  } elsif (/case *(\w*)\:/) {
+    ##
+  } elsif (/(.*)union *switch *\( *(\w*) *(\w*)\)/) {
+    push @states, $state;
+    push @names, $name;
+    $name = "unnamed".$nextunnamed;
+    $nextunnamed++;
+    push @unnamed, $name;
+    $types{$name} = $state = "union";
+    print STRUCTS "$1$2 $3;\n";
+    print STRUCTS "$1union $name {\n";
+  } elsif (/enum *(\w*) /) {
+    print STRUCTS;
+    push @states, $state;
+    push @names, $name;
+    $name = $1;
+    $types{$name} = $state = "enum";
+  } elsif (/struct *(\w*) /) {
+    print STRUCTS;
+    push @states, $state;
+    push @names, $name;
+    $name = $1;
+    $types{$name} = $state = "struct";
+    print PROCS "#define print_struct_$name do {\\\n";
+  } elsif ($state eq "struct") {
+#  } elsif (($state eq "struct") && /(\S*)\s*(\S*)\;/) {
+#    my $type = $types{$1};
+#    print STRUCTS;
+#    if (($type eq "struct") || ($type eq "union")) {
+#      print PROCS "print_$type_$2();\\\n";
+#    } else {
+#      print PROCS "print_$type();\\\n";
+#    }
+  } else {
+    print STRUCTS;
+  }
+}
+
