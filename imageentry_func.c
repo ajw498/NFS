@@ -18,14 +18,6 @@
 #include "mount-calls.h"
 #include "portmapper-calls.h"
 
-#define NOMEM 1
-#define NOMEMMESS "Out of memory"
-
-/*FIXME*/
-#define IMAGEERRBASE 20
-
-#define MAX_PAYLOAD 7000
-/*FIXME*/
 
 #define MAX_GIDS 16
 
@@ -37,14 +29,6 @@ struct dir_entry {
 	unsigned int attr;
 	unsigned int type;
 };
-
-#define OBJ_NONE 0
-#define OBJ_FILE 1
-#define OBJ_DIR  2
-
-#define NEVER  0
-#define NEEDED 1
-#define ALWAYS 2
 
 
 /*FIXME - verify stack usage is < 1024 bytes */
@@ -469,7 +453,7 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 	}
 
 	/* Add ,xyz on if necessary to preserve filetype */
-	renameargs.to.name.data = newleafname(leafname, strlen(leafname), 0, filetype, &(renameargs.to.name.size), conn);
+	renameargs.to.name.data = addfiletypeext(leafname, strlen(leafname), 0, filetype, &(renameargs.to.name.size), conn);
 
 	err = NFSPROC_RENAME(&renameargs, &renameres, conn);
 	if (err) return err;

@@ -8,15 +8,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "imageentry_func.h"
+#include "imageentry_openclose.h"
 
 #include "nfs-calls.h"
-
-#define NOMEM 1
-#define NOMEMMESS "Out of memory"
-
-
-#define FAKE_BLOCKSIZE 1024
 
 
 /* Open a file. The handle returned is a pointer to a struct holding the

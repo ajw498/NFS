@@ -4,6 +4,17 @@
 	Common bits for all entry points
 */
 
+#ifndef IMAGEENTRY_COMMON_H
+#define IMAGEENTRY_COMMON_H
+
+
+#include <kernel.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+
+#include "nfs-structs.h"
+
 #define IMAGEENTRY_FUNC_RENAME 8
 #define IMAGEENTRY_FUNC_READDIR 14
 #define IMAGEENTRY_FUNC_READDIRINFO 15
@@ -33,4 +44,121 @@
 #define IMAGEENTRY_ARGS_ENSURESIZE 7
 #define IMAGEENTRY_ARGS_ZEROPAD 8
 #define IMAGEENTRY_ARGS_READDATESTAMP 9
+
+
+/* Value to specify to leave an attribute unchanged */
+#define NOVALUE (-1)
+
+#define OBJ_NONE 0
+#define OBJ_FILE 1
+#define OBJ_DIR  2
+
+#define NEVER  0
+#define NEEDED 1
+#define ALWAYS 2
+
+#define FAKE_BLOCKSIZE 1024
+
+/*FIXME*/
+#define BYTESERRBASE 20
+
+
+#define MAX_PAYLOAD 7000
+/*FIXME*/
+
+#define NOMEM 1
+#define NOMEMMESS "Out of memory"
+
+/*FIXME*/
+#define IMAGEERRBASE 20
+
+
+
+#define NFSSTATBASE 1
+/*FIXME*/
+
+
+/* All infomation associated with an open file */
+struct file_handle {
+	struct conn_info *conn;
+	char fhandle[FHSIZE];
+	unsigned int extent;
+	unsigned int load;
+	unsigned int exec;
+};
+
+
+/* All infomation associated with a connection */
+struct conn_info {
+	char *server;
+	unsigned int portmapper_port;
+	unsigned int mount_port;
+	unsigned int nfs_port;
+	char *export;
+	char rootfh[FHSIZE];
+	char *config;
+	struct sockaddr_in sockaddr;
+	int sock;
+	long timeout;
+	int retries;
+	int hidden;
+	int umask;
+	char *gids;
+	int uid;
+	int gid;
+	char *username;
+	char *password;
+	int logging;
+	char *auth;
+	int authsize;
+	char *machinename;
+	int usemimemap;
+	int defaultfiletype;
+	int xyzext;
+};
+
+
+extern int enablelog;
+
+typedef _kernel_oserror os_error;
+
+/* Generate an os_error block */
+os_error *gen_error(int num, char *msg, ...);
+
+
+/* Error numbers */
+#define ERRBASE 0
+#define RPCERRBASE ERRBASE + 1
+
+
+void syslogf(char *logname, int level, char *fmt, ...);
+
+void log_error(os_error *err);
+
+
+/* Generate a RISC OS error block based on the NFS status code */
+os_error *gen_nfsstatus_error(enum nstat stat);
+
+/* Convert unix leafname into RISC OS format */
+int filename_riscosify(char *name, int len, char **buffer, struct conn_info *conn);
+
+/* Convert a full filename/dirname into an nfs handle */
+os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct diropok **finfo, char **leafname, int *filetype, int *extfound, struct conn_info *conn);
+
+/* Convert a unix timestamp into a RISC OS load and execution address */
+void timeval_to_loadexec(struct ntimeval *unixtime, int filetype, unsigned int *load, unsigned int *exec);
+
+/* Convert a RISC OS load and execution address into a unix timestamp */
+void loadexec_to_timeval(unsigned int load, unsigned int exec, struct ntimeval *unixtime);
+
+/* Convert a unix mode to RISC OS attributes */
+unsigned int mode_to_attr(unsigned int mode);
+
+/* Convert RISC OS attributes to a unix mode */
+unsigned int attr_to_mode(unsigned int attr, unsigned int oldmode, struct conn_info *conn);
+
+/* Add ,xyz onto the leafname if necessary */
+char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, struct conn_info *conn);
+
+#endif
 

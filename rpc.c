@@ -1,5 +1,5 @@
 /*
-	$Id: $
+	$Id$
 
 	RPC calling functions
 */
@@ -10,7 +10,6 @@
 #include "nfs-calls.h"
 #include "rpc.h"
 
-#include "imageentry_func.h" /**/
 
 #include <stdio.h>
 #include <string.h>

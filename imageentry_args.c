@@ -7,13 +7,10 @@
 
 #include <string.h>
 
-#include "imageentry_func.h"
+#include "imageentry_args.h"
+#include "imageentry_bytes.h"
 
 #include "nfs-calls.h"
-
-#define FAKE_BLOCKSIZE 1024
-#define NOVALUE (-1)
-
 
 
 os_error *args_zeropad(struct file_handle *handle, unsigned int offset, unsigned int size)

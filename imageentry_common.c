@@ -8,18 +8,11 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <string.h>
+#include <swis.h>
 
 #include "imageentry_func.h"
 
 #include "nfs-calls.h"
-
-#define NOMEM 1
-#define NOMEMMESS "Out of memory"
-
-
-#define NFSSTATBASE 1
-/*FIXME*/
-
 
 /*FIXME - verify stack usage is < 1024 bytes */
 
@@ -94,7 +87,8 @@ static int lookup_mimetype(char *ext, struct conn_info *conn)
 	return filetype;
 }
 
-static int filename_riscosify(char *name, int len, char **buffer, struct conn_info *conn)
+
+int filename_riscosify(char *name, int len, char **buffer, struct conn_info *conn)
 {
 	int i;
 	int filetype = -1;
@@ -145,6 +139,7 @@ static int filename_riscosify(char *name, int len, char **buffer, struct conn_in
 	}
 	return filetype;
 }
+
 
 /* Find leafname,xyz given leafname by enumerating the entire directory
    until a matching file is found. If there are two matching files, the

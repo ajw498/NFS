@@ -9,7 +9,10 @@
 
 #include "moduledefs.h"
 #include "imageentry_func.h"
-#include "imagefs.h"
+#include "imageentry_file.h"
+#include "imageentry_bytes.h"
+#include "imageentry_openclose.h"
+#include "imageentry_args.h"
 
 
 #if CMHG_VERSION < 542

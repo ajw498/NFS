@@ -23,10 +23,14 @@ my $header = "/* Automatically generated */\n\n";
 print PROCS   $header;
 print UNIONS  $header;
 print STRUCTS $header;
+print STRUCTS "#ifndef ${spectype}_structs_h\n";
+print STRUCTS "#define ${spectype}_structs_h\n\n";
 print STRUCTS "#include \"primitives.h\"\n\n";
 print CALLS   $header;
 print CALLS   "#include \"$spectype-calls.h\"\n\n";
 print CALLSH  $header;
+print CALLSH  "#ifndef ${spectype}_calls_h\n";
+print CALLSH  "#define ${spectype}_calls_h\n\n";
 print CALLSH  "#include \"rpc.h\"\n";
 print CALLSH  "#include \"$spectype-structs.h\"\n";
 print CALLSH  "#include \"$spectype-process1.h\"\n";
@@ -266,4 +270,7 @@ while (<>) {
     die "Unknown state\n";
   }
 }
+
+print CALLSH  "#endif\n\n";
+print STRUCTS "#endif\n\n";
 

@@ -7,12 +7,11 @@
 
 #include <string.h>
 
-#include "imageentry_func.h"
+#include "imageentry_file.h"
+#include "imageentry_bytes.h"
 
 #include "nfs-calls.h"
 
-
-#define NOVALUE (-1)
 
 
 os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype, unsigned int *load, unsigned int *exec, int *len, int *attr)
@@ -70,7 +69,7 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 		renameargs.from.name.size = strlen(leafname);
 
 		memcpy(renameargs.to.dir, renameargs.from.dir, FHSIZE);
-		renameargs.to.name.data = newleafname(leafname, renameargs.from.name.size, extfound, newfiletype, &(renameargs.to.name.size), conn);
+		renameargs.to.name.data = addfiletypeext(leafname, renameargs.from.name.size, extfound, newfiletype, &(renameargs.to.name.size), conn);
 
 		err = NFSPROC_RENAME(&renameargs, &renameres, conn);
 		if (err) return err;
@@ -119,7 +118,7 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 		createargs.where.name.size = strlen(*leafname);
 	} else {
 		/* We may need to add a ,xyz extension */
-		createargs.where.name.data = newleafname(*leafname, strlen(*leafname), 0, newfiletype, &(createargs.where.name.size), conn);
+		createargs.where.name.data = addfiletypeext(*leafname, strlen(*leafname), 0, newfiletype, &(createargs.where.name.size), conn);
 	}
 
 	createargs.attributes.mode = 0x00008000 | ((dir ? 0777 : 0666) & ~(conn->umask));

@@ -7,17 +7,9 @@
 
 #include <string.h>
 
-#include "imageentry_func.h"
+#include "imageentry_bytes.h"
 
 #include "nfs-calls.h"
-
-
-/*FIXME*/
-#define BYTESERRBASE 20
-
-
-#define MAX_PAYLOAD 7000
-/*FIXME*/
 
 
 /* Read a number of bytes from the open file */
