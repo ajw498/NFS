@@ -129,12 +129,12 @@ extern char *buf, *bufend;
  if (##structbase.size > 0) { \
   int i; \
   check_bufspace(##structbase.size * 4); \
+  if (input) { \
+  	##structbase.data = llmalloc(##structbase.size * 4); \
+   if (##structbase.data == NULL) goto buffer_overflow; \
+  } \
   for (i = 0; i < ##structbase.size; i++) { \
-   if (input) { \
-    /**/ \
-   } else { \
-    process_int(input, ##structbase.data[i], 0); \
-   } \
+   process_int(input, ##structbase.data[i], 0); \
   } \
  } \
 } while (0)
