@@ -1,19 +1,24 @@
-#include "kernel.h"
-#include <stdio.h>
-#include <string.h>
+/*
+	$Id$
 
-#include "nfs-calls.h"
-#include "mount-calls.h"
-#include "portmapper-calls.h"
-#include "rpc.h"
+	Main module entry points.
+	This then calls the imageentry_* functions as appropriate.
+*/
+
+#include <kernel.h>
+#include <stdio.h>
+#include <stdarg.h>
+#include <swis.h>
 
 #include "moduledefs.h"
+
 #include "imageentry_func.h"
 #include "imageentry_file.h"
 #include "imageentry_bytes.h"
 #include "imageentry_openclose.h"
 #include "imageentry_args.h"
 
+#include "rpc.h"
 
 #if CMHG_VERSION < 542
 #error cmhg out of date
@@ -21,11 +26,22 @@
 
 #define UNUSED(x) x=x
 
+#define IMAGE_FILETYPE 0x001
+
+#define LOGNAME "NFS"
+#define LOGENTRY 50
+#define LOGEXIT  75
+#define LOGERROR 25
+
+
+#define SYSLOGF_BUFSIZE 1024
+#define Syslog_LogMessage 0x4C880
+
 extern int module_base_address;
-/*typedef void (*veneer)(void);*/
+
 typedef int veneer;
 
-static struct {
+struct imagefs_info_block {
 	unsigned int information_word;
 	unsigned int filetype;
 	veneer imageentry_open;
@@ -35,56 +51,23 @@ static struct {
 	veneer imageentry_close;
 	veneer imageentry_file;
 	veneer imageentry_func;
-} imagefs_info_block;
-
-/* Must handle service redeclare
-void tm_service(int service_number, _kernel_swi_regs *r, void *private_word)
-{
-    UNUSED(r);
-    UNUSED(private_word);
-} */
-
-#include <stdarg.h>
-
-
-#define LOGNAME "NFS"
-#define LOGENTRY 50
-#define LOGEXIT  75
-#define LOGERROR 25
-
-#define UNSUPP 1
-#define UNSUPPMESS "Unsupported entry point called"
+};
 
 /* A count of the number of connections that have logging enabled.
    We log all connections if any of them have logging enabled. */
 int enablelog = 0;
 
-
-os_error *gen_error(int num, char *msg, ...)
-{
-	static os_error module_err_buf; /* FIXME - remove duplication with other files */
-	va_list ap;
-
-	va_start(ap, msg);
-	vsnprintf(module_err_buf.errmess, sizeof(module_err_buf.errmess), msg, ap);
-	va_end(ap);
-	module_err_buf.errnum = num;
-	return &module_err_buf;
-}
-
 void syslogf(char *logname, int level, char *fmt, ...)
 {
-	static char syslogbuf[1024];
+	static char syslogbuf[SYSLOGF_BUFSIZE];
 	va_list ap;
-	_kernel_swi_regs r;
 
 	va_start(ap, fmt);
-	vsnprintf(syslogbuf,1024,fmt,ap);
+	vsnprintf(syslogbuf, sizeof(syslogbuf), fmt, ap);
 	va_end(ap);
-	r.r[0] = (int)logname;
-	r.r[1] = (int)syslogbuf;
-	r.r[2] = level;
-	_kernel_swi(0x4C880,&r,&r);
+
+	/* Ignore any errors, as there's not much we can do with them */
+	_swix(Syslog_LogMessage, _INR(0,2), logname, syslogbuf, level);
 }
 
 void log_error(os_error *err)
@@ -103,43 +86,52 @@ static void logexit(_kernel_swi_regs *r, os_error *err)
 
 static void logentry(char *entry, char *filename, _kernel_swi_regs *r)
 {
-	syslogf(LOGNAME, LOGENTRY, "%s %s %x %x %x %x %x %x %x", entry, filename, r->r[0], r->r[1], r->r[2], r->r[3], r->r[4], r->r[5], r->r[6]);	
+	syslogf(LOGNAME, LOGENTRY, "ImageEntry_%s %s %x %x %x %x %x %x %x", entry, filename, r->r[0], r->r[1], r->r[2], r->r[3], r->r[4], r->r[5], r->r[6]);	
 }
 
-_kernel_oserror *nfs_initialise(const char *cmd_tail, int podule_base, void *private_word)
+static os_error *declare_fs(void *private_word)
 {
-	_kernel_swi_regs r;
+	struct imagefs_info_block info_block;
+	
+	info_block.information_word = 0;
+	info_block.filetype = IMAGE_FILETYPE;
+	info_block.imageentry_open =     ((int)imageentry_open) - module_base_address;
+	info_block.imageentry_getbytes = ((int)imageentry_getbytes) - module_base_address;
+	info_block.imageentry_putbytes = ((int)imageentry_putbytes) - module_base_address;
+	info_block.imageentry_args =     ((int)imageentry_args) - module_base_address;
+	info_block.imageentry_close =    ((int)imageentry_close) - module_base_address;
+	info_block.imageentry_file =     ((int)imageentry_file) - module_base_address;
+	info_block.imageentry_func =     ((int)imageentry_func) - module_base_address;
+
+    return _swix(OS_FSControl, _INR(0,3), 35, module_base_address, ((int)(&info_block)) - module_base_address, private_word);
+}
+
+/* Must handle service redeclare */
+void service_call(int service_number, _kernel_swi_regs *r, void *private_word)
+{
+	/* The veneer will have already filtered out uninteresting calls */
+    UNUSED(service_number);
+    UNUSED(r);
+
+	declare_fs(private_word); /* Ignore errors */
+}
+
+_kernel_oserror *initialise(const char *cmd_tail, int podule_base, void *private_word)
+{
 	os_error *err;
 
     UNUSED(cmd_tail);
     UNUSED(podule_base);
 
-	if (enablelog) syslogf(LOGNAME, LOGENTRY, "Module initialisation");
-
-	imagefs_info_block.information_word = 0;
-	imagefs_info_block.filetype = 0x001;
-	imagefs_info_block.imageentry_open =     ((int)imageentry_open) - module_base_address;
-	imagefs_info_block.imageentry_getbytes = ((int)imageentry_getbytes) - module_base_address;
-	imagefs_info_block.imageentry_putbytes = ((int)imageentry_putbytes) - module_base_address;
-	imagefs_info_block.imageentry_args =     ((int)imageentry_args) - module_base_address;
-	imagefs_info_block.imageentry_close =    ((int)imageentry_close) - module_base_address;
-	imagefs_info_block.imageentry_file =     ((int)imageentry_file) - module_base_address;
-	imagefs_info_block.imageentry_func =     ((int)imageentry_func) - module_base_address;
-
-	r.r[0] = 35;
-	r.r[1] = module_base_address;
-	r.r[2] = ((int)(&imagefs_info_block)) - module_base_address;
-	r.r[3] = (int)private_word;
-    err = _kernel_swi(0x29,&r,&r);
+	err = declare_fs(private_word);
 
 	rpc_init_header();
 
     return err;
 }
 
-_kernel_oserror *nfs_finalise(int fatal, int podule_base, void *private_word)
+_kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 {
-	_kernel_swi_regs r;
 	os_error *err;
 
     UNUSED(fatal);
@@ -148,20 +140,18 @@ _kernel_oserror *nfs_finalise(int fatal, int podule_base, void *private_word)
 
 	if (enablelog) syslogf(LOGNAME, LOGENTRY, "Module finalisation");
 
-	r.r[0] = 36;
-	r.r[1] = 0x001;
-    err = _kernel_swi(0x29,&r,&r);
+    err = _swix(OS_FSControl, _INR(0,1), 36, IMAGE_FILETYPE);
 
     return err;
 }
 
 _kernel_oserror *imageentry_open_handler(_kernel_swi_regs *r, void *pw)
 {
-	os_error *err = NULL;
+	os_error *err;
 
 	UNUSED(pw);
 
-	if (enablelog) logentry("ImageEntry_Open", (char *)(r->r[1]), r);
+	if (enablelog) logentry("Open", (char *)(r->r[1]), r);
 
 	err = open_file((char *)r->r[1], r->r[0], (struct conn_info *)(r->r[6]), (unsigned int *)&(r->r[0]), (struct file_handle **)&(r->r[1]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), (unsigned int *)&(r->r[4]));
 
@@ -172,11 +162,11 @@ _kernel_oserror *imageentry_open_handler(_kernel_swi_regs *r, void *pw)
 
 _kernel_oserror *imageentry_getbytes_handler(_kernel_swi_regs *r, void *pw)
 {
-	os_error *err = NULL;
+	os_error *err;
 
 	UNUSED(pw);
 
-	if (enablelog) logentry("ImageEntry_GetBytes", "", r);
+	if (enablelog) logentry("GetBytes", "", r);
 
 	err = get_bytes((struct file_handle *)(r->r[1]), (char *)(r->r[2]), r->r[3], r->r[4]);
 
@@ -191,7 +181,7 @@ _kernel_oserror *imageentry_putbytes_handler(_kernel_swi_regs *r, void *pw)
 
 	UNUSED(pw);
 
-	if (enablelog) logentry("ImageEntry_PutBytes", "", r);
+	if (enablelog) logentry("PutBytes", "", r);
 
 	err = put_bytes((struct file_handle *)(r->r[1]), (char *)(r->r[2]), r->r[3], r->r[4]);
 
@@ -202,11 +192,11 @@ _kernel_oserror *imageentry_putbytes_handler(_kernel_swi_regs *r, void *pw)
 
 _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 {
-	os_error *err = NULL;
+	os_error *err;
 
 	UNUSED(pw);
 
-	if (enablelog) logentry("ImageEntry_Args", "", r);
+	if (enablelog) logentry("Args", "", r);
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_ARGS_WRITEEXTENT:
@@ -238,11 +228,11 @@ _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 
 _kernel_oserror *imageentry_close_handler(_kernel_swi_regs *r, void *pw)
 {
-	os_error *err = NULL;
+	os_error *err;
 
 	UNUSED(pw);
 
-	if (enablelog) logentry("ImageEntry_Close", "", r);
+	if (enablelog) logentry("Close", "", r);
 
 	err = close_file((struct file_handle *)(r->r[1]), r->r[2], r->r[3]);
 
@@ -253,11 +243,11 @@ _kernel_oserror *imageentry_close_handler(_kernel_swi_regs *r, void *pw)
 
 _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 {
-	os_error *err = NULL;
+	os_error *err;
 
 	UNUSED(pw);
 
-	if (enablelog) logentry("ImageEntry_File", (char *)(r->r[1]), r);
+	if (enablelog) logentry("File", (char *)(r->r[1]), r);
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_FILE_SAVEFILE:
@@ -279,7 +269,7 @@ _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 			err = file_createdir((char *)(r->r[1]), r->r[2], r->r[3], (struct conn_info *)(r->r[6]));
 			break;
 		case IMAGEENTRY_FILE_READBLKSIZE:
-			file_readblocksize((unsigned int *)&(r->r[2]));
+			err = file_readblocksize((unsigned int *)&(r->r[2]));
 			break;
 		default:
 			err = gen_error(UNSUPP, UNSUPPMESS);
@@ -292,10 +282,10 @@ _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 
 _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 {
-	os_error *err = NULL;
+	os_error *err;
 
 	UNUSED(pw);
-	if (enablelog) logentry("ImageEntry_Func", r->r[0] == 22 ? "" : (char *)(r->r[1]), r);
+	if (enablelog) logentry("Func", r->r[0] == 22 ? "" : (char *)(r->r[1]), r);
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_FUNC_RENAME:

@@ -9,12 +9,27 @@
 #include <ctype.h>
 #include <string.h>
 #include <swis.h>
+#include <stdarg.h>
 
 #include "imageentry_func.h"
 
 #include "nfs-calls.h"
 
 /*FIXME - verify stack usage is < 1024 bytes */
+
+
+/* Generate a RISC OS error block based on the given number and message */
+os_error *gen_error(int num, char *msg, ...)
+{
+	static os_error module_err_buf;
+	va_list ap;
+
+	va_start(ap, msg);
+	vsnprintf(module_err_buf.errmess, sizeof(module_err_buf.errmess), msg, ap);
+	va_end(ap);
+	module_err_buf.errnum = num;
+	return &module_err_buf;
+}
 
 /* Generate a RISC OS error block based on the NFS status code */
 os_error *gen_nfsstatus_error(enum nstat stat)

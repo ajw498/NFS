@@ -1,5 +1,5 @@
 ;
-;	$Id: $
+;	$Id$
 ;
 ;	Module header description
 ;
@@ -9,9 +9,11 @@ help-string:  nfsmodule 0.01
 
 title-string: nfsmodule
 
-initialisation-code: nfs_initialise
+initialisation-code: initialise
 
-finalisation-code: nfs_finalise
+finalisation-code: finalise
+
+service-call-handler: service_call &40
 
 generic-veneers: imageentry_open imageentry_getbytes imageentry_putbytes imageentry_args imageentry_close imageentry_file imageentry_func
 

@@ -53,10 +53,12 @@
 #define OBJ_FILE 1
 #define OBJ_DIR  2
 
+/* Types for adding ,xyz extensions */
 #define NEVER  0
 #define NEEDED 1
 #define ALWAYS 2
 
+/* Pretend to fileswitch that we have a block/sector size */
 #define FAKE_BLOCKSIZE 1024
 
 /*FIXME*/
@@ -69,10 +71,11 @@
 #define NOMEM 1
 #define NOMEMMESS "Out of memory"
 
+#define UNSUPP 1
+#define UNSUPPMESS "Unsupported entry point called"
+
 /*FIXME*/
 #define IMAGEERRBASE 20
-
-
 
 #define NFSSTATBASE 1
 /*FIXME*/
