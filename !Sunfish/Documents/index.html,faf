@@ -60,6 +60,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 <p>
 Sunfish requires a working network connection and an NFS server to connect to. The server should be running version 2 of the NFS protocol, version 1 of the Mount protocol, version 2 of the portmapper protocol, and optionally version 2 of the pcnfsd protocol. It has currently only been tested with the Linux kernel server present in Debian Woody, but it should work with other servers. Only UDP connections are supported at present.
 <p>
+Any updates will be available from <a href="http://www.alexwaugh.com/">http://www.alexwaugh.com/</a>
+<p>
 Sunfish should run on RISC OS 3.11 or later, but has only been tested on RISC OS 5 at present. It is 26/32bit neutral.
 
 <p>
@@ -108,6 +110,8 @@ DefaultFiletype: FFF
 AddExt: 2
 </pre>
 
+<h3>Filenames</h3>
+Filenames on a unix machine may contain characters that are illegal in RISC OS filenames. In order to allow access to such files, any illegal characters are changed into escape sequences of <code>?xx</code> where xx is the hexadecimal value of the character. Spaces are mapped onto hard spaces, dots map to slashes and vice versa, and other characters are unchanged.
 <p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="options">Options</a></font></h2>
