@@ -322,6 +322,12 @@ os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype,
 	return NULL;
 }
 
+os_error *file_writecatinfo(char *filename, int load, int exec, int attr, struct conn_info *conn)
+{
+	/**/
+	return NULL;
+}
+
 os_error *file_savefile(char *filename, int load, int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname)
 {
     struct diropok *dinfo;
@@ -331,13 +337,9 @@ os_error *file_savefile(char *filename, int load, int exec, char *buffer, char *
 	struct writeargs writeargs;
 	struct attrstat writeres;
 
-syslogf("NFS",25,"foo0");
 	if (buffer_end - buffer > 7000/*tx_buffersize*/) return_error("file too big");
-syslogf("NFS",25,"foo1");
 	err = filename_to_finfo(filename, &dinfo, NULL, leafname, conn);
-syslogf("NFS",25,"foo2");
 	if (err) return err;
-syslogf("NFS",25,"foo3");
 
 	memcpy(createargs.where.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
 	createargs.where.name.data = *leafname;
@@ -397,7 +399,7 @@ os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, int 
 	return NULL;
 }
 
-os_error *file_rename(char *oldfilename, char *newfilename, struct conn_info *conn)
+os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *conn, int *renamefailed)
 {
     struct diropok *dinfo;
     struct diropok *finfo;
@@ -430,5 +432,6 @@ os_error *file_rename(char *oldfilename, char *newfilename, struct conn_info *co
 	err = NFSPROC_RENAME(&renameargs, &renameres, conn);
 	if (err) return err;
 	if (renameres != NFS_OK) return_error("rename failed");
+	*renamefailed = 0;
 	return NULL;
 }

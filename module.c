@@ -44,7 +44,27 @@ void tm_service(int service_number, _kernel_swi_regs *r, void *private_word)
 
 #include <stdarg.h>
 
-void syslogf(char *logname, int level, char *fmt, ...)
+
+#define LOGNAME "NFS"
+#define LOGENTRY 50
+#define LOGEXIT  75
+#define LOGERROR 25
+
+#define UNSUPP 1
+#define UNSUPPMESS "Unsupported entry point called"
+
+static int enablelog = 1;
+
+
+os_error *gen_error(int num, char *msg)
+{
+	static os_error module_err_buf; /* FIXME - remove duplication with other files */
+	module_err_buf.errnum = num;
+	strcpy(module_err_buf.errmess,msg);
+	return &module_err_buf;
+}
+
+static void syslogf(char *logname, int level, char *fmt, ...)
 {
 	static char syslogbuf[1024];
 	va_list ap;
@@ -59,14 +79,29 @@ void syslogf(char *logname, int level, char *fmt, ...)
 	_kernel_swi(0x4C880,&r,&r);
 }
 
+static void logexit(_kernel_swi_regs *r, os_error *err)
+{
+	if (err) {
+		syslogf(LOGNAME, LOGERROR, "Error %x, %s", err->errnum, err->errmess);
+	} else {
+		syslogf(LOGNAME, LOGEXIT, "Exit %x %x %x %x %x %x %x",r->r[0],r->r[1],r->r[2],r->r[3],r->r[4],r->r[5],r->r[6]);
+	}
+}
+
+static void logentry(char *entry, char *filename, _kernel_swi_regs *r)
+{
+	syslogf(LOGNAME, LOGENTRY, "%s %s %x %x %x %x %x %x %x", entry, filename, r->r[0], r->r[1], r->r[2], r->r[3], r->r[4], r->r[5], r->r[6]);	
+}
+
 _kernel_oserror *nfs_initialise(const char *cmd_tail, int podule_base, void *private_word)
 {
 	_kernel_swi_regs r;
+	os_error *err;
 
     UNUSED(cmd_tail);
     UNUSED(podule_base);
 
-    /*printf("initialising...\n"); */
+	if (enablelog) syslogf(LOGNAME, LOGENTRY, "Module initialisation");
 
 	imagefs_info_block.information_word = 0;
 	imagefs_info_block.filetype = 0x001;
@@ -82,121 +117,187 @@ _kernel_oserror *nfs_initialise(const char *cmd_tail, int podule_base, void *pri
 	r.r[1] = module_base_address;
 	r.r[2] = ((int)(&imagefs_info_block)) - module_base_address;
 	r.r[3] = (int)private_word;
-    if (_kernel_swi(0x29,&r,&r)) printf("err regsitering");
+    err = _kernel_swi(0x29,&r,&r);
 
 	rpc_init_header();
-	syslogf("NFS",1,"initing");
 
-    return NULL;
+    return err;
 }
 
 _kernel_oserror *nfs_finalise(int fatal, int podule_base, void *private_word)
 {
 	_kernel_swi_regs r;
+	os_error *err;
 
     UNUSED(fatal);
     UNUSED(podule_base);
     UNUSED(private_word);
 
+	if (enablelog) syslogf(LOGNAME, LOGENTRY, "Module finalisation");
+
 	r.r[0] = 36;
 	r.r[1] = 0x001;
-    _kernel_swi(0x29,&r,&r);
-	syslogf("NFS",1,"finalising");
-    /*printf("finalising...\n"); */
-    return NULL;
+    err = _kernel_swi(0x29,&r,&r);
+
+    return err;
 }
 
 _kernel_oserror *imageentry_open_handler(_kernel_swi_regs *r, void *pw)
 {
-	os_error *err;
+	os_error *err = NULL;
+
 	UNUSED(pw);
-	syslogf("NFS",1,"open");
+
+	if (enablelog) logentry("ImageEntry_Open", (char *)(r->r[1]), r);
 
 	err = open_file((char *)r->r[1], r->r[0], (struct conn_info *)(r->r[6]), &(r->r[0]), &(r->r[1]), &(r->r[3]));
 	r->r[2] = 1024;
 	r->r[4] = (r->r[3] + 1023) & ~1023;
+
+	if (enablelog) logexit(r, err);
+
 	return err;
 }
 
 _kernel_oserror *imageentry_getbytes_handler(_kernel_swi_regs *r, void *pw)
 {
-	UNUSED(pw);
-	syslogf("NFS",1,"getbytes");
+	os_error *err = NULL;
 
-	return get_bytes((struct file_handle *)(r->r[1]), (char *)(r->r[2]), r->r[3], r->r[4]);
+	UNUSED(pw);
+
+	if (enablelog) logentry("ImageEntry_GetBytes", "", r);
+
+	err = get_bytes((struct file_handle *)(r->r[1]), (char *)(r->r[2]), r->r[3], r->r[4]);
+
+	if (enablelog) logexit(r, err);
+
+	return err;
 }
 
 _kernel_oserror *imageentry_putbytes_handler(_kernel_swi_regs *r, void *pw)
 {
-	UNUSED(pw);
-	syslogf("NFS",1,"putbytes");
+	os_error *err = NULL;
 
-	return put_bytes((struct file_handle *)(r->r[1]), (char *)(r->r[2]), r->r[3], r->r[4]);
+	UNUSED(pw);
+
+	if (enablelog) logentry("ImageEntry_PutBytes", "", r);
+
+	err = put_bytes((struct file_handle *)(r->r[1]), (char *)(r->r[2]), r->r[3], r->r[4]);
+
+	if (enablelog) logexit(r, err);
+
+	return err;
 }
 
 _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 {
-	static _kernel_oserror err = {1,"nfs args bits not yet implemented"};
+	os_error *err = NULL;
+
 	UNUSED(pw);
-	UNUSED(r);
-	syslogf("NFS",1,"args");
-	return &err;
+
+	if (enablelog) logentry("ImageEntry_Args", "", r);
+
+	err = gen_error(UNSUPP, UNSUPPMESS);
+
+	if (enablelog) logexit(r, err);
+
+	return err;
 }
 
 _kernel_oserror *imageentry_close_handler(_kernel_swi_regs *r, void *pw)
 {
+	os_error *err = NULL;
+
 	UNUSED(pw);
 
-	syslogf("NFS",1,"close");
-	return close_file((struct file_handle *)(r->r[1]), r->r[2], r->r[3]);
+	if (enablelog) logentry("ImageEntry_Close", "", r);
+
+	err = close_file((struct file_handle *)(r->r[1]), r->r[2], r->r[3]);
+
+	if (enablelog) logexit(r, err);
+
+	return err;
 }
 
 _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 {
-	static _kernel_oserror err = {1,""};
+	os_error *err = NULL;
+
 	UNUSED(pw);
-	syslogf("NFS",1,"file %d",r->r[0]);
+
+	if (enablelog) logentry("ImageEntry_File", (char *)(r->r[1]), r);
+
 	switch (r->r[0]) {
-	case IMAGEENTRY_FILE_SAVEFILE:
-		return file_savefile((char *)(r->r[1]), r->r[2], r->r[3], (char *)(r->r[4]), (char *)(r->r[5]),  (struct conn_info *)(r->r[6]), (char **)(&(r->r[6])));
-	case IMAGEENTRY_FILE_READCATINFO:
-		return file_readcatinfo((char *)(r->r[1]), (struct conn_info *)(r->r[6]), &(r->r[0]), &(r->r[2]), &(r->r[3]), &(r->r[4]), &(r->r[5]));
-	case IMAGEENTRY_FILE_DELETE:
-		return file_delete((char *)(r->r[1]), (struct conn_info *)(r->r[6]), &(r->r[0]), &(r->r[2]), &(r->r[3]), &(r->r[4]), &(r->r[5]));
-	default:
-		sprintf(err.errmess,"nfs file %d '%s' not yet implemented",r->r[0],r->r[0] == 5? (char*)(r->r[1]) : "!!!");
+		case IMAGEENTRY_FILE_SAVEFILE:
+			err = file_savefile((char *)(r->r[1]), r->r[2], r->r[3], (char *)(r->r[4]), (char *)(r->r[5]),  (struct conn_info *)(r->r[6]), (char **)(&(r->r[6])));
+			break;
+		case IMAGEENTRY_FILE_WRITECATINFO:
+			err = file_writecatinfo((char *)(r->r[1]), r->r[2], r->r[3], r->r[4], (struct conn_info *)(r->r[6]));
+			break;
+		case IMAGEENTRY_FILE_READCATINFO:
+			err = file_readcatinfo((char *)(r->r[1]), (struct conn_info *)(r->r[6]), &(r->r[0]), &(r->r[2]), &(r->r[3]), &(r->r[4]), &(r->r[5]));
+			break;
+		case IMAGEENTRY_FILE_DELETE:
+			err = file_delete((char *)(r->r[1]), (struct conn_info *)(r->r[6]), &(r->r[0]), &(r->r[2]), &(r->r[3]), &(r->r[4]), &(r->r[5]));
+			break;
+		case IMAGEENTRY_FILE_CREATEFILE:
+		case IMAGEENTRY_FILE_CREATEDIR:
+		case IMAGEENTRY_FILE_READBLKSIZE:
+		default:
+			err = gen_error(UNSUPP, UNSUPPMESS);
 	}
-	return &err;
+
+	if (enablelog) logexit(r, err);
+
+	return err;
 }
 
 _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 {
-	static _kernel_oserror err2 = {1,"unknown func called"};
+	os_error *err = NULL;
 
 	UNUSED(pw);
-	syslogf("NFS",1,"func %d",r->r[0]);
+	if (enablelog) logentry("ImageEntry_Func", r->r[0] == 22 ? "" : (char *)(r->r[1]), r);
 
 	switch (r->r[0]) {
-	case IMAGEENTRY_FUNC_READDIRINFO:
-		return func_readdirinfo(1, (const char *)r->r[1], (void *)r->r[2], r->r[3], r->r[4], r->r[5], (struct conn_info *)(r->r[6]), &(r->r[3]), &(r->r[4]));
-	case IMAGEENTRY_FUNC_NEWIMAGE:
-		return func_newimage(r->r[1],(struct conn_info **)&(r->r[1]));
-	case IMAGEENTRY_FUNC_CLOSEIMAGE:
-		return func_closeimage((struct conn_info *)(r->r[1]));
-	case IMAGEENTRY_FUNC_RENAME:
-		return file_rename((char *)(r->r[1]), (char *)(r->r[2]), (struct conn_info *)(r->r[6]));
-	case IMAGEENTRY_FUNC_READDIR:
-	case IMAGEENTRY_FUNC_READDEFECT:
-	case IMAGEENTRY_FUNC_ADDDEFECT:
-	case IMAGEENTRY_FUNC_READBOOT:
-	case IMAGEENTRY_FUNC_WRITEBOOT:
-	case IMAGEENTRY_FUNC_READUSEDSPACE:
-	case IMAGEENTRY_FUNC_READFREESPACE:
-	case IMAGEENTRY_FUNC_NAME:
-	case IMAGEENTRY_FUNC_STAMP:
-	case IMAGEENTRY_FUNC_GETUSAGE:
-	default:
-		return &err2;
+		case IMAGEENTRY_FUNC_RENAME:
+			err = func_rename((char *)(r->r[1]), (char *)(r->r[2]), (struct conn_info *)(r->r[6]), &(r->r[1]));
+			break;
+		case IMAGEENTRY_FUNC_READDIR:
+			err = func_readdirinfo(0, (const char *)r->r[1], (void *)r->r[2], r->r[3], r->r[4], r->r[5], (struct conn_info *)(r->r[6]), &(r->r[3]), &(r->r[4]));
+			break;
+		case IMAGEENTRY_FUNC_READDIRINFO:
+			err = func_readdirinfo(1, (const char *)r->r[1], (void *)r->r[2], r->r[3], r->r[4], r->r[5], (struct conn_info *)(r->r[6]), &(r->r[3]), &(r->r[4]));
+			break;
+		case IMAGEENTRY_FUNC_NEWIMAGE:
+			err = func_newimage(r->r[1],(struct conn_info **)&(r->r[1]));
+			break;
+		case IMAGEENTRY_FUNC_CLOSEIMAGE:
+			err = func_closeimage((struct conn_info *)(r->r[1]));
+			break;
+
+		/* The following entrypoints are meaningless for NFS.
+		   We could fake them, but I think it is better to give an error */
+		case IMAGEENTRY_FUNC_READDEFECT:
+			/*if (r->r[5] >= 4) (int *)(r->r[2]) = 0x20000000;
+			break;*/
+		case IMAGEENTRY_FUNC_ADDDEFECT:
+			/*break;*/
+		case IMAGEENTRY_FUNC_READBOOT:
+			/*r->r[2] = 0;
+			break;*/
+		case IMAGEENTRY_FUNC_WRITEBOOT:
+			/*break;*/
+		case IMAGEENTRY_FUNC_READUSEDSPACE:
+		case IMAGEENTRY_FUNC_READFREESPACE:
+		case IMAGEENTRY_FUNC_NAME:
+		case IMAGEENTRY_FUNC_STAMP:
+		case IMAGEENTRY_FUNC_GETUSAGE:
+		default:
+			err = gen_error(UNSUPP, UNSUPPMESS);
 	}
-	return NULL;
+
+	if (enablelog) logexit(r, err);
+
+	return err;
 }

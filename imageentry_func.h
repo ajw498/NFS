@@ -30,8 +30,10 @@ os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned len, unsi
 
 os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype, int *load, int *exec, int *len, int *attr);
 
+os_error *file_writecatinfo(char *filename, int load, int exec, int attr, struct conn_info *conn);
+
 os_error *file_savefile(char *filename, int load, int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname);
 
 os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, int *load, int *exec, int *len, int *attr);
 
-os_error *file_rename(char *oldfilename, char *newfilename, struct conn_info *conn);
+os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *conn, int *renamefailed);

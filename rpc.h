@@ -33,6 +33,4 @@ os_error *rpc_do_call(struct conn_info *conn);
 extern os_error err_buf;
 #define rpc_buffer_overflow() (strcpy(err_buf.errmess,"Buffer overflow"),&err_buf)
 
-void syslogf(char *logname, int level, char *fmt, ...);
-
 #endif
