@@ -203,6 +203,8 @@ The leafname returned from an OS_File 0 call will be in Unix format and may stil
 <p>
 Wildcards in filenames are not supported. This would be a lot of hassle to implement for little benefit, and in any case I believe that it really should be fileswitch's job to sort out wildcards, not each and every filing system.
 <p>
+Symlinks, devices and other non regular files are not supported. Symlinks may be handled in future versions.
+<p>
 Some operations are not as fast as they could be. For the first release I have concentrated on getting a functional and stable program, and there are some places where performance could be improved in the future. In particular, file attributes and mappings between filenames and NFS file handles should be cached, as this would reduce network traffic and delay for directory listings and many other operations. Also read and write requests should be pipelined to remove the latency between blocks, which should speed up reading and writing large files.
 <p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
