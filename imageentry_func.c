@@ -515,6 +515,7 @@ static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struc
 	char *dirhandle = conn->rootfh;
 	struct diropargs current;
 	static struct diropres next;
+	static struct diropok dirinfo;
 	os_error *err;
 
 	if (dinfo) *dinfo = NULL; /* A NULL directory indicates the root directory */
@@ -545,7 +546,10 @@ static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struc
 				/* Every segment except the leafname must be a directory */
 				return gen_nfsstatus_error(NFSERR_NOTDIR);
 			}
-			if (dinfo) *dinfo = &(next.u.diropok);
+			if (dinfo) {
+				dirinfo = next.u.diropok;
+				*dinfo = &dirinfo;
+			}
 		}
 
 		dirhandle = next.u.diropok.file;
@@ -795,7 +799,7 @@ os_error *open_file(char *filename, int access, struct conn_info *conn, int *fil
 			memcpy(createargs.where.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
 			createargs.where.name.data = leafname;
 			createargs.where.name.size = strlen(leafname);
-			createargs.attributes.mode = 0x00008000 | (0666 & ~(conn->umask)); /* FIXME: umask needs testing */
+			createargs.attributes.mode = 0x00008000 | (0666 & ~(conn->umask));
 			createargs.attributes.uid = -1;
 			createargs.attributes.gid = -1;
 			createargs.attributes.size = 0;
@@ -833,30 +837,16 @@ os_error *open_file(char *filename, int access, struct conn_info *conn, int *fil
 
 os_error *close_file(struct file_handle *handle, unsigned int load, unsigned int exec)
 {
-#if 0 /* loadexec_to_timeval seems to be broken, and this operation is likely to fail if we aren't the file owner */
-	struct sattrargs sattrargs;
-	struct attrstat sattrres;
-	os_error *err;
+	/* The filetype shouldn't have changed since the file was opened and
+	   the server will set the datestamp for us, therefore there is not
+	   much point in us explicitly updating the attributes.
+	   Additionally, the operation could fail if we don't have permission
+	   even though the file was successfully open for reading. */
+	load = load;
+	exec = exec;
 
-	/* Set a new timestamp.
-	   Ignore the filetype, as there is no API for applications to change a
-	   filetype from a file handle so it shouldn't have changed */
-	memcpy(sattrargs.file, handle->fhandle, FHSIZE);
-	sattrargs.attributes.mode = -1;
-	sattrargs.attributes.uid = -1;
-	sattrargs.attributes.gid = -1;
-	sattrargs.attributes.size = -1;
-	sattrargs.attributes.atime.seconds = -1;
-	sattrargs.attributes.atime.useconds = -1;
-	loadexec_to_timeval(load, exec, &(sattrargs.attributes.mtime));
+	free(handle);
 
-	err = NFSPROC_SETATTR(&sattrargs, &sattrres, handle->conn);
-#endif
-	free(handle); /* Free memory before returning even if there is an error */
-#if 0
-	if (err) return err;
-	if (sattrres.status != NFS_OK) gen_nfsstatus_error(sattrres.status);
-#endif
 	return NULL;
 }
 
@@ -893,7 +883,7 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned len, unsi
 }
 
 /* Write a number of bytes to the open file */
-os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned len, unsigned offset)
+static os_error *writebytes(char *fhandle, char *buffer, unsigned len, unsigned offset, struct conn_info *conn)
 {
 	os_error *err;
 	struct writeargs args;
@@ -901,7 +891,7 @@ os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned len, unsi
 
 	args.beginoffset = 0; /* Unused in NFS2 */
 	args.totalcount = 0;  /* Unused in NFS2 */
-	memcpy(args.file, handle->fhandle, FHSIZE);
+	memcpy(args.file, fhandle, FHSIZE);
 
 	do {
 		args.offset = offset;
@@ -912,12 +902,18 @@ os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned len, unsi
 		args.data.data = buffer;
 		buffer += args.data.size;
 
-		err = NFSPROC_WRITE(&args, &res, handle->conn);
+		err = NFSPROC_WRITE(&args, &res, conn);
 		if (err) return err;
 		if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
 	} while (len > 0);
 	
 	return NULL;
+}
+
+/* Write a number of bytes to the open file */
+os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned len, unsigned offset)
+{
+	return writebytes(handle->fhandle, buffer, len, offset, handle->conn);
 }
 
 os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype, unsigned int *load, unsigned int *exec, int *len, int *attr)
@@ -942,6 +938,66 @@ os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype,
 	return NULL;
 }
 
+static char *newleafname(char *leafname, unsigned int len, int extfound, int filetype, int newfiletype, unsigned int *newlen, struct conn_info *conn)
+{
+    static char newleafname[MAXNAMLEN];
+
+	if (conn->xyzext == NEVER || filetype == newfiletype) {
+		if (newlen) *newlen = len;
+		return leafname;
+	} else {
+		/* Check if we need a new extension */
+	    int extneeded = 0;
+
+	    if (extfound) len -= sizeof(",xyz") - 1;
+
+		if (conn->xyzext == ALWAYS) {
+			/* Always add ,xyz */
+			extneeded = 1;
+		} else {
+			/* Only add an extension if needed */
+			char *ext;
+
+			ext = strrchr(leafname, '.');
+			if (ext) {
+				int mimefiletype;
+				int extlen = len - (ext - leafname) - 1;
+
+				memcpy(newleafname, ext + 1, extlen);
+				newleafname[extlen] = '\0';
+				mimefiletype = lookup_mimetype(newleafname, conn);
+
+				if (mimefiletype == conn->defaultfiletype || mimefiletype == newfiletype) {
+					/* Don't need an extension */
+					extneeded = 0;
+				} else {
+					/* A new ,xyz is needed */
+					extneeded = 1;
+				}
+			} else {
+				if (newfiletype == conn->defaultfiletype) {
+					/* Don't need an extension */
+					extneeded = 0;
+				} else {
+					/* A new ,xyz is needed */
+					extneeded = 1;
+				}
+			}
+		}
+
+		memcpy(newleafname, leafname, len);
+		if (extneeded) {
+			snprintf(newleafname + len, sizeof(",xyz"), ",%.3x", newfiletype);
+			*newlen = len + sizeof(",xyz") - 1;
+		} else {
+			newleafname[len] = '\0';
+			*newlen = len;
+		}
+	}
+
+	return newleafname;
+}
+
 os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec, int attr, struct conn_info *conn)
 {
     struct diropok *finfo;
@@ -953,13 +1009,13 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
     int newfiletype = (load & 0xFFF00) >> 8;
     int extfound;
     char *leafname;
-    static char newleafname[MAXNAMLEN];
 
 	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, &filetype, &extfound, conn);
 	if (err) return err;
 
 	if (finfo == NULL) return gen_nfsstatus_error(NFSERR_NOENT);
 
+	/* If the filetype has changed we may need to rename the file */
 	if (conn->xyzext != NEVER && newfiletype != filetype) {
 	    struct renameargs renameargs;
 	    enum nstat renameres;
@@ -969,68 +1025,14 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 		renameargs.from.name.size = strlen(leafname);
 
 		memcpy(renameargs.to.dir, renameargs.from.dir, FHSIZE);
-
-		/* Check if we need a new extension */
-		if (extfound) {
-		    int extneeded = 0;
-			int len = strlen(leafname);
-
-			if (conn->xyzext == NEEDED) {
-				char *ext;
-
-				ext = strrchr(leafname, '.');
-				if (ext) {
-					int mimefiletype;
-
-					memcpy(newleafname, ext + 1, len - (ext - leafname) - sizeof(",xyz"));
-					newleafname[len - (ext - leafname) - sizeof(",xyz")] = '\0';
-					mimefiletype = lookup_mimetype(newleafname, conn);
-
-					if (mimefiletype == conn->defaultfiletype || mimefiletype == newfiletype) {
-						/* Don't need an extension */
-						extneeded = 0;
-					} else {
-						/* A new ,xyz is needed */
-						extneeded = 1;
-					}
-				} else {
-					if (newfiletype == conn->defaultfiletype) {
-						/* Don't need an extension */
-						extneeded = 0;
-					} else {
-						/* A new ,xyz is needed */
-						extneeded = 1;
-					}
-				}
-			} else {
-				/* Always add ,xyz */
-				extneeded = 1;
-			}
-
-			memcpy(newleafname, leafname, len - (sizeof(",xyz") - 1));
-			renameargs.to.name.data = newleafname;
-			if (extneeded) {
-				snprintf(newleafname + len - (sizeof(",xyz") - 1), sizeof(",xyz"), ",%.3x", newfiletype);
-				renameargs.to.name.size = len;
-			} else {
-				newleafname[len - (sizeof(",xyz") - 1)] = '\0';
-				renameargs.to.name.size = len - (sizeof(",xyz") - 1);
-			}
-		} else {
-			/* There wasn't an extension before, and the filetype is
-			   different, so we have to add an extension */
-			int len;
-
-			len = snprintf(newleafname, MAXNAMLEN, "%s,%.3x", leafname, newfiletype);
-			renameargs.to.name.data = newleafname;
-			renameargs.to.name.size = len < MAXNAMLEN ? len : MAXNAMLEN;
-		}
+		renameargs.to.name.data = newleafname(leafname, renameargs.from.name.size, extfound, filetype, newfiletype, &(renameargs.to.name.size), conn);
 
 		err = NFSPROC_RENAME(&renameargs, &renameres, conn);
 		if (err) return err;
 		if (renameres != NFS_OK) return gen_nfsstatus_error(renameres);
 	}
-	
+
+	/* Set the datestamp */
 	memcpy(sattrargs.file, finfo->file, FHSIZE);
 	sattrargs.attributes.mode = attr_to_mode(attr, finfo->attributes.mode, conn);
 	sattrargs.attributes.uid = -1;
@@ -1047,81 +1049,89 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 	return NULL;
 }
 
-static os_error *createfile(char *filename, int dir, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname, char **fhandle)
+/* Create a new file or directory */
+static os_error *createobj(char *filename, int dir, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **fhandle, char **leafname)
 {
     struct diropok *dinfo;
     os_error *err;
     struct createargs createargs;
     struct diropres createres;
+    int newfiletype = (load & 0xFFF00) >> 8;
 
 	err = filename_to_finfo(filename, &dinfo, NULL, leafname, NULL, NULL, conn);
 	if (err) return err;
 
 	memcpy(createargs.where.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
-	createargs.where.name.data = *leafname;
-	createargs.where.name.size = strlen(*leafname);
-	createargs.attributes.mode = 0x00008180; /**/
+
+	if (dir) {
+		createargs.where.name.data = *leafname;
+		createargs.where.name.size = strlen(*leafname);
+	} else {
+		/* We may need to add a ,xyz extension */
+		createargs.where.name.data = newleafname(*leafname, strlen(*leafname), 0, -1, newfiletype, &(createargs.where.name.size), conn);
+	}
+
+	createargs.attributes.mode = 0x00008000 | ((dir ? 0777 : 0666) & ~(conn->umask));
 	createargs.attributes.uid = -1;
 	createargs.attributes.gid = -1;
 	createargs.attributes.size = buffer_end - buffer;
 	createargs.attributes.atime.seconds = -1;
 	createargs.attributes.atime.useconds = -1;
-	createargs.attributes.mtime.seconds = -1;
-	createargs.attributes.mtime.useconds = -1;
+	loadexec_to_timeval(load, exec, &(createargs.attributes.mtime));
+
 	if (dir) {
 		err = NFSPROC_MKDIR(&createargs, &createres, conn);
 	} else {
 		err = NFSPROC_CREATE(&createargs, &createres, conn);
 	}
 	if (err) return err;
-	if (createres.status != NFS_OK && createres.status != NFSERR_EXIST) return gen_nfsstatus_error(createres.status);
+	if (createres.status != NFS_OK) return gen_nfsstatus_error(createres.status);
+
 	if (fhandle) *fhandle = createres.u.diropok.file;
+
 	return NULL;
 }
 
 os_error *file_createfile(char *filename, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn)
 {
 	char *leafname;
-	return createfile(filename, 0, load, exec, buffer, buffer_end, conn, &leafname, NULL);
-	/* Should createfile return an error if the file already exists? */
+
+	return createobj(filename, 0, load, exec, buffer, buffer_end, conn, NULL, &leafname);
 }
 
 os_error *file_createdir(char *filename, unsigned int load, unsigned int exec, struct conn_info *conn)
 {
 	char *leafname;
-	return createfile(filename, 1, load, exec, 0, 0, conn, &leafname, NULL);
+	
+	return createobj(filename, 1, load, exec, 0, 0, conn, NULL, &leafname);
 }
 
+/* Save a block of memory as a file */
 os_error *file_savefile(char *filename, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname)
 {
     os_error *err;
     char *fhandle;
-	struct writeargs writeargs;
-	struct attrstat writeres;
 
-	if (buffer_end - buffer > 7000/*tx_buffersize*/) return_error("file too big");
-	err = createfile(filename, 0, load, exec, buffer, buffer_end, conn, leafname, &fhandle);
-	/* This should call put_bytes to do the work */
-	memcpy(writeargs.file, fhandle, FHSIZE);
-	writeargs.offset = 0;
-	writeargs.data.size = buffer_end - buffer;
-	writeargs.data.data = buffer;
-	err = NFSPROC_WRITE(&writeargs, &writeres, conn);
-	
-	return NULL;
+	err = createobj(filename, 0, load, exec, buffer, buffer_end, conn, &fhandle, leafname);
+	if (err) return err;
+
+	return writebytes(fhandle, buffer, buffer_end - buffer, 0, conn);
 }
 
+/* Delete a file or directory */
 os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, unsigned int *load, unsigned int *exec, int *len, int *attr)
 {
     struct diropok *dinfo;
     struct diropok *finfo;
     os_error *err;
     char *leafname;
+    int filetype;
 
-	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, NULL, NULL, conn);
+	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
 	if (err) return err;
 
 	if (finfo == NULL) {
+		/* Object not found */
 		*objtype = 0;
 	} else {
 	    struct diropargs removeargs;
@@ -1130,6 +1140,7 @@ os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, unsi
 		memcpy(removeargs.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
 		removeargs.name.data = leafname;
 		removeargs.name.size = strlen(leafname);
+
 		if (finfo->attributes.type == NFDIR) {
 			err = NFSPROC_RMDIR(&removeargs, &removeres, conn);
 		} else {
@@ -1137,15 +1148,17 @@ os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, unsi
 		}
 		if (err) return err;
 		if (removeres != NFS_OK) return gen_nfsstatus_error(removeres);
-		*objtype = finfo->attributes.type == NFDIR ? 2 : 1;
-		*load = (int)0xFFFFFF00;
-		*exec = 0;
+
+		/* Treat all special files as if they were regular files */
+		*objtype = finfo->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
+		timeval_to_loadexec(&(finfo->attributes.mtime), filetype, load, exec);
 		*len = finfo->attributes.size;
-		*attr = 3;/*((finfo->attributes.mode & 0x400) >> 10) | ((finfo->attributes.mode & 0x200) >> 8);*/
+		*attr = mode_to_attr(finfo->attributes.mode);
 	}
 	return NULL;
 }
 
+/* Rename a file or directory */
 os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *conn, int *renamefailed)
 {
     struct diropok *dinfo;
