@@ -30,6 +30,7 @@
 
 #include "nfs-calls.h"
 
+#include "sunfish.h"
 
 
 os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype, unsigned int *load, unsigned int *exec, int *len, int *attr)

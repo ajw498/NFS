@@ -33,6 +33,8 @@
 
 #include "imageentry_func.h"
 
+#include "sunfish.h"
+
 #include "nfs-calls.h"
 #include "rpc.h"
 

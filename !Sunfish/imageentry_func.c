@@ -35,6 +35,8 @@
 
 #include "moduledefs.h"
 
+#include "sunfish.h"
+
 #include "rpc-calls.h"
 #include "nfs-calls.h"
 #include "mount-calls.h"

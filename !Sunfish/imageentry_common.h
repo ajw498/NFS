@@ -54,10 +54,6 @@
 #define OBJ_FILE 1
 #define OBJ_DIR  2
 
-/* Types for adding ,xyz extensions */
-#define NEVER  0
-#define NEEDED 1
-#define ALWAYS 2
 
 /* Pretend to fileswitch that we have a block/sector size */
 #define FAKE_BLOCKSIZE 1024
@@ -91,9 +87,6 @@
 
 
 #define MAX_GIDS 16
-
-/* The maximum concurrent OS_GBPB directory streams supported per mount */
-#define MAX_DIRSTREAMS 4
 
 /* All infomation associated with an open file */
 struct file_handle {
@@ -146,14 +139,6 @@ struct conn_info {
 	int laststart;
 	char lastdirhandle[FHSIZE];
 };
-
-/* The default port range to bind to. */
-#define LOCALPORTMIN_DEFAULT 800
-#define LOCALPORTMAX_DEFAULT 900
-
-/* The default buffer size to use. Ideally, this would be 8K, but the
-   Castle 100bT podule card cannot handle such large packets */
-#define MAXDATABUFFER_DEFAULT 4096
 
 extern int enablelog;
 

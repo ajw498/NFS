@@ -43,6 +43,7 @@
 #include "oslib/osfscontrol.h"
 
 #include "moduledefs.h"
+#include "sunfish.h"
 
 #define event_main_SHOW 0x100
 #define event_main_SET  0x101
@@ -145,6 +146,16 @@ static toolbox_o filenamesid;
 static toolbox_o portsid;
 static toolbox_o connectionid;
 
+static toolbox_o unmountedicon;
+
+struct mounticon {
+	toolbox_o icon;
+	char filename[1024];
+	struct mounticon *next;
+};
+
+static struct mounticon *iconhead = NULL;
+
 static void mount_save(char *filename)
 {
 	FILE *file;
@@ -188,18 +199,8 @@ static void mount_save(char *filename)
 	fprintf(file,"Logging: %d\n",mount.logging);
 	fclose(file);
 
-	E(xosfile_set_type(filename, 0x1b6/*FIXME*/));
+	E(xosfile_set_type(filename, SUNFISH_FILETYPE));
 }
-
-struct mounticon {
-	toolbox_o icon;
-	char filename[1024];
-	struct mounticon *next;
-};
-
-static struct mounticon *iconhead = NULL;
-
-static toolbox_o unmountedicon;
 
 static osbool mount_remove(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
 {
@@ -272,20 +273,19 @@ static void add_mount(char *filename)
 	toolbox_o icon;
 	char *leaf;
 	wimp_i oldicon;
-	struct mounticon *mountdetails = malloc(sizeof(struct mounticon));
+	struct mounticon *mountdetails;
 	struct mounticon *details;
 
-	if (mountdetails == NULL) return; /*FIXME*/
-
-	/*E(xosfscontrol_canonicalise_path(filename, mountdetails->filename, 0, 0, sizeof(mountdetails->filename), NULL));*/
-	strcpy(mountdetails->filename, filename); /**/
-
 	for (details = iconhead; details != NULL; details = details->next) {
-		if (strcmp(details->filename, mountdetails->filename) == 0) {
-			free(mountdetails);
-			return;
-		}
+		/* Don't add an icon if we already have one for this mount */
+		if (strcmp(details->filename, filename) == 0) return;
 	}
+	
+	mountdetails = malloc(sizeof(struct mounticon));
+	if (mountdetails == NULL) return;
+
+	strcpy(mountdetails->filename, filename);
+
 	leaf = strrchr(mountdetails->filename,'.');
 	if (leaf == NULL) leaf = mountdetails->filename; else leaf++;
 
@@ -319,10 +319,10 @@ static osbool filenames_open(bits event_code, toolbox_action *event, toolbox_blo
 	snprintf(tmp, sizeof(tmp), "%X", mount.defaultfiletype);
 	E(xwritablefield_set_value(0, id_block->this_obj, gadget_filenames_DEFAULTFILETYPE, tmp));
 	switch (mount.addext) {
-		case 2:
+		case ALWAYS:
 			E(xradiobutton_set_state(0, id_block->this_obj, gadget_filenames_ADDEXTALWAYS, TRUE));
 			break;
-		case 1:
+		case NEEDED:
 			E(xradiobutton_set_state(0, id_block->this_obj, gadget_filenames_ADDEXTNEEDED, TRUE));
 			break;
 		default:
@@ -355,13 +355,13 @@ static osbool filenames_set(bits event_code, toolbox_action *event, toolbox_bloc
 	E(xradiobutton_get_state(0, id_block->this_obj, gadget_filenames_ADDEXTALWAYS, NULL, &selected));
 	switch (selected) {
 		case gadget_filenames_ADDEXTALWAYS:
-			mount.addext = 2;
+			mount.addext = ALWAYS;
 			break;
 		case gadget_filenames_ADDEXTNEEDED:
-			mount.addext = 1;
+			mount.addext = NEEDED;
 			break;
 		default:
-			mount.addext = 0;
+			mount.addext = NEVER;
 			break;
 	}
 	E(xwritablefield_get_value(0, id_block->this_obj, gadget_filenames_UNUMASK, tmp, sizeof(tmp), NULL));
@@ -505,10 +505,10 @@ static osbool mainwin_open(bits event_code, toolbox_action *event, toolbox_block
 	mount.nfsport = 0;
 	mount.pcnfsdport = 0;
 	mount.mountport = 0;
-	mount.localportmin = 800;
-	mount.localportmax = 900;
+	mount.localportmin = LOCALPORTMIN_DEFAULT;
+	mount.localportmax = LOCALPORTMAX_DEFAULT;
 	mount.machinename[0] = '\0';
-	mount.maxdatabuffer = 4096;
+	mount.maxdatabuffer = MAXDATABUFFER_DEFAULT;
 	mount.pipelining = 0;
 	mount.timeout = 3;
 	mount.retries = 2;
@@ -549,8 +549,8 @@ static osbool mainwin_set(bits event_code, toolbox_action *event, toolbox_block 
 	UNUSED(event_code);
 	UNUSED(event);
 	UNUSED(handle);
-	char tmp[256];
-	char filename[256];
+	char tmp[1024];
+	char filename[1024];
 
 	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_SERVER, mount.server, sizeof(tmp), NULL));
 	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_EXPORT, mount.export, sizeof(tmp), NULL));
@@ -648,7 +648,7 @@ static osbool message_data_open(wimp_message *message, void *handle)
 			if ((load & 0xFFF00000) == 0xFFF00000) filetype = (load & 0x000FFF00) >> 8;
 		}
 	}
-	if (filetype == 0x1b6 /*FIXME*/) {
+	if (filetype == SUNFISH_FILETYPE) {
 		add_mount(message->data.data_xfer.file_name);
 	}
 	return 1;
