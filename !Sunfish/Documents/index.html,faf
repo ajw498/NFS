@@ -207,8 +207,6 @@ If set to 1, filenames will be treated as case sensitive, and if the filename do
 <p>
 If case sensitivity is off, and you have two (or more) files in the same directory that differ only in case then trying to access one of them may result in the wrong file being altered.
 <p>
-Currently, this feature only works for leafnames; the rest of the pathname is always treated case sensitivly.
-<p>
 <h4>Timeout</h4>
 The time in seconds to wait for a reply from the server before retrying or giving up. Defaults to 3 seconds.
 <p>
