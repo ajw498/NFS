@@ -130,11 +130,16 @@ struct conn_info {
 	int xyzext;
 	int localportmin;
 	int localportmax;
+	int maxdatabuffer;
 };
 
 /* The default port range to bind to. */
 #define LOCALPORTMIN_DEFAULT 800
 #define LOCALPORTMAX_DEFAULT 900
+
+/* The default buffer size to use. Ideally, this would be 8K, but the
+   Castle 100bT podule card cannot handle such large packets */
+#define MAXDATABUFFER_DEFAULT 4096
 
 extern int enablelog;
 

@@ -145,6 +145,9 @@ These options can be specified if needed, but if they are not then default value
 <h4>MachineName</h4>
 The name of the machine the client is running on. Some servers may use it to allow or deny access. If ommitted, it defaults to the value of <code>&lt;Inet$Hostname&gt;</code> which should be sufficient in most cases.
 <p>
+<h4>MaxDataBuffer</h4>
+The maximum number of bytes to use for the data buffer of a read or write request. A bigger buffer will generally be faster than a smaller one, but some network cards (In particular, the Castle 100BaseT podule) cannot handle larger packets. The maximum value is 8192 bytes, and it is recommeded that you set it to this if your network card can handle it (You will probably get timeout errors when reading a large file if it is too big). If ommitted, it defaults to 4096 bytes.
+<p>
 <h4>PortMapperPort</h4>
 The port number to use for the portmapper service. If omitted, it defaults to the assigned number 111.
 <p>

@@ -160,6 +160,9 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		conn->localportmin = (int)strtol(val, &end, 10);
 		conn->localportmax = (int)strtol(end, NULL, 10);
 		if (conn->localportmax == 0) conn->localportmax = conn->localportmin;
+	} else if (CHECK("MaxDataBuffer")) {
+		conn->maxdatabuffer = (int)strtol(val, NULL, 10);
+		if (conn->maxdatabuffer > MAXDATA) conn->maxdatabuffer = MAXDATA;
 	}
 	/* Ignore unrecognised lines */
 	return NULL;
@@ -288,6 +291,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->xyzext = NEEDED;
 	conn->localportmin = LOCALPORTMIN_DEFAULT;
 	conn->localportmax = LOCALPORTMAX_DEFAULT;
+	conn->maxdatabuffer =  MAXDATABUFFER_DEFAULT;
 
 	/* Read details from file */
 	err = parse_file(fileswitchhandle, conn);
@@ -422,7 +426,7 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 		memcpy(rddir.dir, finfo->file, FHSIZE);
 	}
 
-	rddir.count = MAXDATA;
+	rddir.count = conn->maxdatabuffer;
 	rddir.cookie = start;
 	err = NFSPROC_READDIR(&rddir, &rdres, conn);
 	if (err) return err;
