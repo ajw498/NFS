@@ -289,9 +289,11 @@ static void logdata(int rx, char *buf, int len)
 }
 
 /* Fills as much of the buffer as it can without blocking */
-static os_error *rpc_fillbuffer(char *buf, int buflen, int *currentlen, struct conn_info *conn)
+static os_error *rpc_fillbuffer(char *buf, int buflen, int *currentlen, int *earlyexit, struct conn_info *conn)
 {
 	int len;
+
+	*earlyexit = 0;
 
 	trigger_callback();
 	len = read(conn->sock, buf + *currentlen, buflen - *currentlen);
@@ -299,6 +301,13 @@ static os_error *rpc_fillbuffer(char *buf, int buflen, int *currentlen, struct c
 	if (len == -1) {
 		if (errno == EWOULDBLOCK) {
 			len = 0;
+		} else if (errno == ECONNRESET) {
+			/* The server has closed the connection (probably due
+			   to a period of inactivity).
+			   Exit early, effectively causing a timeout without
+			   the wait. The retry will reconnect the socket. */
+			len = 0;
+			*earlyexit = 1;
 		} else {
 			return gen_rpc_error(conn, RPCERRBASE + 7,"Read from socket failed (%s)", xstrerror(errno));
 		}
@@ -319,6 +328,7 @@ static os_error *rpc_readdata(int blocking, int *buffer, struct conn_info *conn)
 	static int currentrmoffset;
 	os_error *err;
 	time_t t = clock();
+	int earlyexit = 0;
 
 	if (currentbuffer == INVALIDBUFFER) {
 		/* Search for a free buffer entry.
@@ -347,7 +357,7 @@ static os_error *rpc_readdata(int blocking, int *buffer, struct conn_info *conn)
 			static char rmbuffer[sizeof(int)];
 
 			/* Read the record marker if this is a tcp stream */
-			err = rpc_fillbuffer(rmbuffer, sizeof(int), &currentrmoffset, conn);
+			err = rpc_fillbuffer(rmbuffer, sizeof(int), &currentrmoffset, &earlyexit, conn);
 			if (err) return err;
 
 			if (currentrmoffset == sizeof(int)) {
@@ -363,7 +373,7 @@ static os_error *rpc_readdata(int blocking, int *buffer, struct conn_info *conn)
 		if (recordsize + currentoffset > BUFFERSIZE) return gen_rpc_error(conn, RPCERRBASE + 15,"RPC reply too big");
 
 		if (recordsize > 0) {
-			err = rpc_fillbuffer(buffers[currentbuffer].buffer + currentoffset, recordsize, &currentrecordoffset, conn);
+			err = rpc_fillbuffer(buffers[currentbuffer].buffer + currentoffset, recordsize, &currentrecordoffset, &earlyexit, conn);
 			if (err) return err;
 		}
 
@@ -372,7 +382,7 @@ static os_error *rpc_readdata(int blocking, int *buffer, struct conn_info *conn)
 			recordsize = 0;
 			currentrecordoffset = 0;
 		}
-	} while (blocking && !(recordsize == 0 && lastrecord) && (clock() < (t + (conn->timeout * CLOCKS_PER_SEC))));
+	} while (blocking && !earlyexit && !(recordsize == 0 && lastrecord) && (clock() < (t + (conn->timeout * CLOCKS_PER_SEC))));
 
 	if (recordsize == 0 && lastrecord) {
 		/* We have read the entire reply */
@@ -422,6 +432,25 @@ buffer_overflow: /* Should be impossible, but prevent compiler complaining */
 	return;
 }
 
+static os_error *rpc_connect_socket(struct conn_info *conn)
+{
+	os_error *err;
+	int ret;
+
+	if (conn->tcp) {
+		err = rpc_close_connection(conn);
+		if (err) return err;
+		err = rpc_create_socket(conn);
+		if (err) return err;
+	}
+
+	ret = connect(conn->sock, (struct sockaddr *)&(conn->sockaddr), sizeof(struct sockaddr_in));
+	if (ret == -1 && errno != EINPROGRESS) {
+		return gen_error(RPCERRBASE + 4, "Connect on socket failed (%s)", xstrerror(errno));
+	}
+	return NULL;
+}
+
 /* Send the already filled in tx buffer, the read the response and process
    the rpc reply header */
 os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
@@ -451,21 +480,12 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 		}
 
 		/* Only connect the socket if the port is different from the last
-		   time we used the socket */
+		   time we used the socket, or it is not yet connected at all */
 		if (port != conn->sockaddr.sin_port || conn->sock == -1) {
 			conn->sockaddr.sin_port = port;
 
-			if (conn->tcp) {
-				err = rpc_close_connection(conn);
-				if (err) return err;
-				err = rpc_create_socket(conn);
-				if (err) return err;
-			}
-
-			ret = connect(conn->sock, (struct sockaddr *)&(conn->sockaddr), sizeof(struct sockaddr_in));
-			if (ret == -1 && errno != EINPROGRESS) {
-				return gen_error(RPCERRBASE + 4, "Connect on socket failed (%s)", xstrerror(errno));
-			}
+			err = rpc_connect_socket(conn);
+			if (err) return err;
 		}
 
 		fifo[head].tx.len = buf - fifo[head].tx.buffer;
@@ -536,6 +556,12 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 
 				/* No data recived, so retransmit the oldest fifo entry if it
 				   is still pending, unless we are non blocking */
+
+				if (conn->tcp) {
+					/* Close and reconnect the socket for TCP connections */
+					err = rpc_connect_socket(conn);
+					if (err) return err;
+				}
 
 				fifo[tail].retries++;
 				if (fifo[tail].rx == NULL && fifo[tail].retries > conn->retries) {

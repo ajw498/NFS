@@ -327,9 +327,6 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 		syslogf(LOGNAME, LOGENTRY, "Logging enabled for new connection %s %s %s", Module_Title, Module_VersionString, Module_Date);
 	}
 
-	/* There is no point in retrying on a reliable transport */
-	if (conn->tcp) conn->retries = 0;
-
 	if (conn->maxdatabuffer == 0) {
 		conn->maxdatabuffer =  conn->tcp ? MAXDATABUFFER_TCP_DEFAULT : MAXDATABUFFER_UDP_DEFAULT;
 	}
