@@ -287,6 +287,7 @@ void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, s
 	buf = fifo[head].tx.buffer;
 	bufend = buf + BUFFERSIZE;
 	fifo[head].xid = call_header.xid;
+	fifo[head].rx = NULL;
 
 	nextmalloc = malloc_buffer;
 
@@ -441,6 +442,7 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 	/* Remove this entry from the fifo */
 	fifo[tail].rx->len = 0;
 	fifo[tail].xid = UNALLOCATED;
+	fifo[tail].rx = NULL;
 	tail++;
 	if (tail >= FIFOSIZE) tail = 0;
 
