@@ -33,7 +33,7 @@
 #include "imageentry_func.h"
 
 #include "nfs-calls.h"
-
+#include "rpc.h"
 
 
 /* Generate a RISC OS error block based on the given number and message */
@@ -42,6 +42,8 @@ os_error *gen_error(int num, char *msg, ...)
 	static os_error module_err_buf;
 	va_list ap;
 
+	rpc_resetfifo();
+	
 	va_start(ap, msg);
 	vsnprintf(module_err_buf.errmess, sizeof(module_err_buf.errmess), msg, ap);
 	va_end(ap);

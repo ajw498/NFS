@@ -36,6 +36,8 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 	os_error *err;
 	struct readargs args;
 	struct readres res;
+	char *bufferend = buffer + len;
+	int outstanding = 0;
 
 	if (handle->type != NFREG) {
 		return gen_error(BYTESERRBASE + 1,"Cannot read data from a non-regular file");
@@ -49,19 +51,23 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 		args.count = len;
 		if (args.count > handle->conn->maxdatabuffer) args.count = handle->conn->maxdatabuffer;
 		offset += args.count;
-		
-		err = NFSPROC_READ(&args, &res, handle->conn);
-		if (err) return err;
-		if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
-
-		if (res.u.data.size > args.count) {
-			return gen_error(BYTESERRBASE + 0,"Read returned more data than expected");
-		}
-
-		memcpy(buffer, res.u.data.data, res.u.data.size);
-		buffer += args.count;
 		len -= args.count;
-	} while (len > 0 && res.u.data.size == args.count);
+		if (args.count > 0) outstanding++;
+
+		err = NFSPROC_READ(&args, &res, handle->conn, 1/*handle->conn->pipelining*/ ? (args.count > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING);
+		if (err != ERR_WOULDBLOCK) {
+			if (err) return err;
+			if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
+
+			outstanding--;
+			if (buffer + res.u.data.size > bufferend) {
+				return gen_error(BYTESERRBASE + 0,"Read returned more data than expected");
+			}
+	
+			memcpy(buffer, res.u.data.data, res.u.data.size);
+			buffer += res.u.data.size;
+		}
+	} while (len > 0 || outstanding > 0);
 
 	return NULL;
 }
@@ -87,7 +93,7 @@ os_error *writebytes(char *fhandle, char *buffer, unsigned int len, unsigned int
 		args.data.data = buffer;
 		buffer += args.data.size;
 
-		err = NFSPROC_WRITE(&args, &res, conn);
+		err = NFSPROC_WRITE(&args, &res, conn, TXBLOCKING);
 		if (err) return err;
 		if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
 	} while (len > 0);

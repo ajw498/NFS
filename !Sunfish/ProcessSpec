@@ -236,6 +236,7 @@ while (<>) {
       my $prog;
       die "type not defined\n" if (!defined $types{$args} || !defined $types{$res});
       my $proto = "\nos_error *$procname(";
+      my $calltype = "TXBLOCKING";
       if (!($args =~ /^void$/)) {
         if (($types{$args} =~ /(struct)|(union)|(linklist)/)) {
           $proto .= "struct $args";
@@ -254,7 +255,12 @@ while (<>) {
         }
         $proto .= " *res, ";
       }
-      $proto .= "struct conn_info *conn)";
+      $proto .= "struct conn_info *conn";
+      if ($procname =~ m/(WRITE)|(READ)$/) {
+        $proto .= ", enum callctl calltype";
+        $calltype = "calltype";
+      }
+      $proto .= ")";
       if ($procname =~ m/^NFS/) {
         $prog = "NFS_RPC_PROGRAM";
         $vers = "NFS_RPC_VERSION";
@@ -275,7 +281,7 @@ while (<>) {
       print CALLS "\tprocess_$types{$args}";
       print CALLS "_$args" if (($types{$args} =~ /(struct)|(union)|(linklist)/));
       print CALLS "(OUTPUT, (*args), $typessize{$args});\n";
-      print CALLS "\terr = rpc_do_call(conn);\n";
+      print CALLS "\terr = rpc_do_call(conn, $calltype);\n";
       print CALLS "\tif (err) return err;\n";
       print CALLS "\tprocess_$types{$res}";
       print CALLS "_${res}" if (($types{$res} =~ /(struct)|(union)|(linklist)/));
