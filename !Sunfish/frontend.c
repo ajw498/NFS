@@ -48,6 +48,7 @@
 #define event_main_PCNFSD 0x104
 #define event_MOUNT 0x105
 #define event_SHOWMOUNTS 0x106
+#define event_REMOVEICON 0x107
 
 #define event_ports_SHOW 0x200
 #define event_ports_SET  0x201
@@ -194,6 +195,34 @@ struct mounticon {
 static struct mounticon *iconhead = NULL;
 
 static toolbox_o unmountedicon;
+
+static osbool mount_remove(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
+{
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(handle);
+
+	struct mounticon *remove;
+
+	if (iconhead->icon == id_block->parent_obj) {
+		remove = iconhead;
+		if (iconhead->next == NULL) {
+			E(xtoolbox_show_object(0, unmountedicon, toolbox_POSITION_DEFAULT, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
+		}
+		iconhead = iconhead->next;
+	} else {
+		struct mounticon *current = iconhead;
+
+		while (current->next && current->next->icon != id_block->parent_obj) current = current->next;
+		remove = current->next;
+		if (remove == NULL) return 1;
+		current->next = remove->next;
+	}
+	E(xtoolbox_delete_object(0, remove->icon));
+	free(remove);
+
+	return 1;
+}
 
 static osbool mount_open(bits event_code, toolbox_action *event, toolbox_block *id_block, void *mountdetails)
 {
@@ -589,6 +618,7 @@ int main(void)
 	event_register_toolbox_handler(event_ANY, event_main_PCNFSD,  pcnfsd_toggle, NULL);
 
 	event_register_toolbox_handler(event_ANY, event_SHOWMOUNTS,  mount_showall, NULL);
+	event_register_toolbox_handler(event_ANY, event_REMOVEICON,  mount_remove, NULL);
 
 	event_register_toolbox_handler(event_ANY, event_filenames_SHOW, filenames_open, NULL);
 	event_register_toolbox_handler(event_ANY, event_filenames_SET,  filenames_set, NULL);
