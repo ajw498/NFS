@@ -1,0 +1,59 @@
+/*
+	$Id: $
+
+	XDR Specification for the MOUNT V1 protocol.
+	See RFC 1094 for more details.
+
+	StrongEd$Mode=C
+*/
+
+#define MOUNT_RPC_PROGRAM 100005
+#define MOUNT_RPC_VERSION 1
+
+
+#define MNTPATHLEN 1024
+#define MNTNAMLEN 255
+#define FHSIZE 32
+
+typedef opaque fhandle[FHSIZE];
+
+union fhstatus switch (unsigned status) {
+case 0:
+    fhandle directory;
+default:
+    void;
+}
+
+typedef string dirpath<MNTPATHLEN>;
+typedef string name<MNTNAMLEN>;
+
+void MNTPROC_NULL(void) = 0;
+
+fhstatus MNTPROC_MNT(dirpath) = 1;
+
+struct *mountlist {
+        name hostname;
+        dirpath directory;
+/*        mountlist nextentry;*/
+};
+
+mountlist MNTPROC_DUMP(void) = 2;
+
+void MNTPROC_UMNT(dirpath) = 3;
+
+void MNTPROC_UMNTALL(void) = 4;
+
+struct *groups {
+        name grname;
+/*        groups grnext;*/
+};
+
+struct *exportlist {
+        dirpath filesys;
+        groups groups;
+        /*exportlist next;*/
+};
+
+exportlist MNTPROC_EXPORT(void) = 5;
+
+

@@ -67,6 +67,15 @@ int main(void)
 	data.cbody.verftype = 0;
 	data.cbody.verflen = 0;
 
+	{
+		int i;
+		for (i = 0; i < sizeof(data); i++) {
+			printf("0x%X ",((char *)&data)[i]);
+			if (((int)i)%4 == 3) printf("\n");
+		}
+	}
+	printf("fff\n");
+	printf("\n");
 	if (send(sock, &data, sizeof(data), 0) == -1) {
 		printf("send errno=%d\n",errno);
 		/*perror("sending datagram message");*/

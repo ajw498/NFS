@@ -6,67 +6,99 @@ my $state = "none";
 my @names;
 my $name = "";
 my %types;
+my %typessize;
 my $nextunnamed = 1;
 my @unnamed;
+my $spectype = shift @ARGV;
+my $firstcase;
 
-open(PROCS,">processstructs.h") or die $^E;
-open(UNIONS,">processunions.h") or die $^E;
-open(STRUCTS,">nfsstructs.h") or die $^E;
-open(CALLS,">nfsrpccalls.c") or die $^E;
-open(CALLSH,">nfsrpccalls.h") or die $^E;
+open(PROCS,">$spectype-process1.h") or die $^E;
+open(UNIONS,">$spectype-process2.h") or die $^E;
+open(STRUCTS,">$spectype-structs.h") or die $^E;
+open(CALLS,">$spectype-calls.c") or die $^E;
+open(CALLSH,">$spectype-calls.h") or die $^E;
 
 my $header = "/* Automatically generated */\n\n";
 
 print PROCS   $header;
 print UNIONS  $header;
 print STRUCTS $header;
+print STRUCTS "#include \"primitives.h\"\n\n";
 print CALLS   $header;
-print CALLS   "#include nfsrpccalls.h\n\n";
-print CALLS   "#include rpc.h\n\n";
+print CALLS   "#include \"$spectype-calls.h\"\n\n";
 print CALLSH  $header;
-print CALLSH  "#include nfsstructs.h\n";
-print CALLSH  "#include processstructs.h\n";
-print CALLSH  "#include processunions.h\n\n";
+print CALLSH  "#include \"rpc.h\"\n";
+print CALLSH  "#include \"$spectype-structs.h\"\n";
+print CALLSH  "#include \"$spectype-process1.h\"\n";
+print CALLSH  "#include \"$spectype-process2.h\"\n\n";
+
 $types{"unsigned int"} = "int";
+$types{"int"} = "int";
+$types{"void"} = "void";
+$typessize{"void"} = 0;
+$typessize{"int"} = 0;
 
 while (<>) {
   #print "$state - $_";
   if ($state eq "struct" or $state eq "union") {
-    if (/\}\;/) {
+    if (/\}\;*/) {
       if ($state eq "union") {
         print STRUCTS "} u;\n};\n";
-        print UNIONS "}} while (0);\n\n";
+        print UNIONS "}} while (0)\n\n";
       } else {
-        print STRUCTS;
+        print STRUCTS "};";
       }
-      print PROCS "} while (0);\n\n";
+      print PROCS "} while (0)\n\n";
       $state = "none";
     } elsif (/\}.+\;/) {
       die "struct/union instance: $_";
     } elsif (/case (\w*)\:/) {
+      print UNIONS "break;\\\n" if (!$firstcase);
       print UNIONS "case $1:\\\n";
-      print UNIONS "process_union_body_${name}_$1(input,structbase.u);\\\n";
-      print PROCS "} while (0);\n";
+      print UNIONS "process_union_body_${name}_$1(input,##structbase.u);\\\n";
+      print PROCS "} while (0)\n" if (!$firstcase);
       print PROCS "#define process_union_body_${name}_$1(input,structbase) do {\\\n";
-
+      $firstcase = 0;
+    } elsif (/default\:/) {
+      print UNIONS "break;\\\n" if (!$firstcase);
+      print UNIONS "default:\\\n";
+      print UNIONS "process_union_body_${name}_default(input,##structbase.u);\\\n";
+      print PROCS "} while (0)\n" if (!$firstcase);
+      print PROCS "#define process_union_body_${name}_default(input,structbase) do {\\\n";
+      $firstcase = 0;
+    } elsif (/\s*void\;/) {
+      # do nothing
     } elsif (/(.*)opaque (\w*)\<(\w*)\>\;/) {
       print STRUCTS "${1}struct opaque $2;\n";
-      print STRUCTS "#define OPAQUE_${name}_${2}_MAX $3\n";
-      print PROCS "process_opaque(input,structbase.$2,$3);\\\n";
-    } elsif (/(\s*)(.*)\s+(\w+)\;/) {
+#      print STRUCTS "#define OPAQUE_${name}_${2}_MAX $3\n";
+      print PROCS "process_opaque(input,##structbase.$2,$3);\\\n";
+    } elsif (/(\s*)(.*)\s+(\w+)\;$/) {
       my $type = $types{$2};
+      my $typesize = $typessize{$2};
       die "Unknown type $2\n" unless defined $type;
       if (($type eq "struct") || ($type eq "union")) {
-        print STRUCTS "${1}struct $2 $3;\n";
-        print PROCS "process_${type}_$3(input,structbase.$3);\\\n";
+        my $ptr = "";
+        $ptr = "*" if ($2 eq $name);
+        print STRUCTS "${1}struct $2 $ptr$3;\n";
+        print PROCS "process_${type}_$2(input, ##structbase.$3, $typesize);\\\n";
+      } elsif (($type eq "opaque") || ($type eq "string")) {
+        print STRUCTS "${1}struct opaque $3;\n";
+        print PROCS "process_${type}(input, ##structbase.$3, $typesize);\\\n";
+      } elsif (($type eq "fixed_opaque") || ($type eq "fixed_string")) {
+        print STRUCTS "${1}char $3\[$typesize\];\\\n";
+        print PROCS "process_${type}(input, ##structbase.$3, $typesize);\\\n";
       } else {
-        print STRUCTS "${1}$2 $3;\n";
-        print PROCS "process_$type(input,structbase.$3);\\\n";
+        if ($type eq "enum") {
+          print STRUCTS "${1}enum $2 $3;\n";
+        } else {
+          print STRUCTS "${1}$2 $3;\n";
+        }
+        print PROCS "process_$type(input,##structbase.$3, 0);\\\n";
       }
     } elsif (/\/\*.*\*\//) {
       print STRUCTS;
     } else {
-      die "Unknown struct field\n";
+      die "Unknown struct field: $_\n";
     }
   } elsif ($state eq "enum") {
     print STRUCTS;
@@ -76,41 +108,101 @@ while (<>) {
     $state = "none" if (/\*\//);
   } elsif ($state eq "none") {
 
-    if (/enum *(\w*)/) {
+    if (/^\s*enum *(\w*)/) {
       print STRUCTS;
       $name = $1;
       $types{$name} = $state = "enum";
-    } elsif (/struct *(\w*) /) {
+      $typessize{$name} = 0;
+    } elsif (/^\s*union *(\w*) *switch *\( *(\w*) *(\w*)\)/) {
+      $name = $1;
+      $types{$name} = $state = "union";
+      $typessize{$name} = 0;
+      print STRUCTS "struct ${name} {\n";
+      print STRUCTS "enum " if ($2 ne "unsigned");
+      print STRUCTS "$2 $3;\n";
+      print STRUCTS "union {\n";
+      $firstcase = 1;
+      print UNIONS "#define process_union_${name}(input,structbase, maxsize) do {\\\n";
+      print UNIONS "process_int(input,##structbase.$3, 0);\\\n";
+      print UNIONS "switch (##structbase.$3) {\\\n";
+    } elsif (/^\s*struct *\*(\w*) /) {
+      # Linked list
+      $name = $1;
+      $types{$name} = $state = "union";
+      $typessize{$name} = 0;
+      print STRUCTS "struct ${name} {\n";
+      print STRUCTS "enum bool opted;\n";
+      print STRUCTS "union {\n";
+      print UNIONS "#define process_union_${name}(input,structbase, maxsize) do {\\\n";
+      print UNIONS "process_int(input,##structbase.opted, 0);\\\n";
+      print UNIONS "switch (##structbase.opted) {\\\n";
+      print UNIONS "case TRUE:\\\n";
+      print UNIONS "process_union_body_${name}_TRUE(input, ##structbase.u, 0);\\\n";
+      print PROCS "#define process_union_body_${name}_TRUE(input, structbase, maxsize) do {\\\n";
+    } elsif (/^\s*struct *(\w*) /) {
       print STRUCTS;
       $name = $1;
       $types{$name} = $state = "struct";
-      print PROCS "#define process_struct_${name}(input,structbase) do {\\\n";
-    } elsif (/union *(\w*) *switch *\( *(\w*) *(\w*)\)/) {
-      $name = $1;
-      $types{$name} = $state = "union";
-      print STRUCTS "struct ${name} {\n";
-      print STRUCTS "$2 $3;\n";
-      print STRUCTS "union {\n";
-      print PROCS "#define process_union_${name}_dummy do {\\\n";
-      print UNIONS "#define process_union_${name}(input,structbase) do {\\\n";
-      print UNIONS "process_int(input,structbase.$3);\\\n";
-      print UNIONS "switch (structbase.$3) {\\\n";
-    } elsif (/\#define/) {
+      $typessize{$name} = 0;
+      print PROCS "#define process_struct_${name}(input,structbase, maxsize) do {\\\n";
+    } elsif (/^\s*\#define/) {
       print STRUCTS;
-    } elsif (/typedef (.*) (\S+)\;/) {
-      # doesnt yet cope with unsigned foo or string or opaque
+    } elsif (/^\s*typedef (.*) (\S+)\[(\w*)\]\;/) {
+      #print STRUCTS;
+      $types{$2} = "fixed_$1";
+      $typessize{$2} = $3;
+    } elsif (/^\s*typedef (.*) (\S+)\<(\w*)\>\;/) {
+      #print STRUCTS;
+      $types{$2} = $1;
+      $typessize{$2} = $3;
+    } elsif (/^\s*typedef (.*) (\S+)\;/) {
       print STRUCTS;
       $types{$2} = $1;
-    } elsif (/(\w*) (\w*)\((\w*)\) = (\w*)\;/) {
-      print CALLSH "\nint $2(struct $3 *args, struct $1 *res, struct opaque_auth *cred);\n";
-      print CALLS  "\nint $2(struct $3 *args, struct $1 *res, struct opaque_auth *cred)\n";
+      $typessize{$2} = 0;
+    } elsif (/^\s*(\w*) (\w*)\((\w*)\) = (\w*)\;/) {
+      my $res = $1;
+      my $procname = $2;
+      my $args = $3;
+      my $procno = $4;
+      my $prog;
+      die "type not defined\n" if (!defined $types{$args} || !defined $types{$res});
+      my $proto = "\nint $procname(";
+      if (!($args =~ /^void$/)) {
+        if (($types{$args} =~ /(struct)|(union)/)) {
+          $proto .= "struct $args";
+        } else {
+          $proto .= "$types{$args}";
+        }
+        $proto .= " *args, ";
+      }
+      if (!($res =~ /^void$/)) {
+        if (($types{$res} =~ /(struct)|(union)/)) {
+          $proto .= "struct $res";
+        } else {
+          $proto .= "$types{$res}";
+        }
+        $proto .= " *res, ";
+      }
+      $proto .= "struct conn_info *conn)";
+      if ($procname =~ m/^NFS/) {
+        $prog = "NFS_RPC_PROGRAM";
+        $vers = "NFS_RPC_VERSION";
+      } else {
+        $prog = "MOUNT_RPC_PROGRAM";
+        $vers = "MOUNT_RPC_VERSION";
+      }
+      print CALLSH "$proto;\n";
+      print CALLS  "$proto\n";
       print CALLS "{\n";
-      print CALLS "\tprepare_call($4);\n";
-      print CALLS "\tprocess_struct_$3(OUTPUT,(*args));\n";
-      # Read results
-      print CALLS "\tdo_call();\n";
-      print CALLS "\tprocess_struct_$1(INPUT,(*res));\n";
-      print CALLS "}\n";
+      print CALLS "\tprepare_call($prog, $vers, $procno, conn);\n";
+      print CALLS "\tprocess_$types{$args}";
+      print CALLS "_$args" if (($types{$args} =~ /(struct)|(union)/));
+      print CALLS "(OUTPUT, (*args), $typessize{$args});\n";
+      print CALLS "\tdo_call(conn);\n";
+      print CALLS "\tprocess_$types{$res}";
+      print CALLS "_${res}" if (($types{$res} =~ /(struct)|(union)/));
+      print CALLS "(INPUT, (*res), $typessize{$res});\n";
+      print CALLS "\treturn 0;\n}\n";
     } elsif (/\/\*.*\*\//) {
       print STRUCTS;
     } elsif (/\/\*/) {
@@ -126,14 +218,3 @@ while (<>) {
   }
 }
 
-#  } elsif (/(.*)opaque *(\w*)\[(\d*)\]/) {
-#    print STRUCTS "#define ".$name."_"."$2"."_max $3\n";
-#    print STRUCTS "$1char $2[$3];\n";
-#  } elsif (/(.*)opaque *(\w*)\<(\d*)\>/) {
-#    print STRUCTS "#define $name"."_"."$2"."_max $3\n";
-#    print STRUCTS "$1int $2_size;\n";
-#    print STRUCTS "$1char *$2;\n";
-#  } elsif (/case *(\w*)\:/) {
-#    ##
-#  } elsif (/(.*)union *switch *\( *(\w*) *(\w*)\)/) {
-#    die "Unnamed union\n";

@@ -4,12 +4,12 @@
 	RPC calling functions
 */
 
-#include nfsstructs.h
-#include processstructs.h
-#include processunions.h
+#include "rpc-calls.h"
+#include "rpc.h"
 
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
@@ -18,7 +18,7 @@
 
 #define RPC_VERSION 2
 
-static unsigned int xid = 0;
+static unsigned int xid;
 
 static struct rpc_msg call_header;
 static struct rpc_msg reply_header;
@@ -26,29 +26,34 @@ static char tx_buffer[8192];
 static char rx_buffer[8192];
 static char *tx_buffer_end = tx_buffer + sizeof(tx_buffer);
 static char *rx_buffer_end = rx_buffer + sizeof(rx_buffer);
+char *buf, *bufend;
+static char auth_unix[] = {0,0,0,23, 0,0,0,7, 'c','a','r','a','m','e','l',0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0};
+
 
 void init_header(void)
 {
-	call_header.body.u.cbody.mtype = CALL;
+	xid = clock();
+	call_header.body.mtype = CALL;
 	call_header.body.u.cbody.rpcvers = RPC_VERSION;
-	call_header.body.u.cbody.proc = NFS_RPC_PROGRAM;
-	call_header.body.u.cbody.vers = NFS_RPC_VERSION;
-	call_header.body.u.cbody.cred.flavor = AUTH_NULL; /**/
-	call_header.body.u.cbody.cred.body.size = 0;
+	call_header.body.u.cbody.cred.flavor = AUTH_UNIX; /**/
+	call_header.body.u.cbody.cred.body.size = sizeof(auth_unix);
+	call_header.body.u.cbody.cred.body.data = auth_unix;
 	call_header.body.u.cbody.verf.flavor = AUTH_NULL; /**/
 	call_header.body.u.cbody.verf.body.size = 0;
 }
 
-void prepare_call(unsigned int proc)
+void prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, struct conn_info *conn)
 {
 	call_header.xid = xid++;
+	call_header.body.u.cbody.prog = prog;
+	call_header.body.u.cbody.vers = vers;
 	call_header.body.u.cbody.proc = proc;
 	buf = tx_buffer;
 	bufend = tx_buffer_end;
-	process_struct_rpc_msg(OUTPUT,call_header);
+	process_struct_rpc_msg(OUTPUT, call_header, 0);
 }
 
-int do_call(void)
+int do_call(struct conn_info *conn)
 {
 	int sock;
 	struct sockaddr_in name;
@@ -68,21 +73,27 @@ int do_call(void)
 	}
 	memcpy(&name.sin_addr, hp->h_addr, hp->h_length);
 	name.sin_family = AF_INET;
-	name.sin_port = htons(2049);
+	name.sin_port = htons(call_header.body.u.cbody.prog == 100005 ? 1027 : 2049);
 	if (connect(sock, (struct sockaddr *)&name, sizeof(name)) < 0) {
 		printf("connect errno=%d\n",errno);
 		exit(1);
 	}
 
-	if (send(sock, tx_buffer, sizeof(buf - tx_buffer), 0) == -1) {
+	{
+		char *i;
+		for (i = tx_buffer; i < buf; i++) {
+			printf("0x%X ",*i);
+			if (((int)i)%4 == 3) printf("\n");
+		}
+	}
+	if (send(sock, tx_buffer, buf - tx_buffer, 0) == -1) {
 		printf("send errno=%d\n",errno);
 		/*perror("sending datagram message");*/
 		exit(1);
 	}
-	len = socketread(sock, rx_buffer, sizeof(rx_buffer));
+/*	len = socketread(sock, rx_buffer, sizeof(rx_buffer));
 	if (len == -1) {
 		printf("read errno=%d\n",errno);
-		//(0 && perror("sending datagram message"));
 	} else {
 		int i;
 		for (i = 0; i < len; i++) {
@@ -90,10 +101,11 @@ int do_call(void)
 			if (i%4 == 3) printf("\n");
 		}
 		printf("\n");
-	}
+	}*/
 	socketclose(sock);
 
 	buf = rx_buffer;
 	bufend = rx_buffer_end;
+	return 0;
 }
 
