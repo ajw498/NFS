@@ -52,6 +52,7 @@
 #define event_MOUNT 0x105
 #define event_SHOWMOUNTS 0x106
 #define event_REMOVEICON 0x107
+#define event_HELP 0x108
 
 #define event_ports_SHOW 0x200
 #define event_ports_SET  0x201
@@ -238,6 +239,18 @@ static osbool mount_open(bits event_code, toolbox_action *event, toolbox_block *
 
 	snprintf(buf, sizeof(buf), "Filer_OpenDir %s",((struct mounticon *)mountdetails)->filename);
 	E(xwimp_start_task(buf, NULL));
+
+	return 1;
+}
+
+static osbool help(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
+{
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(id_block);
+	UNUSED(handle);
+
+	E(xwimp_start_task("Filer_Run <Sunfish$Dir>.!Help", NULL));
 
 	return 1;
 }
@@ -658,6 +671,7 @@ int main(void)
 	event_set_mask(1+256);
 
 	event_register_toolbox_handler(event_ANY, event_QUIT, quit, NULL);
+	event_register_toolbox_handler(event_ANY, event_HELP,  help, NULL);
 	event_register_toolbox_handler(event_ANY, event_main_SHOW, mainwin_open, NULL);
 	event_register_toolbox_handler(event_ANY, event_main_HIDE, mainwin_close, NULL);
 	event_register_toolbox_handler(event_ANY, event_main_SET,  mainwin_set, NULL);
