@@ -367,7 +367,6 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 		/* segment must now be a link relative to dirhandle */
 		while (segmentmaxlen > 0) {
 			int i = 0;
-			static struct diropres lookupres2;
 
 			while (i < segmentmaxlen && segment[i] != '/') i++;
 	
