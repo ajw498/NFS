@@ -1,4 +1,4 @@
-v0.92 ??
+v0.92 22-Oct-03
 Fix bug in IP address handling.
 Fixed bug in reading of auxilliary gids from pcnfsd.
 Allow ' in filenames.
