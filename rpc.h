@@ -33,4 +33,8 @@ os_error *rpc_do_call(struct conn_info *conn);
 extern os_error err_buf;
 #define rpc_buffer_overflow() (strcpy(err_buf.errmess,"Buffer overflow"),&err_buf)
 
+void *llmalloc(size_t size);
+
+void swap_rxbuffers(void);
+
 #endif

@@ -26,11 +26,20 @@ static unsigned int xid;
 static struct rpc_msg call_header;
 static struct rpc_msg reply_header;
 static char tx_buffer[8192];
-static char rx_buffer[8192];
+static char rx_buffer1[8192];
+static char rx_buffer2[8192];
+static char *rx_buffer = rx_buffer1;
+static char malloc_buffer[8192];
+static char *nextmalloc;
 static char *tx_buffer_end = tx_buffer + sizeof(tx_buffer);
 /*static char *rx_buffer_end = rx_buffer + sizeof(rx_buffer);*/
 char *buf, *bufend;
 static char auth_unix[] = {0,0,0,23, 0,0,0,7, 'c','a','r','a','m','e','l',0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0};
+
+void swap_rxbuffers(void)
+{
+	rx_buffer = rx_buffer == rx_buffer1 ? rx_buffer2 : rx_buffer1;
+}
 
 /* Initialise parts of the header that are the same for all calls */
 void rpc_init_header(void)
@@ -56,6 +65,7 @@ void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, s
 	call_header.body.u.cbody.proc = proc;
 	buf = tx_buffer;
 	bufend = tx_buffer_end;
+	nextmalloc = malloc_buffer;
 	process_struct_rpc_msg(OUTPUT, call_header, 0);
 buffer_overflow: /* Should be impossible, but... */
 	return;
@@ -111,7 +121,7 @@ os_error *rpc_do_call(struct conn_info *conn)
 
 	if (send(sock, tx_buffer, buf - tx_buffer, 0) == -1) rpc_error("send failed");
 
-	len = socketread(sock, rx_buffer, sizeof(rx_buffer));
+	len = socketread(sock, rx_buffer, sizeof(rx_buffer1));
 	if (len == -1) rpc_error("socketread failed");
 
 /*	{
@@ -151,4 +161,11 @@ os_error *rpc_do_call(struct conn_info *conn)
 
 buffer_overflow:
 	return rpc_buffer_overflow();
+}
+
+void *llmalloc(size_t size)
+{
+	void *mem = nextmalloc;
+	nextmalloc += size; /* error checking? */
+	return mem;
 }

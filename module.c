@@ -6,7 +6,6 @@
 #include "mount-calls.h"
 #include "portmapper-calls.h"
 #include "rpc.h"
-#include "readdir.h"
 
 #include "moduledefs.h"
 #include "imageentry_func.h"

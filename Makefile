@@ -11,9 +11,8 @@ CFLAGS = -Wp -IC: -I$(NETINCLUDE) -fah $(THROWBACK) -zM
 LINK = link
 LINKFLAGS = #-d
 
-all2: module
+all: module
 
-all: main test
 
 
 RPCFILES = rpc-calls.c rpccalls.h rpc-structs.h rpc-process1.h rpc-process2.h
@@ -37,7 +36,7 @@ GENFILES = $(RPCFILES) $(NFSFILES) $(MOUNTFILES) $(PMAPFILES)
 
 GENOBJS = rpc-calls.o nfs-calls.o mount-calls.o portmapper-calls.o
 
-OBJS = rpc.o test.o readdir.o imageentry_func.o
+OBJS = rpc.o imageentry_func.o
 
 $(OBJS) $(GENOBJS): $(GENFILES)
 
@@ -52,12 +51,6 @@ base.o: base.s
 
 moduledefs.h modulehdr.o: @.cmhg.modulehdr
 	cmhg  -throwback modulehdr.cmhg -o modulehdr.o moduledefs.h
-
-main: main.o
-	$(LINK) -o $@ $(LINKFLAGS) main.o C:o.stubs $(NETLIBS)
-
-test: $(OBJS) $(GENOBJS)
-	$(LINK) -o $@ $(LINKFLAGS) $(OBJS) $(GENOBJS) C:o.stubs $(NETLIBS)
 
 .SUFFIXES: .o .s .c
 

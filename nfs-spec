@@ -134,7 +134,7 @@ struct readdirargs {
 };
 
 /* Hacked the linked list a bit to make it simpler */
-struct readdirok_entry_TRUE {
+/*struct readdirok_entry_TRUE {
         unsigned fileid;
         filename name;
         nfscookie cookie;
@@ -145,21 +145,40 @@ case TRUE:
   readdirok_entry_TRUE u;
 };
 
-struct readdirok {
+struct readdirok {*/
         /*entry *entries;*/
-        bool eof;
+/*        bool eof;
 };
 
 struct readdirres {
 	nstat status;
 };
-
+*/
 /*union readdirres switch (stat status) {
 case NFS_OK:
        readdirok readdirok;
 default:
         void;
 };*/
+
+struct *entry {
+        unsigned fileid;
+        filename name;
+        nfscookie cookie;
+        entry *next;
+};
+
+struct readdirok {
+        entry *entries;
+        bool eof;
+};
+
+union readdirres switch (nstat status) {
+case NFS_OK:
+        readdirok readdirok;
+default:
+        void;
+};
 
 readdirres NFSPROC_READDIR(readdirargs) = 16;
 
@@ -207,3 +226,9 @@ struct renameargs {
 };
 
 nstat NFSPROC_RENAME(renameargs) = 11;
+
+struct getattrargs {
+	fhandle fhandle;
+};
+
+attrstat NFSPROC_GETATTR(getattrargs) = 1;

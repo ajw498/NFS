@@ -42,15 +42,24 @@ $typessize{"int"} = 0;
 $typessize{"unsigned"} = 0;
 $typessize{"bool"} = "bool";
 
+$structbase = "##structbase.";
+
 while (<>) {
   #print "$state - $_";
-  if ($state eq "struct" or $state eq "union") {
+  if ($state =~ /(struct)|(union)|(linklist)/) {
     if (/\}\;*/) {
       if ($state eq "union") {
         print STRUCTS "} u;\n};\n";
         print UNIONS "}} while (0)\n\n";
+      } elsif ($state eq "linklist") {
+        print STRUCTS "};\n";
+        print PROCS "ptr = &((*ptr)->next);\\\n";
+        print PROCS "}\\\n";
+        print PROCS "} while (opted);\\\n";
+        print PROCS "*ptr = NULL;\\\n";
+        $structbase = "##structbase.";
       } else {
-        print STRUCTS "};";
+        print STRUCTS "};\n";
       }
       print PROCS "} while (0)\n\n";
       $state = "none";
@@ -59,14 +68,14 @@ while (<>) {
     } elsif (/case (\w*)\:/) {
       print UNIONS "break;\\\n" if (!$firstcase);
       print UNIONS "case $1:\\\n";
-      print UNIONS "process_union_body_${name}_$1(input,##structbase.u);\\\n";
+      print UNIONS "process_union_body_${name}_$1(input,${structbase}u);\\\n";
       print PROCS "} while (0)\n" if (!$firstcase);
       print PROCS "#define process_union_body_${name}_$1(input,structbase) do {\\\n";
       $firstcase = 0;
     } elsif (/default\:/) {
       print UNIONS "break;\\\n" if (!$firstcase);
       print UNIONS "default:\\\n";
-      print UNIONS "process_union_body_${name}_default(input,##structbase.u);\\\n";
+      print UNIONS "process_union_body_${name}_default(input,${structbase}u);\\\n";
       print PROCS "} while (0)\n" if (!$firstcase);
       print PROCS "#define process_union_body_${name}_default(input,structbase) do {\\\n";
       $firstcase = 0;
@@ -79,29 +88,34 @@ while (<>) {
       $maxsize = "OPAQUE_MAX" if ($maxsize =~ /^$/);
       print STRUCTS "${ws}struct opaque $opaquename;\n";
 #      print STRUCTS "#define OPAQUE_${name}_${2}_MAX $3\n";
-      print PROCS "process_opaque(input,##structbase.$opaquename,$maxsize);\\\n";
-    } elsif (/(\s*)(\w+(\s+\w+)*)\s+(\w+)\;$/) {
-      my $type = $types{$2};
-      my $typesize = $typessize{$2};
-      die "Unknown type \"$2\"\n" unless defined $type;
-      if (($type eq "struct") || ($type eq "union")) {
-        my $ptr = "";
-        $ptr = "*" if ($2 eq $name);
-        print STRUCTS "${1}struct $2 $ptr$4;\n";
-        print PROCS "process_${type}_$2(input, ##structbase.$4, $typesize);\\\n";
+      print PROCS "process_opaque(input,${structbase}$opaquename,$maxsize);\\\n";
+    } elsif (/(\s*)(\w+(\s+\w+)*)\s+(\*?)(\w+)\;$/) {
+      my $ws = $1;
+      my $elementtype = $2;
+      my $ptr = $4;
+      my $element = $5;
+      my $type = $types{$elementtype};
+      my $typesize = $typessize{$elementtype};
+      die "Unknown type \"$elementtype\"\n" unless defined $type;
+      die "next ptr not named next\n" if ($elementtype eq $name and $element ne "next");
+      if ($type eq "linklist" and $element eq "next") {
+        print STRUCTS "${ws}struct $elementtype $ptr$element;\n";
+      } elsif ($type eq "struct" or $type eq "union" or $type eq "linklist") {
+        print STRUCTS "${ws}struct $elementtype $ptr$element;\n";
+        print PROCS "process_${type}_$elementtype(input, ${structbase}$element, $typesize);\\\n";
       } elsif (($type eq "opaque") || ($type eq "string")) {
-        print STRUCTS "${1}struct opaque $4;\n";
-        print PROCS "process_${type}(input, ##structbase.$4, $typesize);\\\n";
+        print STRUCTS "${ws}struct opaque $element;\n";
+        print PROCS "process_${type}(input, ${structbase}$element, $typesize);\\\n";
       } elsif (($type eq "fixed_opaque") || ($type eq "fixed_string")) {
-        print STRUCTS "${1}char $4\[$typesize\];\n";
-        print PROCS "process_${type}(input, ##structbase.$4, $typesize);\\\n";
+        print STRUCTS "${ws}char $element\[$typesize\];\n";
+        print PROCS "process_${type}(input, ${structbase}$element, $typesize);\\\n";
       } else {
         if ($type eq "enum") {
-          print STRUCTS "${1}enum $2 $4;\n";
-          print PROCS "process_enum(input,##structbase.$4, $2);\\\n";
+          print STRUCTS "${ws}enum $elementtype $element;\n";
+          print PROCS "process_enum(input,${structbase}$element, $elementtype);\\\n";
         } else {
-          print STRUCTS "${1}$2 $4;\n";
-          print PROCS "process_$type(input,##structbase.$4, 0);\\\n";
+          print STRUCTS "${ws}$elementtype $element;\n";
+          print PROCS "process_$type(input,${structbase}$element, 0);\\\n";
         }
       }
     } elsif (/\/\*.*\*\//) {
@@ -135,26 +149,26 @@ while (<>) {
       $firstcase = 1;
       print UNIONS "#define process_union_${name}(input,structbase, maxsize) do {\\\n";
       if ($2 eq "unsigned") {
-        print UNIONS "process_int(input,##structbase.$3, 0);\\\n";
+        print UNIONS "process_int(input,${structbase}$3, 0);\\\n";
       } else {
-        print UNIONS "process_enum(input,##structbase.$3, $2);\\\n";
+        print UNIONS "process_enum(input,${structbase}$3, $2);\\\n";
       }
-      print UNIONS "switch (##structbase.$3) {\\\n";
+      print UNIONS "switch (${structbase}$3) {\\\n";
     } elsif (/^\s*struct *\*(\w*) /) {
       # Linked list
-      die "linked lists currently broken\n";
       $name = $1;
-      $types{$name} = $state = "union";
+      $types{$name} = $state = "linklist";
       $typessize{$name} = 0;
       print STRUCTS "struct ${name} {\n";
-      print STRUCTS "enum bool opted;\n";
-      print STRUCTS "union {\n";
-      print UNIONS "#define process_union_${name}(input,structbase, maxsize) do {\\\n";
-      print UNIONS "process_enum(input,##structbase.opted, bool);\\\n";
-      print UNIONS "switch (##structbase.opted) {\\\n";
-      print UNIONS "case TRUE:\\\n";
-      print UNIONS "process_union_body_${name}_TRUE(input, ##structbase.u, 0);\\\n";
-      print PROCS "#define process_union_body_${name}_TRUE(input, structbase, maxsize) do {\\\n";
+      print STRUCTS "int opted;\n";
+      print PROCS "#define process_linklist_${name}(input, structbase, maxsize) do {\\\n";
+      print PROCS "struct $name **ptr = &##structbase;\\\n";
+      print PROCS "int opted;\\\n";
+      print PROCS "do {\\\n";
+      print PROCS "process_int(input, opted, 0);\\\n";
+      print PROCS "if (opted) {\\\n";
+      print PROCS "*ptr = llmalloc(sizeof(struct $name));\\\n";
+      $structbase = "(*ptr)->";
     } elsif (/^\s*struct *(\w*) /) {
       print STRUCTS;
       $name = $1;
