@@ -46,7 +46,7 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 	args.totalcount = 0; /* Unused in NFS2 */
 	memcpy(args.file, handle->fhandle, FHSIZE);
 
-	do {
+	while (len > 0 || outstanding > 0) {
 		args.offset = offset;
 		args.count = len;
 		if (args.count > handle->conn->maxdatabuffer) args.count = handle->conn->maxdatabuffer;
@@ -67,7 +67,7 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 			memcpy(buffer, res.u.data.data, res.u.data.size);
 			buffer += res.u.data.size;
 		}
-	} while (len > 0 || outstanding > 0);
+	}
 
 	return NULL;
 }
@@ -85,7 +85,7 @@ os_error *writebytes(char *fhandle, char *buffer, unsigned int len, unsigned int
 	args.totalcount = 0;  /* Unused in NFS2 */
 	memcpy(args.file, fhandle, FHSIZE);
 
-	do {
+	while (len > 0 || outstanding > 0) {
 		args.offset = offset;
 		args.data.size = len;
 		if (args.data.size > conn->maxdatabuffer) args.data.size = conn->maxdatabuffer;
@@ -101,7 +101,7 @@ os_error *writebytes(char *fhandle, char *buffer, unsigned int len, unsigned int
 			if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
 			outstanding--;
 		}
-	} while (len > 0 || outstanding > 0);
+	}
 
 	return NULL;
 }
