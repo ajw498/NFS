@@ -303,7 +303,6 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->localportmin = LOCALPORTMIN_DEFAULT;
 	conn->localportmax = LOCALPORTMAX_DEFAULT;
 	conn->maxdatabuffer =  MAXDATABUFFER_DEFAULT;
-	conn->nextcookie = 0;
 	conn->followsymlinks = 5;
 	conn->pipelining = 0;
 	conn->casesensitive = 0;
@@ -433,17 +432,13 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 	char *bufferpos;
 	struct readdirargs rddir;
 	struct readdirres rdres;
-	struct entry *direntry;
+	struct entry *direntry = NULL;
 	os_error *err;
+	int cookie = 0;
+	int dirpos = 0;
 
 	bufferpos = buffer;
 	*objsread = 0;
-
-	if (start > MAX_DIRSTREAMS) {
-		return gen_error(FUNCERRBASE + 3, "Invalid start value");
-	} else if (start > 0) {
-		start = conn->cookies[start - 1];
-	}
 
 	if (dirname[0] == '\0') {
 		/* An empty dirname specifies the root directory */
@@ -459,76 +454,82 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 		memcpy(rddir.dir, finfo->file, FHSIZE);
 	}
 
-	rddir.count = conn->maxdatabuffer;
-	rddir.cookie = start;
-	err = NFSPROC_READDIR(&rddir, &rdres, conn);
-	if (err) return err;
-	if (rdres.status != NFS_OK) return gen_nfsstatus_error(rdres.status);
-
-	/* We may need to do a lookup on each filename, but this would
-	   corrupt the rx buffer which holds our list, so swap buffers */
-	swap_rxbuffers();
-
-	direntry = rdres.u.readdirok.entries;
-	while (direntry && *objsread < numobjs) {
-		if (direntry->name.size == 0) {
-			/* Ignore null names */
-		} else if (!conn->hidden && direntry->name.data[0] == '.') {
-			/* Ignore hidden files if so configured */
-		} else if (direntry->name.size == 1 && direntry->name.data[0] == '.') {
-			/* current dir */
-		} else if (direntry->name.size == 2 && direntry->name.data[0] == '.' && direntry->name.data[1] == '.') {
-			/* parent dir */
-		} else {
-			struct dir_entry *info_entry = NULL;
-			int filetype;
-			int len;
-
-			if (info) {
-				info_entry = (struct dir_entry *)bufferpos;
-				bufferpos += sizeof(struct dir_entry);
-			}
-
-			/* Check there is room in the output buffer. */
-			if (bufferpos > buffer + buflen) break;
-
-			/* Copy leafname into output buffer, translating some
-			   chars and stripping any ,xyz */
-			len = filename_riscosify(direntry->name.data, direntry->name.size, bufferpos, buffer + buflen - bufferpos, &filetype, conn);
-			if (len == 0) break; /* Buffer overflowed */
-
-			bufferpos += len;
-
-			if (info) {
-				struct diropok *lookupres;
-				enum nstat status;
-
-				bufferpos = (char *)(((int)bufferpos + 3) & ~3);
-
-				/* Lookup file attributes.
-				   READDIRPLUS in NFS3 would eliminate this call. */
-				err = leafname_to_finfo(direntry->name.data, direntry->name.size, rddir.dir, &lookupres, &status, conn);
-				if (err) return err;
-				if (status == NFS_OK) {
-					timeval_to_loadexec(&(lookupres->attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
-					info_entry->len = lookupres->attributes.size;
-					info_entry->attr = mode_to_attr(lookupres->attributes.mode);
-					info_entry->type = lookupres->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
-				} else {
-					/* An error occured, either the file no longer exists, or
-					   it is a symlink that doesn't point to a valid object. */
-					info_entry->load = 0xDEADDEAD;
-					info_entry->exec = 0xDEADDEAD;
-					info_entry->len = 0;
-					info_entry->attr = 0;
-					info_entry->type = OBJ_FILE;
+	while (dirpos <= start) {
+		rddir.count = conn->maxdatabuffer;
+		rddir.cookie = cookie;
+		err = NFSPROC_READDIR(&rddir, &rdres, conn);
+		if (err) return err;
+		if (rdres.status != NFS_OK) return gen_nfsstatus_error(rdres.status);
+	
+		/* We may need to do a lookup on each filename, but this would
+		   corrupt the rx buffer which holds our list, so swap buffers */
+		swap_rxbuffers();
+	
+		direntry = rdres.u.readdirok.entries;
+		while (direntry && *objsread < numobjs) {
+			if (direntry->name.size == 0) {
+				/* Ignore null names */
+			} else if (!conn->hidden && direntry->name.data[0] == '.') {
+				/* Ignore hidden files if so configured */
+			} else if (direntry->name.size == 1 && direntry->name.data[0] == '.') {
+				/* current dir */
+			} else if (direntry->name.size == 2 && direntry->name.data[0] == '.' && direntry->name.data[1] == '.') {
+				/* parent dir */
+			} else {
+				if (dirpos >= start) {
+					struct dir_entry *info_entry = NULL;
+					int filetype;
+					int len;
+		
+					if (info) {
+						info_entry = (struct dir_entry *)bufferpos;
+						bufferpos += sizeof(struct dir_entry);
+					}
+		
+					/* Check there is room in the output buffer. */
+					if (bufferpos > buffer + buflen) break;
+		
+					/* Copy leafname into output buffer, translating some
+					   chars and stripping any ,xyz */
+					len = filename_riscosify(direntry->name.data, direntry->name.size, bufferpos, buffer + buflen - bufferpos, &filetype, conn);
+					if (len == 0) break; /* Buffer overflowed */
+		
+					bufferpos += len;
+		
+					if (info) {
+						struct diropok *lookupres;
+						enum nstat status;
+		
+						bufferpos = (char *)(((int)bufferpos + 3) & ~3);
+		
+						/* Lookup file attributes.
+						   READDIRPLUS in NFS3 would eliminate this call. */
+						err = leafname_to_finfo(direntry->name.data, direntry->name.size, rddir.dir, &lookupres, &status, conn);
+						if (err) return err;
+						if (status == NFS_OK) {
+							timeval_to_loadexec(&(lookupres->attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
+							info_entry->len = lookupres->attributes.size;
+							info_entry->attr = mode_to_attr(lookupres->attributes.mode);
+							info_entry->type = lookupres->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
+						} else {
+							/* An error occured, either the file no longer exists, or
+							   it is a symlink that doesn't point to a valid object. */
+							info_entry->load = 0xDEADDEAD;
+							info_entry->exec = 0xDEADDEAD;
+							info_entry->len = 0;
+							info_entry->attr = 0;
+							info_entry->type = OBJ_FILE;
+						}
+					}
+	
+					(*objsread)++;
 				}
+				dirpos++;
 			}
-
-			(*objsread)++;
+			cookie = direntry->cookie;
+			direntry = direntry->next;
 		}
-		start = direntry->cookie;
-		direntry = direntry->next;
+		if (rdres.u.readdirok.eof) break;
 	}
 
 	if (direntry == NULL && rdres.u.readdirok.eof) {
@@ -537,16 +538,18 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 		   output buffer then we should cache them to save rerequesting
 		   them on the next iteration */
 	} else {
-		/* Store the cookie in a circular buffer. Ideally, we would just
-		   return the cookie to the user, but RISC OS seems to treat any
-		   value with the top bit set as if it were -1 */
-		conn->cookies[conn->nextcookie] = start;
-		*continuepos = ++(conn->nextcookie);
-		if (conn->nextcookie >= MAX_DIRSTREAMS) conn->nextcookie = 0;
+		/* Ideally, we would just return the cookie to the user, but
+		   RISC OS seems to treat any value with the top bit set
+		   as if it were -1
+		   Also Filer_Action seems to make assumptions that it
+		   really shouldn't, and treats the value being the position
+		   within the directory */
+		*continuepos = dirpos;
 
-		/* At this point we could speculativly request the next set of
+		/* At this point we could speculatively request the next set of
 		   entries to reduce the latency on the next request */
 	}
+
 	return NULL;
 }
 

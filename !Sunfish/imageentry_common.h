@@ -135,8 +135,6 @@ struct conn_info {
 	int localportmin;
 	int localportmax;
 	int maxdatabuffer;
-	int nextcookie;
-	int cookies[MAX_DIRSTREAMS];
 	int followsymlinks;
 	int pipelining;
 	int casesensitive;
