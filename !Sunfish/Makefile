@@ -13,6 +13,8 @@ LINK = link
 
 all: Sunfish
 
+frontend: frontend.c
+	$(CC) -c99 -fah -throwback -IC:,OSLibSupport:,OSLib: frontend.c -o !RunImage OSLibSupport:o.OSLibSupport32 OSLib:o.OSLib32 -l C:o.stubs
 
 rpc-calls.c rpc-calls.h: rpc-spec ProcessSpec
 	perl ProcessSpec rpc rpc-spec
