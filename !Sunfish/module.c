@@ -79,13 +79,13 @@ static void logexit(_kernel_swi_regs *r, os_error *err)
 	if (err) {
 		log_error(err);
 	} else {
-		syslogf(LOGNAME, LOGEXIT, "Exit %x %x %x %x %x %x %x",r->r[0],r->r[1],r->r[2],r->r[3],r->r[4],r->r[5],r->r[6]);
+		syslogf(LOGNAME, LOGEXIT, "Exit                %.8x %.8x %.8x %.8x %.8x %.8x %.8x",r->r[0],r->r[1],r->r[2],r->r[3],r->r[4],r->r[5],r->r[6]);
 	}
 }
 
 static void logentry(char *entry, char *filename, _kernel_swi_regs *r)
 {
-	syslogf(LOGNAME, LOGENTRY, "ImageEntry_%s %s %x %x %x %x %x %x %x", entry, filename, r->r[0], r->r[1], r->r[2], r->r[3], r->r[4], r->r[5], r->r[6]);	
+	syslogf(LOGNAME, LOGENTRY, "ImageEntry_%s %.8x %.8x %.8x %.8x %.8x %.8x %.8x %s", entry, r->r[0], r->r[1], r->r[2], r->r[3], r->r[4], r->r[5], r->r[6], filename);	
 }
 
 static os_error *declare_fs(void *private_word)
@@ -150,7 +150,7 @@ _kernel_oserror *imageentry_open_handler(_kernel_swi_regs *r, void *pw)
 
 	(void)pw;
 
-	if (enablelog) logentry("Open", (char *)(r->r[1]), r);
+	if (enablelog) logentry("Open    ", (char *)(r->r[1]), r);
 
 	err = open_file((char *)r->r[1], r->r[0], (struct conn_info *)(r->r[6]), (unsigned int *)&(r->r[0]), (struct file_handle **)&(r->r[1]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), (unsigned int *)&(r->r[4]));
 
@@ -195,7 +195,7 @@ _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 
 	(void)pw;
 
-	if (enablelog) logentry("Args", "", r);
+	if (enablelog) logentry("Args    ", "", r);
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_ARGS_WRITEEXTENT:
@@ -231,7 +231,7 @@ _kernel_oserror *imageentry_close_handler(_kernel_swi_regs *r, void *pw)
 
 	(void)pw;
 
-	if (enablelog) logentry("Close", "", r);
+	if (enablelog) logentry("Close   ", "", r);
 
 	err = close_file((struct file_handle *)(r->r[1]), r->r[2], r->r[3]);
 
@@ -246,7 +246,7 @@ _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 
 	(void)pw;
 
-	if (enablelog) logentry("File", (char *)(r->r[1]), r);
+	if (enablelog) logentry("File    ", (char *)(r->r[1]), r);
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_FILE_SAVEFILE:
@@ -285,7 +285,7 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 
 	(void)pw;
 
-	if (enablelog) logentry("Func", r->r[0] == 22 ? "" : (char *)(r->r[1]), r);
+	if (enablelog) logentry("Func    ", r->r[0] == 22 ? "" : (char *)(r->r[1]), r);
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_FUNC_RENAME:
