@@ -1,3 +1,6 @@
+v1.04 ?-???-05
+Fixed bug when a mount was mounted before the iconbar menu was displayed.
+
 v1.03 6-Jan-05
 Add support for dragging files to a mount's iconbar icon.
 Silently reconnect if a server closes a TCP connection due to inactivity.

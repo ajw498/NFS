@@ -1054,6 +1054,8 @@ int main(void)
 	E(xtoolbox_create_object(0, (toolbox_id)"unmounted", &unmountedicon));
 	E(xtoolbox_show_object(0, unmountedicon, toolbox_POSITION_DEFAULT, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
 
+	E(xtoolbox_create_object(0, (toolbox_id)"mainmenu", &mainmenuid));
+
 	xosfile_create_dir("<Sunfish$Write>", 0);
 	xosfile_create_dir("<Sunfish$Write>.mounts", 0);
 
