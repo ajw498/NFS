@@ -68,6 +68,24 @@ struct imagefs_info_block {
    We log all connections if any of them have logging enabled. */
 int enablelog = 0;
 
+/* Flag to detect and generate an error on reentrancy */
+static int entered = 0;
+
+#define ENTRY(name, filename, regs) do { \
+	if (enablelog) logentry(name, filename, regs); \
+	if (entered) { \
+		err = gen_error(MODULEERRBASE + 0,"Sunfish does not support accessing files from callbacks"); \
+		if (enablelog) logexit(regs, err); \
+		return err; \
+	} \
+	entered++; \
+} while (0)
+
+#define EXIT(regs, err) do { \
+	if (enablelog) logexit(regs, err); \
+	entered--; \
+} while (0)
+
 void syslogf(char *logname, int level, char *fmt, ...)
 {
 	static char syslogbuf[SYSLOGF_BUFSIZE];
@@ -114,15 +132,15 @@ static os_error *declare_fs(void *private_word)
 	info_block.imageentry_file =     ((int)imageentry_file) - module_base_address;
 	info_block.imageentry_func =     ((int)imageentry_func) - module_base_address;
 
-    return _swix(OS_FSControl, _INR(0,3), 35, module_base_address, ((int)(&info_block)) - module_base_address, private_word);
+	return _swix(OS_FSControl, _INR(0,3), 35, module_base_address, ((int)(&info_block)) - module_base_address, private_word);
 }
 
 /* Must handle service redeclare */
 void service_call(int service_number, _kernel_swi_regs *r, void *private_word)
 {
 	/* The veneer will have already filtered out uninteresting calls */
-    (void)service_number;
-    (void)r;
+	(void)service_number;
+	(void)r;
 
 	declare_fs(private_word); /* Ignore errors */
 }
@@ -131,8 +149,8 @@ _kernel_oserror *initialise(const char *cmd_tail, int podule_base, void *private
 {
 	os_error *err;
 
-    (void)cmd_tail;
-    (void)podule_base;
+	(void)cmd_tail;
+	(void)podule_base;
 
 	err = declare_fs(private_word);
 
@@ -146,21 +164,21 @@ _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 	os_error *err = NULL;
 	static int finalised = 0;
 
-    (void)fatal;
-    (void)podule_base;
-    (void)private_word;
+	(void)fatal;
+	(void)podule_base;
+	(void)private_word;
 
 	if (enablelog) syslogf(LOGNAME, LOGENTRY, "Module finalisation");
 
-    if (!finalised) err = _swix(OS_FSControl, _INR(0,1), 36, IMAGE_FILETYPE);
-    finalised = 1;
-    /* OS_FSControl 36 can return an error which we want to notify the caller
-       of, but that prevents the module from dying, and the next time
-       finalisation is called the FSControl call will fail as the imagefs
-       is no longer registered, so the module can never be killed.
-       So we make sure that we only deregister once. */
+	if (!finalised) err = _swix(OS_FSControl, _INR(0,1), 36, IMAGE_FILETYPE);
+	finalised = 1;
+	/* OS_FSControl 36 can return an error which we want to notify the caller
+	   of, but that prevents the module from dying, and the next time
+	   finalisation is called the FSControl call will fail as the imagefs
+	   is no longer registered, so the module can never be killed.
+	   So we make sure that we only deregister once. */
 
-    return err;
+	return err;
 }
 
 _kernel_oserror *imageentry_open_handler(_kernel_swi_regs *r, void *pw)
@@ -169,11 +187,11 @@ _kernel_oserror *imageentry_open_handler(_kernel_swi_regs *r, void *pw)
 
 	(void)pw;
 
-	if (enablelog) logentry("Open    ", (char *)(r->r[1]), r);
+	ENTRY("Open    ", (char *)(r->r[1]), r);
 
 	err = open_file((char *)r->r[1], r->r[0], (struct conn_info *)(r->r[6]), (unsigned int *)&(r->r[0]), (struct file_handle **)&(r->r[1]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), (unsigned int *)&(r->r[4]));
 
-	if (enablelog) logexit(r, err);
+        EXIT(r, err);
 
 	return err;
 }
@@ -184,11 +202,11 @@ _kernel_oserror *imageentry_getbytes_handler(_kernel_swi_regs *r, void *pw)
 
 	(void)pw;
 
-	if (enablelog) logentry("GetBytes", "", r);
+	ENTRY("GetBytes", "", r);
 
 	err = get_bytes((struct file_handle *)(r->r[1]), (char *)(r->r[2]), r->r[3], r->r[4]);
 
-	if (enablelog) logexit(r, err);
+	EXIT(r, err);
 
 	return err;
 }
@@ -199,11 +217,11 @@ _kernel_oserror *imageentry_putbytes_handler(_kernel_swi_regs *r, void *pw)
 
 	(void)pw;
 
-	if (enablelog) logentry("PutBytes", "", r);
+	ENTRY("PutBytes", "", r);
 
 	err = put_bytes((struct file_handle *)(r->r[1]), (char *)(r->r[2]), r->r[3], r->r[4]);
 
-	if (enablelog) logexit(r, err);
+	EXIT(r, err);
 
 	return err;
 }
@@ -214,7 +232,7 @@ _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 
 	(void)pw;
 
-	if (enablelog) logentry("Args    ", "", r);
+	ENTRY("Args    ", "", r);
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_ARGS_WRITEEXTENT:
@@ -239,7 +257,7 @@ _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 			err = gen_error(UNSUPP, UNSUPPMESS);
 	}
 
-	if (enablelog) logexit(r, err);
+	EXIT(r, err);
 
 	return err;
 }
@@ -250,11 +268,11 @@ _kernel_oserror *imageentry_close_handler(_kernel_swi_regs *r, void *pw)
 
 	(void)pw;
 
-	if (enablelog) logentry("Close   ", "", r);
+	ENTRY("Close   ", "", r);
 
 	err = close_file((struct file_handle *)(r->r[1]), r->r[2], r->r[3]);
 
-	if (enablelog) logexit(r, err);
+	EXIT(r, err);
 
 	return err;
 }
@@ -265,7 +283,7 @@ _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 
 	(void)pw;
 
-	if (enablelog) logentry("File    ", (char *)(r->r[1]), r);
+	ENTRY("File    ", (char *)(r->r[1]), r);
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_FILE_SAVEFILE:
@@ -293,7 +311,7 @@ _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 			err = gen_error(UNSUPP, UNSUPPMESS);
 	}
 
-	if (enablelog) logexit(r, err);
+	EXIT(r, err);
 
 	return err;
 }
@@ -304,7 +322,7 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 
 	(void)pw;
 
-	if (enablelog) logentry("Func    ", r->r[0] == 22 ? "" : (char *)(r->r[1]), r);
+	ENTRY("Func    ", r->r[0] == 22 ? "" : (char *)(r->r[1]), r);
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_FUNC_RENAME:
@@ -340,7 +358,7 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 			err = gen_error(UNSUPP, UNSUPPMESS);
 	}
 
-	if (enablelog) logexit(r, err);
+	EXIT(r, err);
 
 	return err;
 }

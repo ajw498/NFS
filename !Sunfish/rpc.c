@@ -268,6 +268,8 @@ static void logdata(int rx, char *buf, int len)
 void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, struct conn_info *conn)
 {
 	call_header.xid = nextxid++;
+	if (nextxid == UNALLOCATED) nextxid++;
+	
 	call_header.body.u.cbody.prog = prog;
 	call_header.body.u.cbody.vers = vers;
 	call_header.body.u.cbody.proc = proc;

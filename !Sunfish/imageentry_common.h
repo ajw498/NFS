@@ -82,7 +82,10 @@
 #define RPCBUFOVERFLOW (RPCERRBASE + 0)
 #define RPCBUFOVERFLOWMESS "RPC buffer overflow"
 
-/* Directory not empty error number must match what filecore uses */ 
+/* 1 error */
+#define MODULEERRBASE (ERRBASE + 48)
+
+/* Directory not empty error number must match what filecore uses */
 #define ERRDIRNOTEMPTY 67764
 
 
