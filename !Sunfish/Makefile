@@ -14,7 +14,7 @@ LINK = link
 all: Sunfish !RunImage
 
 !RunImage: frontend.c moduledefs.h
-	$(CC) $(CFLAGS) frontend.c -o !RunImage  -l OSLibSupport:o.OSLibSupport32,OSLib:o.OSLib32,C:o.stubs
+	$(CC) $(CFLAGS) frontend.c -o !RunImage  -l TCPIPLIBS:o.unixlib,OSLibSupport:o.OSLibSupport32,OSLib:o.OSLib32,C:o.stubs
 
 rpc-calls.c rpc-calls.h: rpc-spec ProcessSpec
 	perl ProcessSpec rpc rpc-spec

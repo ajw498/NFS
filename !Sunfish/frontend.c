@@ -27,10 +27,13 @@
 #include <string.h>
 #include <kernel.h>
 #include <stdarg.h>
+#include <ctype.h>
+#include <unixlib.h>
 
 #include "Event.h"
 
 #include "oslib/gadget.h"
+#include "oslib/menu.h"
 #include "oslib/radiobutton.h"
 #include "oslib/optionbutton.h"
 #include "oslib/writablefield.h"
@@ -41,6 +44,7 @@
 
 #include "oslib/osfile.h"
 #include "oslib/osfscontrol.h"
+#include "oslib/osgbpb.h"
 
 #include "moduledefs.h"
 #include "sunfish.h"
@@ -54,6 +58,8 @@
 #define event_SHOWMOUNTS 0x106
 #define event_REMOVEICON 0x107
 #define event_HELP 0x108
+#define event_EDITMENU 0x109
+#define event_NEWMOUNT 0x10a
 
 #define event_ports_SHOW 0x200
 #define event_ports_SET  0x201
@@ -140,6 +146,7 @@ struct mount {
 	int umask;
 	osbool usepcnfsd;
 	osbool tcp;
+	char leafname[STRMAX];
 };
 
 static struct mount mount;
@@ -147,6 +154,9 @@ static struct mount mount;
 static toolbox_o filenamesid;
 static toolbox_o portsid;
 static toolbox_o connectionid;
+static toolbox_o mainwinid;
+static toolbox_o editmenuid;
+
 
 static toolbox_o unmountedicon;
 
@@ -203,6 +213,115 @@ static void mount_save(char *filename)
 	fclose(file);
 
 	E(xosfile_set_type(filename, SUNFISH_FILETYPE));
+}
+
+#define CHECK(str) (strncasecmp(line,str,sizeof(str))==0)
+
+static void mount_load(char *filename)
+{
+	FILE *file;
+	char buffer[STRMAX];
+	char *leafname;
+
+	file = fopen(filename, "r");
+	if (file == NULL) {
+		xwimp_report_error((os_error*)_kernel_last_oserror(),0,"Sunfish",NULL);
+		return;
+	}
+
+	leafname = strrchr(filename, '.');
+	if (leafname == NULL) {
+		leafname = filename;
+	} else {
+		leafname++;
+	}
+
+	snprintf(mount.leafname, STRMAX, "%s", leafname);
+
+	while (fgets(buffer, STRMAX, file) != NULL) {
+		char *val;
+		char *line;
+
+		/* Strip trailing whitespace */
+		val = buffer;
+		while (*val) val++;
+		while (val > buffer && isspace(val[-1])) val--;
+		*val = '\0';
+
+		/* Strip leading whitespace */
+		line = buffer;
+		while (isspace(*line)) line++;
+
+		/* Find the end of the field */
+		val = line;
+		while (*val && *val != ':') val++;
+		if (*val) *val++ = '\0';
+		/* Find the start of the value */
+		while (isspace(*val)) val++;
+
+		if (CHECK("#")) {
+			/* A comment */
+		} else if (CHECK("Protocol")) {
+		} else if (CHECK("Server")) {
+			strcpy(mount.server, val);
+		} else if (CHECK("MachineName")) {
+			strcpy(mount.machinename, val);
+		} else if (CHECK("PortMapperPort")) {
+			mount.portmapperport = (int)strtol(val, NULL, 10);
+		} else if (CHECK("MountPort")) {
+			mount.mountport = (int)strtol(val, NULL, 10);
+		} else if (CHECK("NFSPort")) {
+			mount.nfsport = (int)strtol(val, NULL, 10);
+		} else if (CHECK("PCNFSDPort")) {
+			mount.pcnfsdport = (int)strtol(val, NULL, 10);
+		} else if (CHECK("Transport")) {
+			mount.tcp = strcasecmp(val, "tcp") == 0;
+		} else if (CHECK("Export")) {
+			strcpy(mount.export, val);
+		} else if (CHECK("UID")) {
+			mount.usepcnfsd = 0;
+			mount.uid = (int)strtol(val, NULL, 10);
+		} else if (CHECK("GID") || CHECK("GIDs")) {
+			strncat(mount.gids, val, STRMAX - strlen(mount.gids));
+			mount.gids[STRMAX - 1] = '\0';
+		} else if (CHECK("Username")) {
+			mount.usepcnfsd = 1;
+			strcpy(mount.username, val);
+		} else if (CHECK("Password")) {
+			strcpy(mount.password, val);
+		} else if (CHECK("Logging")) {
+			mount.logging = (int)strtol(val, NULL, 10);
+		} else if (CHECK("umask")) {
+			mount.umask = 07777 & (int)strtol(val, NULL, 8); /* umask is specified in octal */
+		} else if (CHECK("unumask")) {
+			mount.unumask = 07777 & (int)strtol(val, NULL, 8); /* unumask is specified in octal */
+		} else if (CHECK("ShowHidden")) {
+			mount.showhidden = (int)strtol(val, NULL, 10);
+		} else if (CHECK("Timeout")) {
+			mount.timeout = (int)strtol(val, NULL, 10);
+		} else if (CHECK("Retries")) {
+			mount.retries = (int)strtol(val, NULL, 10);
+		} else if (CHECK("DefaultFiletype")) {
+			mount.defaultfiletype = 0xFFF & (int)strtol(val, NULL, 16);
+		} else if (CHECK("AddExt")) {
+			mount.addext = (int)strtol(val, NULL, 10);
+		} else if (CHECK("LocalPort")) {
+			char *end;
+
+			mount.localportmin = (int)strtol(val, &end, 10);
+			mount.localportmax = (int)strtol(end, NULL, 10);
+			if (mount.localportmax == 0) mount.localportmax = mount.localportmin;
+		} else if (CHECK("Pipelining")) {
+			mount.pipelining = (int)strtol(val, NULL, 10);
+		} else if (CHECK("MaxDataBuffer")) {
+			mount.maxdatabuffer = (int)strtol(val, NULL, 10);
+		} else if (CHECK("FollowSymlinks")) {
+			mount.followsymlinks = (int)strtol(val, NULL, 10);
+		} else if (CHECK("CaseSensitive")) {
+			mount.casesensitive = (int)strtol(val, NULL, 10);
+		}
+	}
+	fclose(file);
 }
 
 static osbool mount_remove(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
@@ -296,7 +415,7 @@ static void add_mount(char *filename)
 	E(xiconbar_set_text(0, icon, leaf));
  	event_register_toolbox_handler(icon, event_MOUNT,  mount_open, mountdetails);
 
-    E(xiconbar_get_icon_handle(0, iconhead == NULL ? unmountedicon : iconhead->icon, &oldicon));
+	E(xiconbar_get_icon_handle(0, iconhead == NULL ? unmountedicon : iconhead->icon, &oldicon));
 	E(xtoolbox_show_object(0, icon, toolbox_POSITION_FULL, (toolbox_position*)&oldicon, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
 
 	if (iconhead == NULL) {
@@ -463,43 +582,39 @@ static osbool pcnfsd_toggle(bits event_code, toolbox_action *event, toolbox_bloc
 {
 	UNUSED(event_code);
 	UNUSED(event);
+	UNUSED(id_block);
 	UNUSED(handle);
 
 	osbool usepcnfsd;
 	gadget_flags flags;
 
-	E(xradiobutton_get_state(0, id_block->this_obj, gadget_main_USEPCNFSD, &usepcnfsd, NULL));
+	E(xradiobutton_get_state(0, mainwinid, gadget_main_USEPCNFSD, &usepcnfsd, NULL));
 
-	E(xgadget_get_flags(0, id_block->this_obj, gadget_main_USERNAME, &flags));
+	E(xgadget_get_flags(0, mainwinid, gadget_main_USERNAME, &flags));
 	if (usepcnfsd) flags &= ~gadget_FADED; else flags |= gadget_FADED;
-	E(xgadget_set_flags(0, id_block->this_obj, gadget_main_USERNAME, flags));
+	E(xgadget_set_flags(0, mainwinid, gadget_main_USERNAME, flags));
 
-	E(xgadget_get_flags(0, id_block->this_obj, gadget_main_PASSWORD, &flags));
+	E(xgadget_get_flags(0, mainwinid, gadget_main_PASSWORD, &flags));
 	if (usepcnfsd) flags &= ~gadget_FADED; else flags |= gadget_FADED;
-	E(xgadget_set_flags(0, id_block->this_obj, gadget_main_PASSWORD, flags));
+	E(xgadget_set_flags(0, mainwinid, gadget_main_PASSWORD, flags));
 
-	E(xgadget_get_flags(0, id_block->this_obj, gadget_main_UID, &flags));
+	E(xgadget_get_flags(0, mainwinid, gadget_main_UID, &flags));
 	if (usepcnfsd) flags |= gadget_FADED; else flags &= ~gadget_FADED;
-	E(xgadget_set_flags(0, id_block->this_obj, gadget_main_UID, flags));
+	E(xgadget_set_flags(0, mainwinid, gadget_main_UID, flags));
 
-	E(xgadget_get_flags(0, id_block->this_obj, gadget_main_GIDS, &flags));
+	E(xgadget_get_flags(0, mainwinid, gadget_main_GIDS, &flags));
 	if (usepcnfsd) flags |= gadget_FADED; else flags &= ~gadget_FADED;
-	E(xgadget_set_flags(0, id_block->this_obj, gadget_main_GIDS, flags));
+	E(xgadget_set_flags(0, mainwinid, gadget_main_GIDS, flags));
 
-	E(xgadget_get_flags(0, id_block->this_obj, gadget_main_UMASK, &flags));
+	E(xgadget_get_flags(0, mainwinid, gadget_main_UMASK, &flags));
 	if (usepcnfsd) flags |= gadget_FADED; else flags &= ~gadget_FADED;
-	E(xgadget_set_flags(0, id_block->this_obj, gadget_main_UMASK, flags));
+	E(xgadget_set_flags(0, mainwinid, gadget_main_UMASK, flags));
 
 	return 1;
 }
 
-static osbool mainwin_open(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
+static void mainwin_setup(char *mountname)
 {
-	UNUSED(event_code);
-	UNUSED(event);
-	UNUSED(handle);
-	char tmp[11];
-
 	mount.showhidden = 1;
 	mount.followsymlinks = 5;
 	mount.casesensitive = 0;
@@ -527,26 +642,142 @@ static osbool mainwin_open(bits event_code, toolbox_action *event, toolbox_block
 	mount.umask = 022;
 	mount.usepcnfsd = 0;
 	mount.tcp = 0;
+	mount.leafname[0] = '\0';
 
-
-	E(xwritablefield_set_value(0, id_block->this_obj, gadget_main_SERVER, mount.server));
-	E(xwritablefield_set_value(0, id_block->this_obj, gadget_main_EXPORT, mount.export));
-	E(xwritablefield_set_value(0, id_block->this_obj, gadget_main_USERNAME, mount.username));
-	E(xwritablefield_set_value(0, id_block->this_obj, gadget_main_PASSWORD, mount.password));
-	snprintf(tmp, sizeof(tmp), "%d", mount.uid);
-	E(xwritablefield_set_value(0, id_block->this_obj, gadget_main_UID, mount.uid ? tmp : ""));
-	E(xwritablefield_set_value(0, id_block->this_obj, gadget_main_GIDS, mount.gids));
-	snprintf(tmp, sizeof(tmp), "%.3o", mount.umask);
-	E(xwritablefield_set_value(0, id_block->this_obj, gadget_main_UMASK, tmp));
-	if (mount.usepcnfsd) {
-		E(xradiobutton_set_state(0, id_block->this_obj, gadget_main_USEPCNFSD, TRUE));
-	} else {
-		E(xradiobutton_set_state(0, id_block->this_obj, gadget_main_DONTUSEPCNFSD, TRUE));
+	if (mountname) {
+		char buffer[256];
+		snprintf(buffer, sizeof(buffer), "Sunfish:mounts.%s", mountname);
+		mount_load(buffer);
 	}
 
-	E(xwritablefield_set_value(0, id_block->this_obj, gadget_main_LEAFNAME, ""));
+}
 
-	pcnfsd_toggle(event_code, event, id_block, handle);
+#define MAX_MOUNTS 100
+
+static int numentries = -1;
+static struct menu_entry_object menuentry[MAX_MOUNTS];
+
+static osbool editmenu_selection(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
+{
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(handle);
+
+	if (id_block->this_obj != editmenuid) return 0;
+	if (id_block->this_cmp > numentries) return 0;
+
+	mainwin_setup(menuentry[id_block->this_cmp].text);
+
+	E(xtoolbox_show_object(0, mainwinid, toolbox_POSITION_CENTRED, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
+
+	return 1;
+}
+
+/* Create a menu of all mount files */
+static osbool editmenu_create(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
+{
+	int start = 0;
+	int read;
+	char buffer[256];
+
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(id_block);
+	UNUSED(handle);
+
+	/* Remove all entries from the menu */
+	if (numentries == -1) {
+		E(xmenu_remove_entry(0, editmenuid, 0));
+	} else {
+		for (int i = 0; i < numentries; i++) {
+			E(xmenu_remove_entry(0, editmenuid, i));
+			free(menuentry[i].text);
+		}
+	}
+
+	numentries = 0;
+
+	while (start != -1 && numentries < MAX_MOUNTS) {
+		E(xosgbpb_dir_entries("Sunfish:mounts", (osgbpb_string_list *)buffer, 1, start, sizeof(buffer), NULL, &read, &start));
+		if (read != 0) {
+			menuentry[numentries].flags = 0;
+			menuentry[numentries].cmp = numentries;
+			menuentry[numentries].text = strdup(buffer);
+			if (menuentry[numentries].text == NULL) return 1;
+			menuentry[numentries].text_limit = strlen(menuentry[numentries].text) + 1;
+			menuentry[numentries].click_object_name = NULL;
+			menuentry[numentries].sub_menu_object_name = NULL;
+			menuentry[numentries].sub_menu_action = 0;
+			menuentry[numentries].click_action =  0;
+			menuentry[numentries].help = NULL;
+			menuentry[numentries].help_limit = 0;
+
+			E(xmenu_add_entry(0, editmenuid, menu_ADD_AT_END, &(menuentry[numentries]), NULL));
+			numentries++;
+		}
+	}
+
+	if (numentries == 0) {
+		/* Give the menu one dummy entry */
+		menuentry[numentries].flags = menu_ENTRY_FADED;
+		menuentry[numentries].cmp = numentries;
+		menuentry[numentries].text = "No mounts";
+		menuentry[numentries].text_limit = strlen(menuentry[numentries].text) + 1;
+		menuentry[numentries].click_object_name = NULL;
+		menuentry[numentries].sub_menu_object_name = NULL;
+		menuentry[numentries].sub_menu_action = 0;
+		menuentry[numentries].click_action =  0;
+		menuentry[numentries].help = NULL;
+		menuentry[numentries].help_limit = 0;
+
+		E(xmenu_add_entry(0, editmenuid, menu_ADD_AT_END, &(menuentry[numentries]), NULL));
+
+		numentries = -1;
+	}
+
+	return 1;
+}
+
+static osbool mainwin_newmount(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
+{
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(handle);
+	UNUSED(id_block);
+
+	mainwin_setup(NULL);
+
+	return 1;
+}
+
+static osbool mainwin_open(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
+{
+	char tmp[11];
+
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(handle);
+	UNUSED(id_block);
+
+	E(xwritablefield_set_value(0, mainwinid, gadget_main_SERVER, mount.server));
+	E(xwritablefield_set_value(0, mainwinid, gadget_main_EXPORT, mount.export));
+	E(xwritablefield_set_value(0, mainwinid, gadget_main_USERNAME, mount.username));
+	E(xwritablefield_set_value(0, mainwinid, gadget_main_PASSWORD, mount.password));
+	snprintf(tmp, sizeof(tmp), "%d", mount.uid);
+	E(xwritablefield_set_value(0, mainwinid, gadget_main_UID, mount.uid ? tmp : ""));
+	E(xwritablefield_set_value(0, mainwinid, gadget_main_GIDS, mount.gids));
+	snprintf(tmp, sizeof(tmp), "%.3o", mount.umask);
+	E(xwritablefield_set_value(0, mainwinid, gadget_main_UMASK, tmp));
+	if (mount.usepcnfsd) {
+		E(xradiobutton_set_state(0, mainwinid, gadget_main_USEPCNFSD, TRUE));
+	} else {
+		E(xradiobutton_set_state(0, mainwinid, gadget_main_DONTUSEPCNFSD, TRUE));
+	}
+
+	E(xwritablefield_set_value(0, mainwinid, gadget_main_LEAFNAME, mount.leafname));
+
+	pcnfsd_toggle(0, 0, 0, 0);
+
 	return 1;
 }
 
@@ -555,29 +786,29 @@ static osbool mainwin_set(bits event_code, toolbox_action *event, toolbox_block 
 	UNUSED(event_code);
 	UNUSED(event);
 	UNUSED(handle);
-	char tmp[1024];
+	char tmp[32];
 	char filename[1024];
 
-	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_SERVER, mount.server, sizeof(tmp), NULL));
-	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_EXPORT, mount.export, sizeof(tmp), NULL));
-	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_USERNAME, mount.username, sizeof(tmp), NULL));
-	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_PASSWORD, mount.password, sizeof(tmp), NULL));
+	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_SERVER, mount.server, STRMAX, NULL));
+	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_EXPORT, mount.export, STRMAX, NULL));
+	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_USERNAME, mount.username, STRMAX, NULL));
+	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_PASSWORD, mount.password, STRMAX, NULL));
 	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_UID, tmp, sizeof(tmp), NULL));
 	mount.uid = atoi(tmp);
-	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_GIDS, mount.gids, sizeof(tmp), NULL));
+	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_GIDS, mount.gids, STRMAX, NULL));
 	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_UMASK, tmp, sizeof(tmp), NULL));
 	mount.umask = (int)strtol(tmp, NULL, 8);
 	E(xradiobutton_get_state(0, id_block->this_obj, gadget_main_USEPCNFSD, &mount.usepcnfsd, NULL));
 
-	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_LEAFNAME, tmp, sizeof(tmp), NULL));
-	if (tmp[0]) {
-		snprintf(filename, sizeof(filename), "<Sunfish$Write>.mounts.%s", tmp);
+	E(xwritablefield_get_value(0, id_block->this_obj, gadget_main_LEAFNAME, mount.leafname, STRMAX, NULL));
+	if (mount.leafname[0]) {
+		snprintf(filename, sizeof(filename), "<Sunfish$Write>.mounts.%s", mount.leafname);
 		mount_save(filename);
-	
-		snprintf(filename, sizeof(filename), "Filer_OpenDir Sunfish:mounts.%s",tmp);
+
+		snprintf(filename, sizeof(filename), "Filer_OpenDir Sunfish:mounts.%s",mount.leafname);
 		E(xwimp_start_task(filename, NULL));
 
-		snprintf(filename, sizeof(filename), "Sunfish:mounts.%s",tmp);
+		snprintf(filename, sizeof(filename), "Sunfish:mounts.%s",mount.leafname);
 		add_mount(filename);
 	} else {
 		os_error err = {1,"Mount leafname must not be blank"};
@@ -626,6 +857,12 @@ static osbool autocreated(bits event_code, toolbox_action *event, toolbox_block 
 	}
 	if (strcmp(event->data.created.name,"connection") == 0) {
 		connectionid = id_block->this_obj;
+	}
+	if (strcmp(event->data.created.name,"mainwin") == 0) {
+		mainwinid = id_block->this_obj;
+	}
+	if (strcmp(event->data.created.name,"EditMounts") == 0) {
+		editmenuid = id_block->this_obj;
 	}
 	if (strcmp(event->data.created.name,"ProgInfo") == 0) {
 		E(xproginfo_set_version(0, id_block->this_obj, Module_VersionString " (" Module_Date ")"));
@@ -678,7 +915,10 @@ int main(void)
 
 	event_register_toolbox_handler(event_ANY, event_QUIT, quit, NULL);
 	event_register_toolbox_handler(event_ANY, event_HELP,  help, NULL);
+	event_register_toolbox_handler(event_ANY, event_EDITMENU,  editmenu_create, NULL);
+	event_register_toolbox_handler(event_ANY, action_MENU_SELECTION, editmenu_selection, NULL);
 	event_register_toolbox_handler(event_ANY, event_main_SHOW, mainwin_open, NULL);
+	event_register_toolbox_handler(event_ANY, event_NEWMOUNT, mainwin_newmount, NULL);
 	event_register_toolbox_handler(event_ANY, event_main_HIDE, mainwin_close, NULL);
 	event_register_toolbox_handler(event_ANY, event_main_SET,  mainwin_set, NULL);
 	event_register_toolbox_handler(event_ANY, event_main_PCNFSD,  pcnfsd_toggle, NULL);
