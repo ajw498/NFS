@@ -63,7 +63,9 @@ Sunfish requires a working network connection and an NFS server to connect to. T
 <p>
 Sunfish should run on any version of RISC OS from 3.11 onwards. It has been reported to work on RISC OS 3.7, RISC OS 4 (including under Virtual RPC), Select, and RISC OS 5. It is 26/32bit neutral.
 <p>
-Sunfish has been reported to work with the Linux 2.4 kernel server in various distibutions, a Solaris 7/8 server, and Netware 6.5SP1a. It partially works with Allegro NFSd 1.1.4 on Windows, but a bug in that version of the server can cause file not found errors when copying files onto the server.
+Sunfish has been reported to work with the Linux 2.4 kernel server in various distibutions, a Solaris 7/8 server, the TrueGrid NFS server on Windows, and Netware 6.5SP1a. It partially works with Allegro NFSd 1.1.4 on Windows, but a bug in that version of the server can cause file not found errors when copying files onto the server.
+<p>
+The rest of this document assumes your server is correctly setup. You may wish to refer to <a href="linuxnfs.html">Allan Curtis' notes</a> on setting up a Linux NFS server, or the <a href="http://www.drobe.co.uk/riscos/artifact1172.html">Drobe article</a> on setting up the TrueGrid server for use with Sunfish.
 <p>
 Any updates will be available from <a href="http://www.alexwaugh.com/">http://www.alexwaugh.com/</a>
 
