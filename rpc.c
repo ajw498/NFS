@@ -79,7 +79,7 @@ os_error *rpc_do_call(struct conn_info *conn)
 	sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if (sock < 0) rpc_error("opening dgram socket");
 
-	hp = gethostbyname("mint"/*conn->server*/);
+	hp = gethostbyname(conn->server);
 	if (hp == NULL) rpc_error("Unable to resolve hostname");
 
 	memcpy(&name.sin_addr, hp->h_addr, hp->h_length);

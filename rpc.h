@@ -9,6 +9,9 @@
 
 #include "kernel.h"
 
+#define FHSIZE 32
+/**/
+
 typedef _kernel_oserror os_error;  /* Neatify */
 
 struct conn_info {
@@ -18,6 +21,7 @@ struct conn_info {
 	unsigned int nfs_port;
 	/*struct auth_unix auth;  */
 	char *export;
+	char rootfh[FHSIZE];
 };
 
 void rpc_init_header(void);

@@ -164,6 +164,7 @@ while (<>) {
     } elsif (/^\s*\#define/) {
       print STRUCTS;
     } elsif (/^\s*typedef (.*) (\S+)\[(\w*)\]\;/) {
+      #print STRUCTS "typedef char $2\[$3\];" if ($1 eq "opaque");
       #print STRUCTS;
       $types{$2} = "fixed_$1";
       $typessize{$2} = $3;
