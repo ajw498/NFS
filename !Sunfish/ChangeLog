@@ -1,3 +1,7 @@
+v0.96 ??-Nov-03
+Fixed bug that could cause some filetypes to be incorrectly set to the
+default filetype.
+
 v0.95 9-Nov-03
 Fixed bug in OS_File 0 handling which could cause incorrect size and
 filetype if an existing file of the same name was present.

@@ -140,14 +140,14 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 {
 	int i;
 	int j;
-	char *lastdot = NULL;
+	char *dotext = NULL;
 
 	*filetype = -1;
 
 	for (i = 0, j = 0; (i < namelen) && (j + 3 < buflen); i++) {
 		if (name[i] == '.') {
 			buffer[j++] = '/';
-			lastdot = name + i;
+			dotext = buffer + j;
 		} else if (name[i] == ' ') {
 			buffer[j++] = 160; /* spaces to hard spaces */
 		} else if (name[i] == ',') {
@@ -197,8 +197,8 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 	if (conn->xyzext != NEVER) {
 		if (*filetype == -1) {
 			/* No ,xyz found */
-	    	if (lastdot) {
-				*filetype = lookup_mimetype(lastdot + 1, conn);
+			if (dotext) {
+				*filetype = lookup_mimetype(dotext, conn);
 			} else {
 				/* No ,xyz and no extension, so use default */
 				*filetype = conn->defaultfiletype;
