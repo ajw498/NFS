@@ -145,7 +145,7 @@ os_error *func_readdirinfo(int info, const char *dirname, void *buffer, int numo
 			} else if (direntry.u.u.name.size == 2 && direntry.u.u.name.data[0] == '.' && direntry.u.u.name.data[1] == '.') {
 				/* parent dir */
 			} else {
-				entry->load = 0xFFF10200;
+				entry->load = 0xFFFFFF00;
 				entry->exec = 0;
 				entry->len = 1023;
 				entry->attr = 3;
@@ -161,5 +161,133 @@ os_error *func_readdirinfo(int info, const char *dirname, void *buffer, int numo
 	err = NFSPROC_READDIR_eof(&eof, conn);
 	if (err) return err;
 	*continuepos = -1;
+	return NULL;
+}
+
+#define return_error(msg) do { strcpy(err_buf.errmess,msg); return &err_buf; } while (0)
+
+static os_error *filename_to_finfo(char *filename, struct diropok **finfo, struct conn_info *conn)
+{
+	char *start = filename;
+	char *end;
+	char *dirhandle = conn->rootfh;
+	struct diropargs current;
+	static struct diropres next;
+	os_error *err;
+
+	do {
+		end = start;
+		/* Find end of dirname */
+		while (*end && *end != '.') end++;
+
+		current.name.data = start;
+		current.name.size = end - start;
+		memcpy(current.dir, dirhandle, FHSIZE);
+		err = NFSPROC_LOOKUP(&current, &next, conn);
+		if (err) return err;
+
+		if (next.status == NFSERR_NOENT) return (os_error *)1; /* Make this nicer */
+		if (next.status != NFS_OK) return_error("Lookup failed"); /* Should cope with leafname not found */
+		if (*end == '.' && next.u.diropok.attributes.type != NFDIR) return_error("not a directory");
+		dirhandle = next.u.diropok.file;
+		start = end + 1;
+	} while (*end != '\0');
+	*finfo = &(next.u.diropok);
+	return NULL;
+}
+
+os_error *open_file(char *filename, struct conn_info *conn, int *file_info_word, int *internal_handle, int *extent)
+{
+	struct file_handle *handle;
+    struct diropok *finfo;
+    os_error *err;
+
+	if (filename == NULL) return_error("ofla avoidance2");
+	handle = malloc(sizeof(struct file_handle));
+	if (handle == NULL) return_error("out of mem");
+	err = filename_to_finfo(filename, &finfo, conn);
+	if (err) {
+		free(handle);
+		if (err == (os_error *)1) {
+			*internal_handle = 0;
+			return NULL;
+		} else {
+			return err;
+		}
+	}
+	handle->conn = conn;
+	memcpy(handle->fhandle, finfo->file, FHSIZE);
+
+	*internal_handle = (int)handle;
+	*file_info_word = 0xC0000000;/*((finfo->attributes.mode & 0x400) << 20) | ((finfo->attributes.mode & 0x200) << 22);*/
+	*extent = finfo->attributes.size;
+	return NULL;
+}
+
+os_error *close_file(struct file_handle *handle, int load, int exec)
+{
+	/* FIXME update load/exec */
+	free(handle);
+	return NULL;
+}
+
+os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned len, unsigned offset)
+{
+	os_error *err;
+	struct readargs args;
+	struct readres res;
+
+/* FIXME */
+	if (len > 7000/*rx_buffersize*/) return_error("file too big");
+	memcpy(args.file, handle->fhandle, FHSIZE);
+	args.offset = offset;
+	args.count = len;
+	err = NFSPROC_READ(&args, &res, handle->conn);
+	if (err) return err;
+	if (res.status != NFS_OK) return_error("read failed");
+	/*if (res.u.data.size != len )return_error("unexpected amount of data read");*/
+	memcpy(buffer, res.u.data.data, res.u.data.size);
+	return NULL;
+}
+
+os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned len, unsigned offset)
+{
+	os_error *err;
+	struct writeargs args;
+	struct attrstat res;
+
+/* FIXME */
+	if (len > 7000/*tx_buffersize*/) return_error("file too big");
+	memcpy(args.file, handle->fhandle, FHSIZE);
+	args.offset = offset;
+	args.data.size = len;
+	args.data.data = buffer;
+	err = NFSPROC_WRITE(&args, &res, handle->conn);
+	if (err) return err;
+	if (res.status != NFS_OK) return_error("write failed");
+	return NULL;
+}
+
+os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype, int *load, int *exec, int *len, int *attr)
+{
+    struct diropok *finfo;
+    os_error *err;
+
+	if (filename == NULL) return_error("ofla avoidance");
+	err = filename_to_finfo(filename, &finfo, conn);
+	if (err) {
+		if (err == (os_error *)1) {
+			*objtype = 0;
+			return NULL;
+		} else {
+			return err;
+		}
+	}
+
+	*objtype = finfo->attributes.type == NFDIR ? 2 : 1;
+	*load = (int)0xFFFFFF00;
+	*exec = 0;
+	*len = finfo->attributes.size;
+	*attr = 3;/*((finfo->attributes.mode & 0x400) >> 10) | ((finfo->attributes.mode & 0x200) >> 8);*/
 	return NULL;
 }

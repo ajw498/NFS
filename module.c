@@ -88,25 +88,29 @@ _kernel_oserror *nfs_finalise(int fatal, int podule_base, void *private_word)
 
 _kernel_oserror *imageentry_open_handler(_kernel_swi_regs *r, void *pw)
 {
-	static _kernel_oserror err = {1,"nfs open bits not yet implemented"};
+	os_error *err;
 	UNUSED(pw);
-	UNUSED(r);
-	return &err;
+
+	err = open_file((char *)r->r[1], (struct conn_info *)(r->r[6]), &(r->r[0]), &(r->r[1]), &(r->r[3]));
+	r->r[2] = 1024;
+	r->r[4] = (r->r[3] + 1023) & ~1023;
+	return err;
 }
+
 _kernel_oserror *imageentry_getbytes_handler(_kernel_swi_regs *r, void *pw)
 {
-	static _kernel_oserror err = {1,"nfs getbytes bits not yet implemented"};
 	UNUSED(pw);
-	UNUSED(r);
-	return &err;
+
+	return get_bytes((struct file_handle *)(r->r[1]), (char *)(r->r[2]), r->r[3], r->r[4]);
 }
+
 _kernel_oserror *imageentry_putbytes_handler(_kernel_swi_regs *r, void *pw)
 {
-	static _kernel_oserror err = {1,"nfs putbytes bits not yet implemented"};
 	UNUSED(pw);
-	UNUSED(r);
-	return &err;
+
+	return put_bytes((struct file_handle *)(r->r[1]), (char *)(r->r[2]), r->r[3], r->r[4]);
 }
+
 _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 {
 	static _kernel_oserror err = {1,"nfs args bits not yet implemented"};
@@ -114,19 +118,26 @@ _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 	UNUSED(r);
 	return &err;
 }
+
 _kernel_oserror *imageentry_close_handler(_kernel_swi_regs *r, void *pw)
 {
-	static _kernel_oserror err = {1,"nfs close bits not yet implemented"};
 	UNUSED(pw);
-	UNUSED(r);
-	return &err;
+
+	return close_file((struct file_handle *)(r->r[1]), r->r[2], r->r[3]);
 }
+
 _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 {
 	static _kernel_oserror err = {1,""};
 	UNUSED(pw);
-	UNUSED(r);
-	sprintf(err.errmess,"nfs file %d '%s' not yet implemented",r->r[0],r->r[0] == 5? (char*)(r->r[1]) : "!!!");
+	switch (r->r[0]) {
+	case IMAGEENTRY_FILE_READCATINFO:
+		return file_readcatinfo((char *)(r->r[1]), (struct conn_info *)(r->r[6]), &(r->r[0]), &(r->r[2]), &(r->r[3]), &(r->r[4]), &(r->r[5]));
+		sprintf(err.errmess,"readcatinfo %x %x %x %x %x",r->r[0],r->r[2],r->r[3],r->r[4],r->r[5]);
+		return &err;
+	default:
+		sprintf(err.errmess,"nfs file %d '%s' not yet implemented",r->r[0],r->r[0] == 5? (char*)(r->r[1]) : "!!!");
+	}
 	return &err;
 }
 

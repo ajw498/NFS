@@ -1,5 +1,5 @@
 /*
-	$Id: $
+	$Id$
 
 	XDR Specification for the NFS V2 protocol.
 	See RFC 1094 for more details.
@@ -163,4 +163,29 @@ default:
 
 readdirres NFSPROC_READDIR(readdirargs) = 16;
 
+struct readargs {
+        fhandle file;
+        unsigned offset;
+        unsigned count;
+        unsigned totalcount;
+};
 
+union readres switch (nstat status) {
+case NFS_OK:
+        fattr attributes;
+        opaque data<>;
+default:
+        void;
+};
+
+readres NFSPROC_READ(readargs) = 6;
+
+struct writeargs {
+        fhandle file;
+        unsigned beginoffset;
+        unsigned offset;
+        unsigned totalcount;
+        opaque data<>;
+};
+
+attrstat NFSPROC_WRITE(writeargs) = 8;
