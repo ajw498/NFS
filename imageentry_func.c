@@ -16,6 +16,7 @@
 
 #include "imageentry_func.h"
 
+#include "rpc-calls.h"
 #include "nfs-calls.h"
 #include "mount-calls.h"
 #include "portmapper-calls.h"
@@ -30,6 +31,7 @@ static void free_conn_info(struct conn_info *conn)
 {
 	if (conn == NULL) return;
 	if (conn->config) free(conn->config);
+	if (conn->auth) free(conn->auth);
 	free(conn);
 }
 
@@ -78,6 +80,8 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		}
 	} else if (CHECK("Server")) {
 		conn->server = val;
+	} else if (CHECK("MachineName")) {
+		conn->machinename = val;
 	} else if (CHECK("PortMapperPort")) {
 		conn->portmapper_port = (int)strtol(val, NULL, 10);
 	} else if (CHECK("MountPort")) {
@@ -150,6 +154,43 @@ static os_error *parse_file(unsigned int fileswitchhandle, struct conn_info *con
 	return err;
 }
 
+static os_error *create_auth(struct conn_info *conn)
+{
+	struct auth_unix auth_unix;
+	unsigned int gids[16];
+
+	/* Make an estimate of the maximum size needed for the
+	   auth structure */
+	conn->authsize = sizeof(struct auth_unix) + strlen(conn->machinename) + 16 * 4;
+	conn->auth = malloc(conn->authsize);
+	if (conn == NULL) return gen_error(NOMEM,NOMEMMESS);
+
+	auth_unix.stamp = 0;
+	auth_unix.machinename.data = conn->machinename;
+	auth_unix.machinename.size = strlen(conn->machinename);
+	auth_unix.uid = conn->uid;
+	auth_unix.gid = conn->gid;
+	auth_unix.gids.size = 0;
+	auth_unix.gids.data = gids;
+	if (conn->gids) {
+		char *str = conn->gids;
+		char *end = str;
+
+		while (*end && auth_unix.gids.size < 16) {
+			gids[auth_unix.gids.size++] = (int)strtol(str, &end, 10);
+			str = end;
+		}
+	}
+	buf = conn->auth;
+	bufend = conn->auth + conn->authsize;
+	process_struct_auth_unix(0, auth_unix, 0);
+	conn->authsize = buf - conn->auth;
+
+	return NULL;
+buffer_overflow:
+	return gen_error(1,"foobared");
+}
+
 os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhandle)
 {
 	struct conn_info *conn;
@@ -180,6 +221,8 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->gid = 0;
 	conn->gids = NULL;
 	conn->logging = 0;
+	conn->auth = NULL;
+	conn->machinename = NULL;
 
 	/* Read details from file */
 	err = parse_file(fileswitchhandle, conn);
@@ -189,6 +232,21 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	}
 
 	if (conn->logging) enablelog++;
+
+	if (conn->password) {
+		/* use pcnfd to map to uid/gid */
+	}
+
+	if (conn->machinename == NULL) {
+		conn->machinename = ""; /* FIXME: get hostname */
+	}
+
+	/* Create the opaque auth structure */
+	err = create_auth(conn);
+	if (err) {
+		free_conn_info(conn);
+		return err;
+	}
 
 	/* Initialise socket etc. */
 	err = rpc_init_connection(conn);

@@ -13,6 +13,11 @@ struct opaque {
 	char *data;
 };
 
+struct opaqueint {
+	unsigned int size;
+	unsigned int *data;
+};
+
 #define OPAQUE_MAX 0xFFFFFFFF
 
 typedef struct opaque string;
@@ -46,6 +51,7 @@ extern char *buf, *bufend;
 
 #define output_bytes(data, size) (memcpy(buf, data, size),buf+=size)
 
+/* FIXME: check for remaining assertions */
 
 #define process_int(input, structbase, maxsize) do { \
  check_bufspace(4); \
@@ -118,6 +124,22 @@ extern char *buf, *bufend;
    (void)input_byte(); \
   } else { \
    output_byte(0); \
+  } \
+ } \
+} while (0)
+
+#define process_opaqueint(input, structbase, maxsize) do { \
+ process_int(input, ##structbase.size, 0); \
+ assert(##structbase.size <= maxsize); \
+ if (##structbase.size > 0) { \
+  int i; \
+  check_bufspace(##structbase.size * 4); \
+  for (i = 0; i < ##structbase.size; i++) { \
+   if (input) { \
+    /**/ \
+   } else { \
+    process_int(input, ##structbase.data[i], 0); \
+   } \
   } \
  } \
 } while (0)

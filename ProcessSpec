@@ -87,8 +87,14 @@ while (<>) {
       my $maxsize = $3;
       $maxsize = "OPAQUE_MAX" if ($maxsize =~ /^$/);
       print STRUCTS "${ws}struct opaque $opaquename;\n";
-#      print STRUCTS "#define OPAQUE_${name}_${2}_MAX $3\n";
       print PROCS "process_opaque(input,${structbase}$opaquename,$maxsize);\\\n";
+    } elsif (/(.*)unsigned int (\w*)\<(\w*)\>\;/) {
+      my $ws = $1;
+      my $opaquename = $2;
+      my $maxsize = $3;
+      $maxsize = "OPAQUE_MAX" if ($maxsize =~ /^$/);
+      print STRUCTS "${ws}struct opaqueint $opaquename;\n";
+      print PROCS "process_opaqueint(input,${structbase}$opaquename,$maxsize);\\\n";
     } elsif (/(\s*)(\w+(\s+\w+)*)\s+(\*?)(\w+)\;$/) {
       my $ws = $1;
       my $elementtype = $2;

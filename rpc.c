@@ -41,7 +41,6 @@ static char *nextmalloc;
 static char *tx_buffer_end = tx_buffer + sizeof(tx_buffer);
 /*static char *rx_buffer_end = rx_buffer + sizeof(rx_buffer);*/
 char *buf, *bufend;
-static char auth_unix[] = {0,0,0,23, 0,0,0,7, 'c','a','r','a','m','e','l',0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0};
 
 void swap_rxbuffers(void)
 {
@@ -55,9 +54,7 @@ void rpc_init_header(void)
 /*	printf("init xid = %d\n",xid); */
 	call_header.body.mtype = CALL;
 	call_header.body.u.cbody.rpcvers = RPC_VERSION;
-	call_header.body.u.cbody.cred.flavor = AUTH_UNIX; /**/
-	call_header.body.u.cbody.cred.body.size = sizeof(auth_unix);
-	call_header.body.u.cbody.cred.body.data = auth_unix;
+	call_header.body.u.cbody.cred.flavor = AUTH_UNIX;
 	call_header.body.u.cbody.verf.flavor = AUTH_NULL;
 	call_header.body.u.cbody.verf.body.size = 0;
 }
@@ -70,6 +67,8 @@ void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, s
 	call_header.body.u.cbody.prog = prog;
 	call_header.body.u.cbody.vers = vers;
 	call_header.body.u.cbody.proc = proc;
+	call_header.body.u.cbody.cred.body.size = conn->authsize;
+	call_header.body.u.cbody.cred.body.data = conn->auth;
 	buf = tx_buffer;
 	bufend = tx_buffer_end;
 	nextmalloc = malloc_buffer;

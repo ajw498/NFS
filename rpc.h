@@ -22,7 +22,6 @@ struct conn_info {
 	unsigned int portmapper_port;
 	unsigned int mount_port;
 	unsigned int nfs_port;
-	/*struct auth_unix auth;  */
 	char *export;
 	char rootfh[FHSIZE];
 	char *config;
@@ -38,6 +37,9 @@ struct conn_info {
 	char *username;
 	char *password;
 	int logging;
+	char *auth;
+	int authsize;
+	char *machinename;
 };
 
 void rpc_init_header(void);

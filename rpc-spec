@@ -21,13 +21,13 @@ struct opaque_auth {
 	opaque body<400>;
 };
 
-/*struct auth_unix {
+struct auth_unix {
 	unsigned int stamp;
-	string machinename<255>;
+	opaque machinename<255>;
 	unsigned int uid;
 	unsigned int gid;
 	unsigned int gids<16>;
-};*/
+};
 
 
 enum msg_type {
