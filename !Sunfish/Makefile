@@ -3,18 +3,18 @@
 #    $URL$
 #
 
-INCLUDE = -IC:,TCPIPLibs:
+INCLUDE = -IC:,TCPIPLibs:,OSLibSupport:,OSLib:
 LIBS    = TCPIPLIBS:o.unixlibzm TCPIPLIBS:o.inetlibzm TCPIPLibs:o.socklib5zm C:o.stubs
 
 CC = cc
-CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zM -zpq262144
+CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zpq262144
 
 LINK = link
 
-all: Sunfish
+all: Sunfish !RunImage
 
-frontend: frontend.c
-	$(CC) -c99 -fah -throwback -IC:,OSLibSupport:,OSLib: frontend.c -o !RunImage OSLibSupport:o.OSLibSupport32 OSLib:o.OSLib32 -l C:o.stubs
+!RunImage: frontend.c moduledefs.h
+	$(CC) $(CFLAGS) frontend.c -o !RunImage  -l OSLibSupport:o.OSLibSupport32,OSLib:o.OSLib32,C:o.stubs
 
 rpc-calls.c rpc-calls.h: rpc-spec ProcessSpec
 	perl ProcessSpec rpc rpc-spec
@@ -71,7 +71,7 @@ moduledefs.h modulehdr.o: @.cmhg.modulehdr
 .SUFFIXES: .o .s .c
 
 .c.o:
-	$(CC) -c  $(CFLAGS) -o $@ $<
+	$(CC) -c  -zM $(CFLAGS) -o $@ $<
 
 .s.o:
 	$(CC) -c  $(CFLAGS) -o $@ $<
@@ -79,6 +79,7 @@ moduledefs.h modulehdr.o: @.cmhg.modulehdr
 
 clean:
 	-remove Sunfish
+	-remove !RunImage
 	-remove h.moduledefs
 	-wipe o.* ~CFR~V
 	-wipe c.*-calls ~CFR~V
