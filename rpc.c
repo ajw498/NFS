@@ -5,6 +5,9 @@
 */
 
 #include "rpc-calls.h"
+#include "portmapper-calls.h"
+#include "mount-calls.h"
+#include "nfs-calls.h"
 #include "rpc.h"
 
 #include <stdio.h>
@@ -17,7 +20,6 @@
 #include <socklib.h>
 #include <time.h>
 
-#define RPC_VERSION 2
 
 static unsigned int xid;
 
@@ -26,26 +28,28 @@ static struct rpc_msg reply_header;
 static char tx_buffer[8192];
 static char rx_buffer[8192];
 static char *tx_buffer_end = tx_buffer + sizeof(tx_buffer);
-static char *rx_buffer_end = rx_buffer + sizeof(rx_buffer);
+/*static char *rx_buffer_end = rx_buffer + sizeof(rx_buffer);*/
 char *buf, *bufend;
 static char auth_unix[] = {0,0,0,23, 0,0,0,7, 'c','a','r','a','m','e','l',0, 0,0,0,0, 0,0,0,0, 0,0,0,1, 0,0,0,0};
 
-
-void init_header(void)
+/* Initialise parts of the header that are the same for all calls */
+void rpc_init_header(void)
 {
 	xid = time(NULL);
-	printf("init xid = %d\n",xid);
+/*	printf("init xid = %d\n",xid); */
 	call_header.body.mtype = CALL;
 	call_header.body.u.cbody.rpcvers = RPC_VERSION;
 	call_header.body.u.cbody.cred.flavor = AUTH_UNIX; /**/
 	call_header.body.u.cbody.cred.body.size = sizeof(auth_unix);
 	call_header.body.u.cbody.cred.body.data = auth_unix;
-	call_header.body.u.cbody.verf.flavor = AUTH_NULL; /**/
+	call_header.body.u.cbody.verf.flavor = AUTH_NULL;
 	call_header.body.u.cbody.verf.body.size = 0;
 }
 
-void prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, struct conn_info *conn)
+/* Setup buffer and write call header to it */
+void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, struct conn_info *conn)
 {
+	conn = conn;
 	call_header.xid = xid++;
 	call_header.body.u.cbody.prog = prog;
 	call_header.body.u.cbody.vers = vers;
@@ -53,38 +57,48 @@ void prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, struc
 	buf = tx_buffer;
 	bufend = tx_buffer_end;
 	process_struct_rpc_msg(OUTPUT, call_header, 0);
+buffer_overflow: /* Should be impossible, but... */
+	return;
 }
 
+os_error err_buf = {1, ""};
+
 #define rpc_error(msg) do { \
-	printf("%s\n",msg); \
-	exit(1); \
+ strcpy(err_buf.errmess,msg); \
+ return &err_buf; \
 } while (0)
 
-int do_call(struct conn_info *conn)
+os_error *rpc_do_call(struct conn_info *conn)
 {
 	int sock;
 	struct sockaddr_in name;
 	struct hostent *hp;
 	int len;
+	int port;
 
 	sock = socket(AF_INET, SOCK_DGRAM, 0);
-	if (sock < 0) {
-		perror("opening dgram socket");
-		exit(1);
-	}
+	if (sock < 0) rpc_error("opening dgram socket");
 
-	hp = gethostbyname("mint");
-	if (hp == NULL) {
-		printf("unknown host");
-		exit(1);
-	}
+	hp = gethostbyname("mint"/*conn->server*/);
+	if (hp == NULL) rpc_error("Unable to resolve hostname");
+
 	memcpy(&name.sin_addr, hp->h_addr, hp->h_length);
 	name.sin_family = AF_INET;
-	name.sin_port = htons(call_header.body.u.cbody.prog == 100005 ? 1027 : call_header.body.u.cbody.prog == 100000 ? 111 : 2049);
-	if (connect(sock, (struct sockaddr *)&name, sizeof(name)) < 0) {
-		printf("connect errno=%d\n",errno);
-		exit(1);
+	switch (call_header.body.u.cbody.prog) {
+	case PMAP_RPC_PROGRAM:
+		port = conn->portmapper_port;
+		break;
+	case MOUNT_RPC_PROGRAM:
+		port = conn->mount_port;
+		break;
+	case NFS_RPC_PROGRAM:
+		port = conn->nfs_port;
+		break;
+	default:
+		rpc_error("Unknown rpc program");
 	}
+	name.sin_port = htons(port);
+	if (connect(sock, (struct sockaddr *)&name, sizeof(name)) < 0) rpc_error("connect failed");
 
 /*	{
 		char *i;
@@ -94,15 +108,13 @@ int do_call(struct conn_info *conn)
 			if (((int)i)%4 == 3) printf("\n");
 		}
 	}*/
-	if (send(sock, tx_buffer, buf - tx_buffer, 0) == -1) {
-		printf("send errno=%d\n",errno);
-		/*perror("sending datagram message");*/
-		exit(1);
-	}
+
+	if (send(sock, tx_buffer, buf - tx_buffer, 0) == -1) rpc_error("send failed");
+
 	len = socketread(sock, rx_buffer, sizeof(rx_buffer));
-	if (len == -1) {
-		printf("read errno=%d\n",errno);
-	} else {
+	if (len == -1) rpc_error("socketread failed");
+
+/*	{
 		int i;
 		printf("reply:\n");
 		for (i = 0; i < len; i++) {
@@ -110,28 +122,33 @@ int do_call(struct conn_info *conn)
 			if (i%4 == 3) printf("\n");
 		}
 		printf("\n");
-	}
-	socketclose(sock);
+	}  */
+
+	if (socketclose(sock)) rpc_error("socketclose failed");
 
 	buf = rx_buffer;
 	bufend = rx_buffer + len;
 	process_struct_rpc_msg(INPUT, reply_header, 0);
-	printf("xid = %d\n",reply_header.xid);
+
+	/*printf("xid = %d\n",reply_header.xid);*/
 	if (reply_header.body.mtype != REPLY) {
-		printf("type = %d\n",reply_header.body.mtype);
+		/*printf("type = %d\n",reply_header.body.mtype);*/
 		rpc_error("Not a reply");
 	}
 	if (reply_header.body.u.rbody.stat == MSG_ACCEPTED) {
-		printf("msg accepted\n");
+		/*printf("msg accepted\n");*/
 	} else {
-		printf("reply_stat = %d\n",reply_header.body.u.rbody.stat);
+		/*printf("reply_stat = %d\n",reply_header.body.u.rbody.stat);*/
 		rpc_error("msg denied");
 	}
 	if (reply_header.body.u.rbody.u.areply.reply_data.stat == SUCCESS) {
-		printf("call successfull\n");
+		/*printf("call successfull\n");*/
 	} else {
-		printf("accept_stat = %d\n",reply_header.body.u.rbody.u.areply.reply_data.stat);
+		/*printf("accept_stat = %d\n",reply_header.body.u.rbody.u.areply.reply_data.stat);*/
 		rpc_error("call failed");
 	}
-	return 0;
+	return NULL;
+
+buffer_overflow:
+	return rpc_buffer_overflow();
 }

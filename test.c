@@ -20,7 +20,7 @@ int main(void)
 	struct readdirres rdres;
 	struct readdirok_entry entry;
 	struct readdirok eof;
-	init_header();
+	rpc_init_header();
 	NFSPROC3_NULL(NULL);
 	/*MNTPROC_EXPORT(NULL,NULL);*/
 	MNTPROC_MNT(&dir, &res, NULL);

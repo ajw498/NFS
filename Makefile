@@ -33,16 +33,18 @@ $(MOUNTFILES): mount-spec ProcessSpec
 $(PMAPFILES): portmapper-spec ProcessSpec
 	perl ProcessSpec portmapper portmapper-spec
 
+GENFILES = $(RPCFILES) $(NFSFILES) $(MOUNTFILES) $(PMAPFILES)
+
 GENOBJS = rpc-calls.o nfs-calls.o mount-calls.o portmapper-calls.o
 
-OBJS = rpc.o test.o readdir.o
+OBJS = rpc.o test.o readdir.o imageentry_func.o
 
-$(OBJS) $(GENOBJS): $(RPCFILES) $(NFSFILES) $(MOUNTFILES) $(PMAPFILES)
+$(OBJS) $(GENOBJS): $(GENFILES)
 
 module: module.o modulehdr.o base.o $(OBJS) $(GENOBJS)
 	link -m -o module module.o modulehdr.o base.o $(OBJS) $(GENOBJS) C:o.stubs $(NETLIBS)
 
-module.o: module.c moduledefs.h
+module.o: module.c moduledefs.h $(GENFILES)
 	$(CC) -throwback -c $(CFLAGS) -o module.o module.c
 
 base.o: base.s

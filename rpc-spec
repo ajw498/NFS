@@ -1,4 +1,13 @@
-/* StrongEd$Mode=C */
+/*
+	$Id: portmapper-spec 8 2003-09-16 23:32:41Z ajw $
+
+	XDR Specification for Remote Procedure Calls.
+	See RFC 1057 for more details.
+
+	StrongEd$Mode=C
+*/
+
+#define RPC_VERSION 2
 
 enum auth_flavor {
 	AUTH_NULL  = 0,
@@ -14,7 +23,7 @@ struct opaque_auth {
 
 /*struct auth_unix {
 	unsigned int stamp;
-	opaque machinename<255>;
+	string machinename<255>;
 	unsigned int uid;
 	unsigned int gid;
 	unsigned int gids<16>;

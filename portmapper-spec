@@ -19,11 +19,6 @@ struct mapping {
    unsigned int port;
 };
 
-/* protocol number for TCP/IP */
-const IPPROTO_TCP = 6;
-/* protocol number for UDP/IP */
-const IPPROTO_UDP = 17;
-
 /*struct *pmaplist {
    mapping map;
    pmaplist next;

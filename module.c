@@ -9,6 +9,11 @@
 #include "readdir.h"
 
 #include "moduledefs.h"
+#include "imageentry_func.h"
+
+#if CMHG_VERSION < 542
+#error cmhg out of date
+#endif
 
 #define UNUSED(x) x=x
 
@@ -16,7 +21,7 @@ extern int module_base_address;
 /*typedef void (*veneer)(void);*/
 typedef int veneer;
 
-struct {
+static struct {
 	unsigned int information_word;
 	unsigned int filetype;
 	veneer imageentry_open;
@@ -51,7 +56,7 @@ _kernel_oserror *nfs_initialise(const char *cmd_tail, int podule_base, void *pri
     UNUSED(cmd_tail);
     UNUSED(podule_base);
 
-    printf("initialising...\n");
+    /*printf("initialising...\n"); */
 
 	imagefs_info_block.information_word = 0;
 	imagefs_info_block.filetype = 0x001;
@@ -69,6 +74,8 @@ _kernel_oserror *nfs_initialise(const char *cmd_tail, int podule_base, void *pri
 	r.r[3] = (int)private_word;
     if (_kernel_swi(0x29,&r,&r)) printf("err regsitering");
 
+	rpc_init_header();
+
     return NULL;
 }
 
@@ -83,46 +90,57 @@ _kernel_oserror *nfs_finalise(int fatal, int podule_base, void *private_word)
 	r.r[0] = 36;
 	r.r[1] = 0x001;
     _kernel_swi(0x29,&r,&r);
-    printf("finalising...\n");
+    /*printf("finalising...\n"); */
     return NULL;
 }
 
 _kernel_oserror *imageentry_open_handler(_kernel_swi_regs *r, void *pw)
 {
 	static _kernel_oserror err = {1,"nfs open bits not yet implemented"};
+	UNUSED(pw);
+	UNUSED(r);
 	return &err;
 }
 _kernel_oserror *imageentry_getbytes_handler(_kernel_swi_regs *r, void *pw)
 {
 	static _kernel_oserror err = {1,"nfs getbytes bits not yet implemented"};
+	UNUSED(pw);
+	UNUSED(r);
 	return &err;
 }
 _kernel_oserror *imageentry_putbytes_handler(_kernel_swi_regs *r, void *pw)
 {
 	static _kernel_oserror err = {1,"nfs putbytes bits not yet implemented"};
+	UNUSED(pw);
+	UNUSED(r);
 	return &err;
 }
 _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 {
 	static _kernel_oserror err = {1,"nfs args bits not yet implemented"};
+	UNUSED(pw);
+	UNUSED(r);
 	return &err;
 }
 _kernel_oserror *imageentry_close_handler(_kernel_swi_regs *r, void *pw)
 {
 	static _kernel_oserror err = {1,"nfs close bits not yet implemented"};
+	UNUSED(pw);
+	UNUSED(r);
 	return &err;
 }
 _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 {
 	static _kernel_oserror err = {1,"nfs file bits not yet implemented"};
+	UNUSED(pw);
+	UNUSED(r);
 	return &err;
 }
 
 _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 {
-	static int handle = 0;
 	struct dir_entry *entry;
-	static _kernel_oserror err = {1,"unknown func called"};
+	static _kernel_oserror err2 = {1,"unknown func called"};
 
 	static string dir = {11,"/nfssandbox"};
 	static struct fhstatus res;
@@ -131,22 +149,25 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 	static struct readdirok_entry direntry;
 	static struct readdirok eof;
 	int numentries = 0;
-	struct mapping map = {MOUNT_RPC_PROGRAM,MOUNT_RPC_VERSION,IPPROTO_UDP,0};
-	int port;
+	os_error *err;
+	struct conn_info *conn = (struct conn_info *)(r->r[6]);
 
+	UNUSED(pw);
+	
 	switch (r->r[0]) {
 	case 15:
 		entry = (struct dir_entry *)(r->r[2]);
-		init_header();
-/*		NFSPROC3_NULL(NULL);*/
-		PMAPPROC_GETPORT(&map,&port,NULL);
-		MNTPROC_MNT(&dir, &res, NULL);
+		
+		err = MNTPROC_MNT(&dir, &res, conn);
+		if (err) return err;
 		memcpy(rddir.dir, res.u.directory, FHSIZE);
 		rddir.count = 1024;
 		rddir.cookie = 0;
-		NFSPROC_READDIR(&rddir, &rdres, NULL);
+		err = NFSPROC_READDIR(&rddir, &rdres, conn);
+		if (err) return err;
 		do {
-			NFSPROC_READDIR_entry(&direntry,NULL);
+			err = NFSPROC_READDIR_entry(&direntry,conn);
+			if (err) return err;
 			if (direntry.opted) {
 				/*direntry.u.u.name.size = 3;
 				direntry.u.u.name.data = "foo"; */
@@ -155,7 +176,6 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 				} else if (direntry.u.u.name.size == 2 && direntry.u.u.name.data[0] == '.' && direntry.u.u.name.data[1] == '.') {
 					/* parent dir */
 				} else {
-					char *buf;
 					entry->load = 0xFFF10200;
 					entry->exec = 0;
 					entry->len = 1023;
@@ -163,24 +183,23 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 					entry->type = 1;
 					memcpy(entry->name,direntry.u.u.name.data,direntry.u.u.name.size);
 					entry->name[direntry.u.u.name.size] = '\0';
-/*					buf = entry;
-					buf +=*/
 					entry = (struct dir_entry *)((int)((((char *)entry) + 5*4 + direntry.u.u.name.size + 4)) & ~3);
 					numentries++;
 				}
 			}
 		} while (direntry.opted);
-		NFSPROC_READDIR_eof(&eof, NULL);
+		err = NFSPROC_READDIR_eof(&eof, conn);
+		if (err) return err;
 		r->r[3] = numentries;
 		r->r[4] = -1;
 		break;
 	case 21:
-		r->r[1] = handle++;
+		return func_newimage(r->r[1],(struct conn_info **)&(r->r[1]));
 		break;
 	case 22:
 		break;
 	default:
-		return &err;
+		return &err2;
 	}
 	return NULL;
 }

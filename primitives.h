@@ -35,7 +35,7 @@ extern char *buf, *bufend;
    bufend points to byte after the end of buffer */
 
 #define check_bufspace(x) do { \
- if (buf + (x) > bufend) assert(0); /*FIXME*/ \
+ if (buf + (x) > bufend) goto buffer_overflow; \
 } while (0)
 
 #define input_byte() (*(buf++))
@@ -62,7 +62,7 @@ extern char *buf, *bufend;
   output_byte((structbase & 0x0000FF00) >> 8); \
   output_byte((structbase & 0x000000FF)); \
  } \
-printf("processing int " ###structbase ", %d\n",##structbase);\
+/*printf("processing int " ###structbase ", %d\n",##structbase);*/\
 } while (0)
 
 #define process_enum(input, structbase, name) do { \
@@ -80,11 +80,11 @@ printf("processing int " ###structbase ", %d\n",##structbase);\
   output_byte((structbase & 0x0000FF00) >> 8); \
   output_byte((structbase & 0x000000FF)); \
  } \
-printf("processing enum " ###structbase ", %d\n",##structbase);\
+/*printf("processing enum " ###structbase ", %d\n",##structbase);*/\
 } while (0)
 
 #define process_opaque(input, structbase, maxsize) do { \
-printf("processing opaque " ###structbase ", size = %d, maxsize = %d\n",##structbase.size,maxsize);\
+/*printf("processing opaque " ###structbase ", size = %d, maxsize = %d\n",##structbase.size,maxsize);*/\
  process_int(input, ##structbase.size, 0); \
  assert(##structbase.size <= maxsize); \
  if (##structbase.size > 0) { \
@@ -125,6 +125,8 @@ printf("processing opaque " ###structbase ", size = %d, maxsize = %d\n",##struct
 #define process_string(input,structbase,maxsize) process_opaque(input,structbase,maxsize)
 #define process_fixed_string(input,structbase,maxsize) process_fixed_opaque(input,structbase,maxsize)
 
-#define process_void(input,structbase,maxsize)
+#define process_void(input,structbase,maxsize) do { \
+ if (0) goto buffer_overflow; \
+} while (0)
 
 #endif
