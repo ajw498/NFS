@@ -454,11 +454,8 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 					/* Update the leafname. This is a bit icky as it copies
 					   into unixify's private buffer, but it saves allocating
 					   a new buffer */
-					(*leafname)[file->size - 4] = ',';
-					(*leafname)[file->size - 3] = file->data[file->size - 3];
-					(*leafname)[file->size - 2] = file->data[file->size - 2];
-					(*leafname)[file->size - 1] = file->data[file->size - 1];
-					(*leafname)[file->size - 0] = '\0';
+					memcpy(*leafname, file->data, file->size);
+					(*leafname)[file->size] = '\0';
 				}
 	
 				if (filetype) *filetype = (int)strtol(file->data + file->size - 3, NULL, 16);
