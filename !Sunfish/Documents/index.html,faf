@@ -290,6 +290,8 @@ If ShowHidden == 0 and you try to delete a directory that contains hidden files 
 <p>
 Sunfish does not support programs accessing files from callbacks, and will give an error if this causes reentrancy. This could be fixed if the internet stack didn't require callbacks to be triggered before it notices new data has arrived.
 <p>
+Writing to mounts in Sunfish: doesn't work on Select 3i3, this appears to be a select bug and doesn't occur on 3i4
+<p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="recompiling">Recompiling</a></font></h2>
 </td></tr></table>
