@@ -6,7 +6,7 @@ INCLUDE = -IC:,TCPIPLibs:
 LIBS    = TCPIPLIBS:o.unixlibzm TCPIPLIBS:o.inetlibzm TCPIPLibs:o.socklib5zm C:o.stubs
 
 CC = cc
-CFLAGS = -Wp $(INCLUDE) -fah -throwback -zM -zpq262144
+CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zM -zpq262144
 
 LINK = link
 
@@ -67,4 +67,10 @@ moduledefs.h modulehdr.o: @.cmhg.modulehdr
 .s.o:
 	$(CC) -c  $(CFLAGS) -o $@ $<
 
-
+clean:
+	-wipe o.* ~CFR~V
+	-wipe c.*-calls ~CFR~V
+	-wipe h.*-calls ~CFR~V
+	-wipe h.*-process* ~CFR~V
+	-wipe h.*-structs ~CFR~V
+	-wipe h.moduledefs ~CFR~V
