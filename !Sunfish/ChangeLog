@@ -1,4 +1,4 @@
-v1.02 ???
+v1.02 6-Nov-04
 Added support for TCP connections.
 Fixed a bug where an error could occasionally be misreported.
 Added support to the frontend for editing existing mount files.
