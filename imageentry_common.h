@@ -1,7 +1,7 @@
 /*
-	$Id: $
+	$Id$
 
-	Routines for image filing systems
+	Common bits for all entry points
 */
 
 #define IMAGEENTRY_FUNC_RENAME 8
