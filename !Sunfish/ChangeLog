@@ -3,6 +3,7 @@ Specifying an IP address as the server name now works for addresses
 that don't have a reverse DNS entry.
 Added LocalPort option, and defaults to using a low numbered port.
 Improved handling of errors on module finalisation.
+Add MaxDataBuffer option to control the maximum size of packets.
 
 v0.90 14-Oct-03
 First Beta release.
