@@ -48,7 +48,7 @@ os_error *open_file(char *filename, int access, struct conn_info *conn,
 	char *leafname;
 	int filetype;
 
-	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
+	err = filename_to_finfo(filename, 1, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
 	if (err) return err;
 
 	if (finfo == NULL) {

@@ -39,7 +39,7 @@ os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype,
     os_error *err;
     int filetype;
 
-	err = filename_to_finfo(filename, NULL, &finfo, NULL, &filetype, NULL, conn);
+	err = filename_to_finfo(filename, 1, NULL, &finfo, NULL, &filetype, NULL, conn);
 	if (err) return err;
 
 	if (finfo == NULL) {
@@ -67,7 +67,7 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 	int extfound;
 	char *leafname;
 
-	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, &filetype, &extfound, conn);
+	err = filename_to_finfo(filename, 1, &dinfo, &finfo, &leafname, &filetype, &extfound, conn);
 	if (err) return err;
 
 	if (finfo == NULL) return gen_nfsstatus_error(NFSERR_NOENT);
@@ -136,7 +136,7 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 		newfiletype = conn->defaultfiletype;
 	}
 
-	err = filename_to_finfo(filename, &dinfo, &finfo, leafname, &filetype, &extfound, conn);
+	err = filename_to_finfo(filename, 1, &dinfo, &finfo, leafname, &filetype, &extfound, conn);
 	if (err) return err;
 
 	memcpy(createargs.where.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
@@ -247,7 +247,7 @@ os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, unsi
 	char *leafname;
 	int filetype;
 
-	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
+	err = filename_to_finfo(filename, 0, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
 	if (err) return err;
 
 	if (finfo == NULL) {

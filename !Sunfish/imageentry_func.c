@@ -465,7 +465,7 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 		struct diropok *finfo;
 
 		/* Find the handle of the directory */
-		err = filename_to_finfo(dirname, NULL, &finfo, NULL, NULL, NULL, conn);
+		err = filename_to_finfo(dirname, 1, NULL, &finfo, NULL, NULL, NULL, conn);
 		if (err) return err;
 		if (finfo == NULL) return gen_nfsstatus_error(NFSERR_NOENT);
 
@@ -522,7 +522,7 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 		
 						/* Lookup file attributes.
 						   READDIRPLUS in NFS3 would eliminate this call. */
-						err = leafname_to_finfo(direntry->name.data, &(direntry->name.size), 1, rddir.dir, &lookupres, &status, conn);
+						err = leafname_to_finfo(direntry->name.data, &(direntry->name.size), 1, 1, rddir.dir, &lookupres, &status, conn);
 						if (err) return err;
 						if (status == NFS_OK) {
 							timeval_to_loadexec(&(lookupres->attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
@@ -596,7 +596,7 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 	static char oldleafname[MAXNAMLEN];
 	int filetype;
 
-	err = filename_to_finfo(oldfilename, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
+	err = filename_to_finfo(oldfilename, 1, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
 	if (err) return err;
 	if (finfo == NULL) return gen_nfsstatus_error(NFSERR_NOENT);
 
@@ -611,7 +611,7 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 		leafname = newfilename + (leafname - oldfilename);
 	} else {
 		/* Files are in different directories, so find the handle of the new dir */
-		err = filename_to_finfo(newfilename, &dinfo, NULL, &leafname, NULL, NULL, conn);
+		err = filename_to_finfo(newfilename, 1, &dinfo, NULL, &leafname, NULL, NULL, conn);
 		if (err) return err;
 
 		memcpy(renameargs.to.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);

@@ -279,7 +279,7 @@ static os_error *lookup_leafname(char *dhandle, char *leafname, int leafnamelen,
 /* Convert a leafname into nfs handle and attributes.
    May follow symlinks if needed.
    Returns a pointer to static data, and updates the leafname in place. */
-os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, char *dirhandle, struct diropok **finfo, enum nstat *status, struct conn_info *conn)
+os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int followsymlinks, char *dirhandle, struct diropok **finfo, enum nstat *status, struct conn_info *conn)
 {
 	struct diropargs lookupargs;
 	static struct diropres lookupres;
@@ -317,7 +317,7 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, char 
 		return NULL;
 	}
 
-	follow = conn->followsymlinks;
+	follow = followsymlinks ? conn->followsymlinks : 0;
 	
 	while (follow > 0 && lookupres.u.diropok.attributes.type == NFLNK) {
 		struct readlinkargs linkargs;
@@ -394,7 +394,7 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, char 
    This function would really benefit from some cacheing.
    In theory it should deal with wildcarded names, but that is just too much
    hassle. And, really, that should be the job of fileswitch. */
-os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct diropok **finfo, char **leafname, int *filetype, int *extfound, struct conn_info *conn)
+os_error *filename_to_finfo(char *filename, int followsymlinks, struct diropok **dinfo, struct diropok **finfo, char **leafname, int *filetype, int *extfound, struct conn_info *conn)
 {
 	char *start = filename;
 	char *end;
@@ -421,7 +421,7 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 
 		if (leafname) *leafname = segmentname;
 
-		err = leafname_to_finfo(segmentname, &segmentlen, 0, dirhandle, &segmentinfo, &status, conn);
+		err = leafname_to_finfo(segmentname, &segmentlen, 0, followsymlinks || (*end != '\0'), dirhandle, &segmentinfo, &status, conn);
 		if (err) return err;
 
 		/* It is not an error if the file isn't found, but the
@@ -485,8 +485,8 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 				int lastdot = segmentlen;
 				while (lastdot > 0 && segmentname[lastdot] != '.') lastdot--;
 	
-		    	if (lastdot) {
-		    		*filetype = lookup_mimetype(segmentname + lastdot + 1, conn);
+				if (lastdot) {
+					*filetype = lookup_mimetype(segmentname + lastdot + 1, conn);
 				} else {
 					/* No ,xyz and no extension, so use the default */
 					*filetype = conn->defaultfiletype;

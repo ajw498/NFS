@@ -172,10 +172,10 @@ os_error *gen_nfsstatus_error(enum nstat stat);
 int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetype, struct conn_info *conn);
 
 /* Convert a leafname into an nfs handle, following symlinks as necessary */
-os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, char *dirhandle, struct diropok **finfo, enum nstat *status, struct conn_info *conn);
+os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int followsymlinks, char *dirhandle, struct diropok **finfo, enum nstat *status, struct conn_info *conn);
 
 /* Convert a full filename/dirname into an nfs handle */
-os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct diropok **finfo, char **leafname, int *filetype, int *extfound, struct conn_info *conn);
+os_error *filename_to_finfo(char *filename, int followsymlinks, struct diropok **dinfo, struct diropok **finfo, char **leafname, int *filetype, int *extfound, struct conn_info *conn);
 
 /* Convert a unix timestamp into a RISC OS load and execution address */
 void timeval_to_loadexec(struct ntimeval *unixtime, int filetype, unsigned int *load, unsigned int *exec);
