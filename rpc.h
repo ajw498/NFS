@@ -40,6 +40,9 @@ struct conn_info {
 	char *auth;
 	int authsize;
 	char *machinename;
+	int usemimemap;
+	int defaultfiletype;
+	int xyzext;
 };
 
 void rpc_init_header(void);

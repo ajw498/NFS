@@ -146,6 +146,12 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		conn->timeout = (int)strtol(val, NULL, 10);
 	} else if (CHECK("Retries")) {
 		conn->retries = (int)strtol(val, NULL, 10);
+	} else if (CHECK("UseMimemap")) {
+		conn->usemimemap = (int)strtol(val, NULL, 10);
+	} else if (CHECK("DefaultFiletype")) {
+		conn->defaultfiletype = 0xFFF & (int)strtol(val, NULL, 16);
+	} else if (CHECK("AddExt")) {
+		conn->xyzext = (int)strtol(val, NULL, 10);
 	}
 	/* Ignore unrecognised lines */
 	return NULL;
@@ -228,6 +234,10 @@ buffer_overflow:
 	return gen_error(1,"foobared");
 }
 
+#define NEVER  0
+#define NEEDED 1
+#define ALWAYS 2
+
 os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhandle)
 {
 	struct conn_info *conn;
@@ -260,6 +270,9 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->logging = 0;
 	conn->auth = NULL;
 	conn->machinename = NULL;
+	conn->usemimemap = 1;
+	conn->defaultfiletype = 0xFFF;
+	conn->xyzext = NEEDED;
 
 	/* Read details from file */
 	err = parse_file(fileswitchhandle, conn);
@@ -380,7 +393,7 @@ static char *filename_unixify(char *name, int len)
 #define MMM_TYPE_MIME 2
 #define MMM_TYPE_DOT_EXTN 3
 
-static int filename_riscosify(char *name, int len, char **buffer)
+static int filename_riscosify(char *name, int len, char **buffer, struct conn_info *conn)
 {
 	int i;
 	int filetype = -1;
@@ -415,17 +428,23 @@ static int filename_riscosify(char *name, int len, char **buffer)
 	}
 	(*buffer)[len] = '\0';
 	(*buffer) += (len + 4) & ~3;
-    if (filetype == -1) {
-    	if (lastdot) {
-			os_error *err;
-		
-			/* No explicit ,xyz found, so try MimeMap to get a filetype */
-			err = _swix(MimeMap_Translate,_INR(0,2) | _OUT(3), MMM_TYPE_DOT_EXTN, lastdot + 1, MMM_TYPE_RISCOS, &filetype);
-			if (err) filetype = 0xFFF;
-		} else {
-			/* No ,xyz and no extension, so default to text */
-			filetype = 0xFFF;
+
+	if (conn->xyzext != NEVER) {
+		if (filetype == -1 && conn->usemimemap) {
+			/* No ,xyz found */
+	    	if (lastdot) {
+				os_error *err;
+			
+				/* No explicit ,xyz found, so try MimeMap to get a filetype */
+				err = _swix(MimeMap_Translate,_INR(0,2) | _OUT(3), MMM_TYPE_DOT_EXTN, lastdot + 1, MMM_TYPE_RISCOS, &filetype);
+				if (err) filetype = conn->defaultfiletype;
+			} else {
+				/* No ,xyz and no extension, so use default */
+				filetype = conn->defaultfiletype;
+			}
 		}
+	} else {
+		filetype = conn->defaultfiletype;
 	}
 	return filetype;
 }
@@ -480,7 +499,7 @@ static os_error *lookup_leafname(char *dhandle, struct opaque *leafname, struct 
    This function would really benefit from some cacheing.
    In theory it should deal with wildcarded names, but that is just too much
    hassle. And, really, that should be the job of fileswitch. */
-static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct diropok **finfo, char **leafname, struct conn_info *conn)
+static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct diropok **finfo, char **leafname, int *filetype, struct conn_info *conn)
 {
 	char *start = filename;
 	char *end;
@@ -531,7 +550,7 @@ static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struc
 	if (finfo == NULL) return NULL;
 
 	if (next.status == NFSERR_NOENT) {
-		if (1/*conn->xyz_ext != NEVER*/) { /*FIXME */
+		if (conn->xyzext != NEVER) {
 			struct opaque *file;
 	
 			err = lookup_leafname(dirhandle, &(current.name), &file, conn);
@@ -548,11 +567,36 @@ static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struc
 				if (next.status != NFS_OK) return gen_nfsstatus_error(next.status);
 	
 				*finfo = &(next.u.diropok);
+
+				if (filetype) *filetype = (int)strtol(file->data + file->size - 3, NULL, 16);
 			}
 		}
 	} else {
 		/* The file was found without needing to add ,xyz */
 		*finfo = &(next.u.diropok);
+
+		/* Work out the filetype */
+		if (filetype) {
+			if (conn->usemimemap) {
+				int lastdot = current.name.size;
+				while (lastdot > 0 && current.name.data[lastdot] != '.') lastdot--;
+	
+				/* current.name.data is pointing to unixify's buffer and is 0 terminated */
+		    	if (lastdot) {
+					os_error *err;
+				
+					/* Try MimeMap to get a filetype */
+					err = _swix(MimeMap_Translate,_INR(0,2) | _OUT(3), MMM_TYPE_DOT_EXTN, current.name.data + lastdot + 1, MMM_TYPE_RISCOS, filetype);
+					if (err) *filetype = conn->defaultfiletype;
+				} else {
+					/* No ,xyz and no extension, so use the default */
+					*filetype = conn->defaultfiletype;
+				}
+			} else {
+				/* No ,xyz and not configured to use the mimetype */
+				*filetype = conn->defaultfiletype;
+			}
+		}
 	}
 	return NULL;
 }
@@ -624,7 +668,7 @@ os_error *func_readdirinfo(int info, char *dirname, void *buffer, int numobjs, i
 		struct diropok *finfo;
 
 		/* Find the handle of the directory */
-		err = filename_to_finfo(dirname, NULL, &finfo, NULL, conn);
+		err = filename_to_finfo(dirname, NULL, &finfo, NULL, NULL, conn);
 		if (err) return err;
 		if (finfo == NULL) return gen_nfsstatus_error(NFSERR_NOENT);
 
@@ -666,7 +710,7 @@ os_error *func_readdirinfo(int info, char *dirname, void *buffer, int numobjs, i
 
 			/* Copy leafname into output buffer, translating some
 			   chars and stripping any ,xyz */
-			filetype = filename_riscosify(direntry->name.data, direntry->name.size, &bufferpos);
+			filetype = filename_riscosify(direntry->name.data, direntry->name.size, &bufferpos, conn);
 
 			if (info) {
 				struct diropargs lookupargs;
@@ -719,7 +763,7 @@ os_error *open_file(char *filename, int access, struct conn_info *conn, int *fil
     os_error *err;
     char *leafname;
 
-	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, conn);
+	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, NULL, conn);
 	if (err) return err;
 
 	if (finfo == NULL) {
@@ -790,37 +834,49 @@ os_error *close_file(struct file_handle *handle, unsigned int load, unsigned int
 	return NULL;
 }
 
-
+/* Read a number of bytes from the open file */
 os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned len, unsigned offset)
 {
 	os_error *err;
 	struct readargs args;
 	struct readres res;
 
+	args.totalcount = 0; /* Unused in NFS2 */
 	memcpy(args.file, handle->fhandle, FHSIZE);
+
 	do {
 		args.offset = offset;
 		args.count = len;
 		if (args.count > MAX_PAYLOAD) args.count = MAX_PAYLOAD;
 		offset += args.count;
+		
 		err = NFSPROC_READ(&args, &res, handle->conn);
 		if (err) return err;
 		if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
-		if (res.u.data.size > args.count) return_error("unexpectedly large amount of data read");
+
+		if (res.u.data.size > args.count) {
+			return gen_error(IMAGEERRBASE + 1,"Read returned more data than expected");
+		}
+
 		memcpy(buffer, res.u.data.data, res.u.data.size);
 		buffer += args.count;
 		len -= args.count;
 	} while (len > 0 && res.u.data.size == args.count);
+
 	return NULL;
 }
 
+/* Write a number of bytes to the open file */
 os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned len, unsigned offset)
 {
 	os_error *err;
 	struct writeargs args;
 	struct attrstat res;
 
+	args.beginoffset = 0; /* Unused in NFS2 */
+	args.totalcount = 0;  /* Unused in NFS2 */
 	memcpy(args.file, handle->fhandle, FHSIZE);
+
 	do {
 		args.offset = offset;
 		args.data.size = len;
@@ -829,47 +885,51 @@ os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned len, unsi
 		len -= args.data.size;
 		args.data.data = buffer;
 		buffer += args.data.size;
+
 		err = NFSPROC_WRITE(&args, &res, handle->conn);
 		if (err) return err;
 		if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
 	} while (len > 0);
+	
 	return NULL;
 }
 
-os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype, int *load, int *exec, int *len, int *attr)
+os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype, unsigned int *load, unsigned int *exec, int *len, int *attr)
 {
     struct diropok *finfo;
     os_error *err;
+    int filetype;
 
-	err = filename_to_finfo(filename, NULL, &finfo, NULL, conn);
+	err = filename_to_finfo(filename, NULL, &finfo, NULL, &filetype, conn);
 	if (err) return err;
+
 	if (finfo == NULL) {
-		*objtype = 0;
+		*objtype = OBJ_NONE;
 		return NULL;
 	}
 
-	*objtype = finfo->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE; /* other types? */
-	*load = (int)0xFFFFFF00;
-	*exec = 0;
+	*objtype = finfo->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
+	timeval_to_loadexec(&(finfo->attributes.mtime), filetype, load, exec);
 	*len = finfo->attributes.size;
-	*attr = 3;/*((finfo->attributes.mode & 0x400) >> 10) | ((finfo->attributes.mode & 0x200) >> 8);*/
+	*attr = mode_to_attr(finfo->attributes.mode);
+
 	return NULL;
 }
 
-os_error *file_writecatinfo(char *filename, int load, int exec, int attr, struct conn_info *conn)
+os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec, int attr, struct conn_info *conn)
 {
 	/**/
 	return NULL;
 }
 
-static os_error *createfile(char *filename, int dir, int load, int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname, char **fhandle)
+static os_error *createfile(char *filename, int dir, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname, char **fhandle)
 {
     struct diropok *dinfo;
     os_error *err;
     struct createargs createargs;
     struct diropres createres;
 
-	err = filename_to_finfo(filename, &dinfo, NULL, leafname, conn);
+	err = filename_to_finfo(filename, &dinfo, NULL, leafname, NULL, conn);
 	if (err) return err;
 
 	memcpy(createargs.where.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
@@ -894,20 +954,20 @@ static os_error *createfile(char *filename, int dir, int load, int exec, char *b
 	return NULL;
 }
 
-os_error *file_createfile(char *filename, int load, int exec, char *buffer, char *buffer_end, struct conn_info *conn)
+os_error *file_createfile(char *filename, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn)
 {
 	char *leafname;
 	return createfile(filename, 0, load, exec, buffer, buffer_end, conn, &leafname, NULL);
 	/* Should createfile return an error if the file already exists? */
 }
 
-os_error *file_createdir(char *filename, int load, int exec, struct conn_info *conn)
+os_error *file_createdir(char *filename, unsigned int load, unsigned int exec, struct conn_info *conn)
 {
 	char *leafname;
 	return createfile(filename, 1, load, exec, 0, 0, conn, &leafname, NULL);
 }
 
-os_error *file_savefile(char *filename, int load, int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname)
+os_error *file_savefile(char *filename, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname)
 {
     os_error *err;
     char *fhandle;
@@ -916,6 +976,7 @@ os_error *file_savefile(char *filename, int load, int exec, char *buffer, char *
 
 	if (buffer_end - buffer > 7000/*tx_buffersize*/) return_error("file too big");
 	err = createfile(filename, 0, load, exec, buffer, buffer_end, conn, leafname, &fhandle);
+	/* This should call put_bytes to do the work */
 	memcpy(writeargs.file, fhandle, FHSIZE);
 	writeargs.offset = 0;
 	writeargs.data.size = buffer_end - buffer;
@@ -925,14 +986,14 @@ os_error *file_savefile(char *filename, int load, int exec, char *buffer, char *
 	return NULL;
 }
 
-os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, int *load, int *exec, int *len, int *attr)
+os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, unsigned int *load, unsigned int *exec, int *len, int *attr)
 {
     struct diropok *dinfo;
     struct diropok *finfo;
     os_error *err;
     char *leafname;
 
-	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, conn);
+	err = filename_to_finfo(filename, &dinfo, &finfo, &leafname, NULL, conn);
 	if (err) return err;
 
 	if (finfo == NULL) {
@@ -969,7 +1030,7 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
     os_error *err;
     char *leafname;
 
-	err = filename_to_finfo(oldfilename, &dinfo, &finfo, &leafname, conn);
+	err = filename_to_finfo(oldfilename, &dinfo, &finfo, &leafname, NULL, conn);
 	if (err) return err;
 	if (finfo == NULL) return_error("file not found");
 
@@ -983,7 +1044,7 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 		renameargs.to.name.data = newfilename + (leafname - oldfilename);
 		renameargs.to.name.size = strlen(renameargs.to.name.data);
 	} else {
-		err = filename_to_finfo(newfilename, &dinfo, NULL, &leafname, conn);
+		err = filename_to_finfo(newfilename, &dinfo, NULL, &leafname, NULL, conn);
 		if (err) return err;
 		memcpy(renameargs.to.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
 		renameargs.to.name.data = leafname;

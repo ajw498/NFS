@@ -28,18 +28,18 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned len, unsi
 
 os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned len, unsigned offset);
 
-os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype, int *load, int *exec, int *len, int *attr);
+os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype, unsigned int *load, unsigned int *exec, int *len, int *attr);
 
-os_error *file_writecatinfo(char *filename, int load, int exec, int attr, struct conn_info *conn);
+os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec, int attr, struct conn_info *conn);
 
-os_error *file_savefile(char *filename, int load, int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname);
+os_error *file_savefile(char *filename, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname);
 
-os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, int *load, int *exec, int *len, int *attr);
+os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, unsigned int *load, unsigned int *exec, int *len, int *attr);
 
 os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *conn, int *renamefailed);
 
-os_error *file_createfile(char *filename, int load, int exec, char *buffer, char *buffer_end, struct conn_info *conn);
+os_error *file_createfile(char *filename, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn);
 
-os_error *file_createdir(char *filename, int load, int exec, struct conn_info *conn);
+os_error *file_createdir(char *filename, unsigned int load, unsigned int exec, struct conn_info *conn);
 
 
