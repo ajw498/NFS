@@ -261,7 +261,8 @@ static os_error *getport(int program, int version, unsigned int *progport, struc
 	err = PMAPPROC_GETPORT(&map, &port, conn);
 	if (err) return err;
 	if (port == 0) {
-		return gen_error(FUNCERRBASE + 1, "Unable to map RPC program to port number (%d, %d)", program, version);
+		char *daemon = program == PCNFSD_RPC_PROGRAM ? "pcnfsd" : (program == MOUNT_RPC_PROGRAM ? "mountd" : "nfsd");
+		return gen_error(FUNCERRBASE + 1, "Unable to map RPC program to port number (%d, %d) - Check that %s is running on the server", program, version, daemon);
 	}
 	
 	*progport = port;
