@@ -232,6 +232,7 @@ os_error *rpc_do_call(struct conn_info *conn)
 	int port;
 	int tries = 0;
 	int ret;
+	int tx_buflen = buf - tx_buffer;
 
 	/* Choose the port to use */
 	switch (call_header.body.u.cbody.prog) {
@@ -264,8 +265,8 @@ os_error *rpc_do_call(struct conn_info *conn)
 		fd_set rfds;
 		struct timeval tv;
 
-		if (enablelog) logdata(0, tx_buffer, buf - tx_buffer);
-		if (send(conn->sock, tx_buffer, buf - tx_buffer, 0) == -1) {
+		if (enablelog) logdata(0, tx_buffer, tx_buflen);
+		if (send(conn->sock, tx_buffer, tx_buflen, 0) == -1) {
 			return gen_error(RPCERRBASE + 5, "Sending data failed (%s)", xstrerror(errno));
 		}
 
