@@ -154,6 +154,12 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		conn->defaultfiletype = 0xFFF & (int)strtol(val, NULL, 16);
 	} else if (CHECK("AddExt")) {
 		conn->xyzext = (int)strtol(val, NULL, 10);
+	} else if (CHECK("LocalPort")) {
+		char *end;
+
+		conn->localportmin = (int)strtol(val, &end, 10);
+		conn->localportmax = (int)strtol(end, NULL, 10);
+		if (conn->localportmax == 0) conn->localportmax = conn->localportmin;
 	}
 	/* Ignore unrecognised lines */
 	return NULL;
@@ -193,6 +199,7 @@ static os_error *parse_file(unsigned int fileswitchhandle, struct conn_info *con
 		/* Strip trailing spaces */
 		endspc = ch - 2;
 		while (endspc > line && isspace(*endspc)) endspc--;
+		if (isspace(*endspc)) *endspc = '\0';
 		err = parse_line(line, conn);
 	} while (ch < end && err == NULL);
 
@@ -279,6 +286,8 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->machinename = NULL;
 	conn->defaultfiletype = 0xFFF;
 	conn->xyzext = NEEDED;
+	conn->localportmin = LOCALPORTMIN_DEFAULT;
+	conn->localportmax = LOCALPORTMAX_DEFAULT;
 
 	/* Read details from file */
 	err = parse_file(fileswitchhandle, conn);

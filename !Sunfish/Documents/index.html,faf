@@ -25,6 +25,7 @@ An NFS client, implemented as an image filing system. Habitat: RISC OS.
 <li><a href="#license">License</a><br>
 <li><a href="#requirements">Requirements</a><br>
 <li><a href="#setup">Setting up a Mount</a><br>
+<li><a href="#options">Options</a><br>
 <li><a href="#reportingbugs">Reporting Bugs</a><br>
 <li><a href="#knownbugs">Known Bugs</a><br>
 <li><a href="#recompiling">Recompiling</a><br>
@@ -155,6 +156,10 @@ The port number to use for NFS. If omitted, the portmapper service will be used 
 <p>
 <h4>PCNFSDPort</h4>
 The port number to use for PCNFSD. If omitted, the portmapper service will be used to find the correct port.
+<p>
+<h4>LocalPort</h4>
+The port number to use for the client. This option can either be a single number to use a specific port, or a two numbers spearated by a space to give a range of ports from which a free one will be chosen. If a port number of 0 is specified then any free port above 1024 will be used. If ommitted, the default range of 800-900 will be used.
+<p>Generally, it doesn't matter what port is used, but some servers will only allow connections from ports less than 1024 unless the insecure option is used in /etc/exports on the server.
 <p>
 <h4>GIDs</h4>
 A list of additional group ids that the user is part of. There can be up to 16 gids in the list, separated by whitespace. If pcnfsd is used then the list returned by that will override this setting.

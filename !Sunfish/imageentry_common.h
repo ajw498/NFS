@@ -128,8 +128,13 @@ struct conn_info {
 	char *machinename;
 	int defaultfiletype;
 	int xyzext;
+	int localportmin;
+	int localportmax;
 };
 
+/* The default port range to bind to. */
+#define LOCALPORTMIN_DEFAULT 800
+#define LOCALPORTMAX_DEFAULT 900
 
 extern int enablelog;
 

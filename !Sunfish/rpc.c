@@ -151,6 +151,23 @@ os_error *rpc_init_connection(struct conn_info *conn)
 	conn->sock = socket(AF_INET, SOCK_DGRAM, 0);
 	if (conn->sock < 0) return gen_error(RPCERRBASE + 2,"Unable to open socket (%s)", xstrerror(errno));
 
+	if (conn->localportmax != 0) {
+		/* Use a specific local port */
+		struct sockaddr_in name;
+		int port = conn->localportmin;
+		int ret;
+
+		name.sin_family = AF_INET;
+		name.sin_addr.s_addr = (int)htonl(INADDR_ANY);
+
+		do {
+			name.sin_port = htons(port++);
+			ret = bind(conn->sock, (struct sockaddr *)&name, sizeof(name));
+		} while (ret != 0 && port <= conn->localportmax);
+
+		if (ret) return gen_error(RPCERRBASE + 14, "Unable to bind socket to local port (%s)", xstrerror(errno));
+	}
+
 	err = gethostbyname_timeout(conn->server, conn->timeout, &hp);
 	if (err) return err;
 
