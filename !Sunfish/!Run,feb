@@ -16,6 +16,8 @@ RMEnsure SharedCLibrary 5.17 RMLoad System:Modules.CLib
 RMEnsure SharedCLibrary 5.34 Error Sunfish requires SharedCLibrary 5.34 or later
 RMEnsure MimeMap 0.01 RMLoad System:Modules.Network.MimeMap
 
+RMEnsure Internet 5.00 Error Sunfish requires Internet 5.00 or later
+
 RMLoad <Sunfish$Dir>.Sunfish
 
 If "%*0" <> "" Then Filer_OpenDir %*0
