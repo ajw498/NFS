@@ -1,3 +1,6 @@
+v0.94 ??-Nov-03
+Added support for symlinks.
+
 v0.93 30-Oct-03
 Work around RISC OS bug that could cause directory listings to miss
 entries if the server returned cookies with the top bit set.

@@ -85,6 +85,7 @@ os_error *open_file(char *filename, int access, struct conn_info *conn,
 	handle->conn = conn;
 	memcpy(handle->fhandle, finfo->file, FHSIZE);
 	handle->extent = finfo->attributes.size;
+	handle->type = finfo->attributes.type;
 	timeval_to_loadexec(&(finfo->attributes.mtime), filetype, &(handle->load), &(handle->exec));
 
 	*internal_handle = handle;

@@ -121,6 +121,7 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 static os_error *createobj(char *filename, int dir, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **fhandle, char **leafname)
 {
     struct diropok *dinfo;
+    struct diropok *finfo;
     os_error *err;
     struct createargs createargs;
     struct diropres createres;
@@ -132,8 +133,15 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 		newfiletype = conn->defaultfiletype;
 	}
 
-	err = filename_to_finfo(filename, &dinfo, NULL, leafname, NULL, NULL, conn);
+	err = filename_to_finfo(filename, &dinfo, &finfo, leafname, NULL, NULL, conn);
 	if (err) return err;
+
+	if (finfo) {
+		/* A file already exists */
+		if (fhandle) *fhandle = finfo->file;
+
+		return NULL;
+	}
 
 	memcpy(createargs.where.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
 

@@ -147,10 +147,10 @@ The password to give to pcnfsd with the username. This password has to be stored
 These options can be specified if needed, but if they are not then default values will be used. For most connections, the defaults will be sufficient.
 <p>
 <h4>MachineName</h4>
-The name of the machine the client is running on. Some servers may use it to allow or deny access. If ommitted, it defaults to the value of <code>&lt;Inet$Hostname&gt;</code> which should be sufficient in most cases.
+The name of the machine the client is running on. Some servers may use it to allow or deny access. If omitted, it defaults to the value of <code>&lt;Inet$Hostname&gt;</code> which should be sufficient in most cases.
 <p>
 <h4>MaxDataBuffer</h4>
-The maximum number of bytes to use for the data buffer of a read or write request. A bigger buffer will generally be faster than a smaller one, but some network cards (In particular, the Castle 100BaseT podule) cannot handle larger packets. The maximum value is 8192 bytes, and it is recommeded that you set it to this if your network card can handle it (You will probably get timeout errors when reading a large file if it is too big). If ommitted, it defaults to 4096 bytes.
+The maximum number of bytes to use for the data buffer of a read or write request. A bigger buffer will generally be faster than a smaller one, but some network cards (In particular, the Castle 100BaseT podule) cannot handle larger packets. The maximum value is 8192 bytes, and it is recommeded that you set it to this if your network card can handle it (You will probably get timeout errors when reading a large file if it is too big). If omitted, it defaults to 4096 bytes.
 <p>
 <h4>PortMapperPort</h4>
 The port number to use for the portmapper service. If omitted, it defaults to the assigned number 111.
@@ -175,16 +175,19 @@ A list of additional group ids that the user is part of. There can be up to 16 g
 If set to 1 then all operations will be reported to syslog. This should only be enabled for debugging, as it significantly slows things down. Note: if one connection specifies logging, then activity on all connections will be logged while that connection is mounted.
 <p>
 <h4>umask</h4>
-The umask to use, specified in octal. All operations that modify a files attributes will have the Unix mode bits modifed according to the umask. If not specified, it defaults to 022. If pcnfsd is used then the umask returned by that will override this setting.
+The umask to use, specified in octal. All operations that modify a files attributes will have the Unix mode bits modified according to the umask. If not specified, it defaults to 022. If pcnfsd is used then the umask returned by that will override this setting.
 <p>
 <h4>ShowHidden</h4>
 If set to 1, all files will be shown, if set to 0 then all files beginning with a . will be hidden from filer views. If not specified, then defaults to 1.
+<p>
+<h4>FollowSymLinks</h4>
+The number of levels of symlinks to follow. If set to zero or a sequence of symlinks greater than the number is encountered then the link will be shown as a text file that you cannot read or write. If not specified, then it defaults to 5.
 <p>
 <h4>Timeout</h4>
 The time in seconds to wait for a reply from the server before retrying or giving up. Defaults to 3 seconds.
 <p>
 <h4>Retries</h4>
-The number of times to resend a request if no reply is recieved. Defaults to 2 retries.
+The number of times to resend a request if no reply is received. Defaults to 2 retries.
 <p>
 <h4>DefaultFiletype</h4>
 The hexadecimal filetype to give a file if it doesn't have an ,xyz extension or a . extension that matches a mimemap entry. If not specified then it defaults to FFF.
@@ -207,11 +210,11 @@ The leafname returned from an OS_File 0 call will be in Unix format and may stil
 <p>
 Wildcards in filenames are not supported. This would be a lot of hassle to implement for little benefit, and in any case I believe that it really should be fileswitch's job to sort out wildcards, not each and every filing system.
 <p>
-Symlinks, devices and other non regular files are not supported. Symlinks may be handled in future versions.
+Devices and other non regular files are not supported, as they don't map to RISC OS functionality.
 <p>
 If ShowHidden == 0 and you try to delete a directory that contains hidden files then it will fail with a directory not empty error.
 <p>
-If more than four concurrent OS_GBPB directory enumerations take place per mount then incorrect results may be returned. There is not much I can do about this, but it is extreemely unlikely to occur.
+If more than four concurrent OS_GBPB directory enumerations take place per mount then incorrect results may be returned. There is not much I can do about this, but it is extremely unlikely to occur.
 <p>
 Some operations are not as fast as they could be. For the first release I have concentrated on getting a functional and stable program, and there are some places where performance could be improved in the future. In particular, file attributes and mappings between filenames and NFS file handles should be cached, as this would reduce network traffic and delay for directory listings and many other operations. Also read and write requests should be pipelined to remove the latency between blocks, which should speed up reading and writing large files.
 <p>

@@ -37,6 +37,10 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 	struct readargs args;
 	struct readres res;
 
+	if (handle->type != NFREG) {
+		return gen_error(BYTESERRBASE + 1,"Cannot read data from a non-regular file");
+	}
+
 	args.totalcount = 0; /* Unused in NFS2 */
 	memcpy(args.file, handle->fhandle, FHSIZE);
 
@@ -87,13 +91,17 @@ os_error *writebytes(char *fhandle, char *buffer, unsigned int len, unsigned int
 		if (err) return err;
 		if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
 	} while (len > 0);
-	
+
 	return NULL;
 }
 
 /* Write a number of bytes to the open file */
 os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned int len, unsigned int offset)
 {
+	if (handle->type != NFREG) {
+		return gen_error(BYTESERRBASE + 2,"Cannot write data to a non-regular file");
+	}
+
 	return writebytes(handle->fhandle, buffer, len, offset, handle->conn);
 }
 

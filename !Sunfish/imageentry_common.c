@@ -217,7 +217,7 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
    first found is used. This function would benefit in many cases by some
    cacheing of leafnames and extensions. The returned leafname is a pointer
    to static data and should be copied before any subsequent calls. */
-static os_error *lookup_leafname(char *dhandle, struct opaque *leafname, struct opaque **found, struct conn_info *conn)
+static os_error *lookup_leafname(char *dhandle, char *leafname, int leafnamelen, struct opaque **found, struct conn_info *conn)
 {
 	static struct readdirargs rddir;
 	static struct readdirres rdres;
@@ -237,12 +237,12 @@ static os_error *lookup_leafname(char *dhandle, struct opaque *leafname, struct 
 		while (direntry) {
 			rddir.cookie = direntry->cookie;
 
-			if (direntry->name.size == leafname->size + sizeof(",xyz") - 1) {
-				if (strncmp(direntry->name.data, leafname->data, leafname->size) == 0) {
-					if (direntry->name.data[leafname->size] == ','
-					     && isxdigit(direntry->name.data[leafname->size + 1])
-					     && isxdigit(direntry->name.data[leafname->size + 2])
-					     && isxdigit(direntry->name.data[leafname->size + 3])) {
+			if (direntry->name.size == leafnamelen + sizeof(",xyz") - 1) {
+				if (strncmp(direntry->name.data, leafname, leafnamelen) == 0) {
+					if (direntry->name.data[leafnamelen] == ','
+					     && isxdigit(direntry->name.data[leafnamelen + 1])
+					     && isxdigit(direntry->name.data[leafnamelen + 2])
+					     && isxdigit(direntry->name.data[leafnamelen + 3])) {
 						*found = &(direntry->name);
 						return NULL;
 					}
@@ -256,6 +256,98 @@ static os_error *lookup_leafname(char *dhandle, struct opaque *leafname, struct 
 	return NULL;
 }
 
+/* Convert a leafname into nfs handle and attributes.
+   May follow symlinks if needed.
+   Returns a pointer to static data. */
+os_error *leafname_to_finfo(char *leafname, unsigned int len, char *dirhandle, struct diropok **finfo, enum nstat *status, struct conn_info *conn)
+{
+	struct diropargs lookupargs;
+	static struct diropres lookupres;
+	os_error *err;
+	int follow;
+
+	lookupargs.name.data = leafname;
+	lookupargs.name.size = len;
+	memcpy(lookupargs.dir, dirhandle, FHSIZE);
+
+	err = NFSPROC_LOOKUP(&lookupargs, &lookupres, conn);
+	if (err) return err;
+	if (lookupres.status != NFS_OK) {
+		*status = lookupres.status;
+		return NULL;
+	}
+
+	follow = conn->followsymlinks;
+	
+	while (follow > 0 && lookupres.u.diropok.attributes.type == NFLNK) {
+		struct readlinkargs linkargs;
+		struct readlinkres linkres;
+		char *segment;
+		unsigned int segmentmaxlen;
+		static char link[MAXPATHLEN];
+
+		memcpy(linkargs.fhandle, lookupres.u.diropok.file, FHSIZE);
+		err = NFSPROC_READLINK(&linkargs, &linkres, conn);
+		if (err) return err;
+		if (linkres.status != NFS_OK) {
+			*status = linkres.status;
+			return NULL;
+		}
+
+		memcpy(link, linkres.u.data.data, linkres.u.data.size);
+		segment = link;
+		segmentmaxlen = linkres.u.data.size;
+		if (segmentmaxlen > 0 && segment[0] == '/') {
+			int len = strlen(conn->export);
+
+			/* An absolute link. We can only handle these if they are under
+			   the exported directory */
+			if (segmentmaxlen > len && strncmp(segment, conn->export, len) == 0) {
+				segment += len;
+				segmentmaxlen -= len;
+				while (segmentmaxlen > 0 && *segment == '/') {
+					segment++;
+					segmentmaxlen--;
+				}
+				dirhandle = conn->rootfh;
+			} else {
+				/* Not within the export */
+				*status = NFSERR_NOENT;
+				return NULL;
+			}
+		}
+
+		/* segment must now be a link relative to dirhandle */
+		while (segmentmaxlen > 0) {
+			int i = 0;
+
+			while (i < segmentmaxlen && segment[i] != '/') i++;
+	
+			lookupargs.name.data = segment;
+			lookupargs.name.size = i;
+			memcpy(lookupargs.dir, dirhandle, FHSIZE);
+	
+			err = NFSPROC_LOOKUP(&lookupargs, &lookupres, conn);
+			if (err) return err;
+			if (lookupres.status != NFS_OK) {
+				*status = lookupres.status;
+				return NULL;
+			}
+
+			if (lookupres.u.diropok.attributes.type == NFDIR) dirhandle = lookupres.u.diropok.file;
+			while (i < segmentmaxlen && segment[i] == '/') i++;
+			segment += i;
+			segmentmaxlen -= i;
+		}
+		follow--;
+	}
+
+	*finfo = &(lookupres.u.diropok);
+	*status = NFS_OK;
+
+	return NULL;
+}
+
 /* Convert a full filename/dirname into a leafname, and find the nfs handle
    for the file/dir and for the directory containing it.
    Returns a pointer to static data.
@@ -266,11 +358,16 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 {
 	char *start = filename;
 	char *end;
-	char *dirhandle = conn->rootfh;
+	char dirhandle[FHSIZE];
 	struct diropargs current;
-	static struct diropres next;
 	static struct diropok dirinfo;
+	char *segmentname;
+	unsigned int segmentlen;
+	struct diropok *segmentinfo;
+	enum nstat status;
 	os_error *err;
+
+	memcpy(dirhandle, conn->rootfh, FHSIZE);
 
 	if (dinfo) *dinfo = NULL; /* A NULL directory indicates the root directory */
 	if (finfo) *finfo = NULL; /* A NULL file indicates it wasn't found */
@@ -281,30 +378,28 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 		/* Find end of dirname segment */
 		while (*end && *end != '.') end++;
 
-		current.name.data = filename_unixify(start, end - start, &(current.name.size));
+		segmentname = filename_unixify(start, end - start, &segmentlen);
 
-		if (leafname) *leafname = current.name.data;
+		if (leafname) *leafname = segmentname;
 
-		memcpy(current.dir, dirhandle, FHSIZE);
-		err = NFSPROC_LOOKUP(&current, &next, conn);
-		if (err) return err;
+		err = leafname_to_finfo(segmentname, segmentlen, dirhandle, &segmentinfo, &status, conn);
 
 		/* It is not an error if the file isn't found, but the
 		   containing directory must exist */
-		if (*end == '\0' && next.status == NFSERR_NOENT) break;
+		if (*end == '\0' && status == NFSERR_NOENT) break;
 
-		if (dinfo == NULL && (next.status == NFSERR_NOENT || next.status == NFSERR_NOTDIR)) {
+		if (dinfo == NULL && (status == NFSERR_NOENT || status == NFSERR_NOTDIR)) {
 			/* If the caller wants info on the directory then it is an error if
 			   the dir isn't found, but if they only want info on the file
 			   (eg. read cat info) then it is not an error if we can't find it */
 			return NULL;
 		}
 
-		if (next.status != NFS_OK) return gen_nfsstatus_error(next.status);
+		if (status != NFS_OK) return gen_nfsstatus_error(status);
 
 		if (*end != '\0') {
-			if (next.u.diropok.attributes.type != NFDIR) {
-				/* Every segment except the leafname must be a directory */
+			if (segmentinfo->attributes.type != NFDIR) {
+				/* Every segment except the leafname should be a directory */
 				if (dinfo) {
 					return gen_nfsstatus_error(NFSERR_NOTDIR);
 				} else {
@@ -312,12 +407,12 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 				}
 			}
 			if (dinfo) {
-				dirinfo = next.u.diropok;
+				dirinfo = *segmentinfo;
 				*dinfo = &dirinfo;
 			}
 		}
 
-		dirhandle = next.u.diropok.file;
+		if (*end != '\0') memcpy(dirhandle, segmentinfo->file, FHSIZE);
 		start = end + 1;
 	} while (*end != '\0');
 
@@ -328,11 +423,12 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 	/* There's no need to continue if the caller doesn't care about the file */
 	if (finfo == NULL) return NULL;
 
-	if (next.status == NFSERR_NOENT) {
+
+	if (status == NFSERR_NOENT) {
 		if (conn->xyzext != NEVER) {
 			struct opaque *file;
 	
-			err = lookup_leafname(dirhandle, &(current.name), &file, conn);
+			err = lookup_leafname(dirhandle, segmentname, segmentlen, &file, conn);
 			if (err) return err;
 	
 			if (file) {
@@ -353,28 +449,28 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 				if (filetype) *filetype = (int)strtol(file->data + file->size - 3, NULL, 16);
 
 				/* Lookup the handle with the new leafname */
-				err = NFSPROC_LOOKUP(&current, &next, conn);
+				err = leafname_to_finfo(file->data, file->size, dirhandle, &segmentinfo, &status, conn);
 				if (err) return err;
-				if (next.status != NFS_OK) return gen_nfsstatus_error(next.status);
+				if (status != NFS_OK) return gen_nfsstatus_error(status);
 	
-				*finfo = &(next.u.diropok);
+				*finfo = segmentinfo;
 
 				if (extfound) *extfound = 1;
 			}
 		}
 	} else {
 		/* The file was found without needing to add ,xyz */
-		*finfo = &(next.u.diropok);
+		*finfo = segmentinfo;
 
 		/* Work out the filetype */
 		if (filetype) {
 			if (conn->xyzext != NEVER) {
-				int lastdot = current.name.size;
-				while (lastdot > 0 && current.name.data[lastdot] != '.') lastdot--;
+				int lastdot = segmentlen;
+				while (lastdot > 0 && segmentname[lastdot] != '.') lastdot--;
 	
 				/* current.name.data is pointing to unixify's buffer and is 0 terminated */
 		    	if (lastdot) {
-		    		*filetype = lookup_mimetype(current.name.data + lastdot + 1, conn);
+		    		*filetype = lookup_mimetype(segmentname + lastdot + 1, conn);
 				} else {
 					/* No ,xyz and no extension, so use the default */
 					*filetype = conn->defaultfiletype;
@@ -385,6 +481,7 @@ os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct dirop
 			}
 		}
 	}
+
 	return NULL;
 }
 

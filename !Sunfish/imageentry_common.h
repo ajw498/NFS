@@ -72,7 +72,7 @@
 #define UNSUPP (ERRBASE + 1)
 #define UNSUPPMESS "Unsupported entry point called"
 
-/* 1 error */
+/* 3 errors */
 #define BYTESERRBASE (ERRBASE + 2)
 
 /* 4 errors */
@@ -99,6 +99,7 @@ struct file_handle {
 	unsigned int extent;
 	unsigned int load;
 	unsigned int exec;
+	enum ftype type;
 };
 
 
@@ -135,6 +136,7 @@ struct conn_info {
 	int maxdatabuffer;
 	int nextcookie;
 	int cookies[MAX_DIRSTREAMS];
+	int followsymlinks;
 };
 
 /* The default port range to bind to. */
@@ -170,6 +172,9 @@ os_error *gen_nfsstatus_error(enum nstat stat);
 
 /* Convert unix leafname into RISC OS format */
 int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetype, struct conn_info *conn);
+
+/* Convert a leafname into an nfs handle, following symlinks as necessary */
+os_error *leafname_to_finfo(char *leafname, unsigned int len, char *dirhandle, struct diropok **finfo, enum nstat *status, struct conn_info *conn);
 
 /* Convert a full filename/dirname into an nfs handle */
 os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct diropok **finfo, char **leafname, int *filetype, int *extfound, struct conn_info *conn);

@@ -163,6 +163,8 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 	} else if (CHECK("MaxDataBuffer")) {
 		conn->maxdatabuffer = (int)strtol(val, NULL, 10);
 		if (conn->maxdatabuffer > MAXDATA) conn->maxdatabuffer = MAXDATA;
+	} else if (CHECK("FollowSymlinks")) {
+		conn->followsymlinks = (int)strtol(val, NULL, 10);
 	}
 	/* Ignore unrecognised lines */
 	return NULL;
@@ -293,6 +295,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->localportmax = LOCALPORTMAX_DEFAULT;
 	conn->maxdatabuffer =  MAXDATABUFFER_DEFAULT;
 	conn->nextcookie = 0;
+	conn->followsymlinks = 5;
 
 	/* Read details from file */
 	err = parse_file(fileswitchhandle, conn);
@@ -474,25 +477,29 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 			bufferpos += len;
 
 			if (info) {
-				struct diropargs lookupargs;
-				struct diropres lookupres;
+				struct diropok *lookupres;
+				enum nstat status;
 
 				bufferpos = (char *)(((int)bufferpos + 3) & ~3);
 
 				/* Lookup file attributes.
 				   READDIRPLUS in NFS3 would eliminate this call. */
-				memcpy(lookupargs.dir, rddir.dir, FHSIZE);
-				lookupargs.name.data = direntry->name.data;
-				lookupargs.name.size = direntry->name.size;
-
-				err = NFSPROC_LOOKUP(&lookupargs, &lookupres, conn);
+				err = leafname_to_finfo(direntry->name.data, direntry->name.size, rddir.dir, &lookupres, &status, conn);
 				if (err) return err;
-				if (lookupres.status != NFS_OK) return gen_nfsstatus_error(lookupres.status);
-
-				timeval_to_loadexec(&(lookupres.u.diropok.attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
-				info_entry->len = lookupres.u.diropok.attributes.size;
-				info_entry->attr = mode_to_attr(lookupres.u.diropok.attributes.mode);
-				info_entry->type = lookupres.u.diropok.attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
+				if (status == NFS_OK) {
+					timeval_to_loadexec(&(lookupres->attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
+					info_entry->len = lookupres->attributes.size;
+					info_entry->attr = mode_to_attr(lookupres->attributes.mode);
+					info_entry->type = lookupres->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
+				} else {
+					/* An error occured, either the file no longer exists, or
+					   it is a symlink that doesn't point to a valid object. */
+					info_entry->load = 0xDEADDEAD;
+					info_entry->exec = 0xDEADDEAD;
+					info_entry->len = 0;
+					info_entry->attr = 0;
+					info_entry->type = OBJ_FILE;
+				}
 			}
 
 			(*objsread)++;

@@ -236,3 +236,16 @@ struct statfsargs {
 
 statfsres NFSPROC_STATFS(statfsargs) = 17;
 
+struct readlinkargs {
+	fhandle fhandle;
+};
+
+union readlinkres switch (nstat status) {
+case NFS_OK:
+    path data;
+default:
+    void;
+};
+
+readlinkres NFSPROC_READLINK(readlinkargs) = 5;
+
