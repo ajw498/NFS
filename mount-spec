@@ -36,29 +36,29 @@ void MNTPROC_NULL(void) = 0;
 
 fhstatus MNTPROC_MNT(dirpath) = 1;
 
-/*struct *mountlist {
+struct *mountlist {
         name hostname;
         dirpath directory;
-        mountlist nextentry;
+        mountlist *next;
 };
 
-mountlist MNTPROC_DUMP(void) = 2;*/
+/*mountlist MNTPROC_DUMP(void) = 2;*/
 
 void MNTPROC_UMNT(dirpath) = 3;
 
 void MNTPROC_UMNTALL(void) = 4;
 
-/*struct *groups {
+struct *groups {
         name grname;
-        groups grnext;
+        groups *next;
 };
 
 struct *exportlist {
         dirpath filesys;
-        groups groups;
-        exportlist next;
+        groups *groups;
+        exportlist *next;
 };
 
-exportlist MNTPROC_EXPORT(void) = 5;*/
+/*exportlist MNTPROC_EXPORT(void) = 5;*/
 
 

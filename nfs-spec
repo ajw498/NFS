@@ -95,9 +95,11 @@ typedef string filename<MAXNAMLEN>;
 
 typedef string path<MAXPATHLEN>;
 
+
+void NFSPROC_NULL(void) = 0;
+
 union attrstat switch (nstat status) {
 case NFS_OK:
-
     fattr attributes;
 default:
     void;
@@ -120,46 +122,16 @@ default:
     void;
 };
 
-void NFSPROC3_NULL(void) = 0;
 
 diropres NFSPROC_LOOKUP(diropargs) = 4;
 
 typedef int nfscookie;
-/* ? */
 
 struct readdirargs {
         fhandle dir;
         nfscookie cookie;
         unsigned count;
 };
-
-/* Hacked the linked list a bit to make it simpler */
-/*struct readdirok_entry_TRUE {
-        unsigned fileid;
-        filename name;
-        nfscookie cookie;
-};
-
-union readdirok_entry switch (bool opted) {
-case TRUE:
-  readdirok_entry_TRUE u;
-};
-
-struct readdirok {*/
-        /*entry *entries;*/
-/*        bool eof;
-};
-
-struct readdirres {
-	nstat status;
-};
-*/
-/*union readdirres switch (stat status) {
-case NFS_OK:
-       readdirok readdirok;
-default:
-        void;
-};*/
 
 struct *entry {
         unsigned fileid;

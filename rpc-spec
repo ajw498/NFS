@@ -79,7 +79,6 @@ struct mismatch_info {
 union reply_data switch (accept_stat stat) {
 case SUCCESS:
   void;
-  /*opaque results[0];*/
   /* procedure-specific results start here */
 case PROG_MISMATCH:
   mismatch_info mismatch_info;
