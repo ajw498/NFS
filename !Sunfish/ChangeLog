@@ -1,4 +1,4 @@
-v0.97 ??-Jan-04
+v0.97 12-Jan-04
 Allow ; in filenames.
 Minor improvements to logging code.
 Fix bug that could leave an open socket if mounting failed.
