@@ -5,6 +5,9 @@
 
 Set Sunfish$Dir <Obey$Dir>
 
+If "<Choices$Write>" <> "" Then Set Sunfish$Write <Choices$Write>.Sunfish Else Set Sunfish$Write <Sunfish$Dir>
+If "<Choices$Write>" <> "" Then Set Sunfish$Path Choices:Sunfish. Else Set Sunfish$Path <Sunfish$Dir>.
+
 Set File$Type_1B6 Sunfish
 
 IconSprites <Sunfish$Dir>.!Sprites
@@ -16,8 +19,20 @@ RMEnsure SharedCLibrary 5.17 RMLoad System:Modules.CLib
 RMEnsure SharedCLibrary 5.34 Error Sunfish requires SharedCLibrary 5.34 or later
 RMEnsure MimeMap 0.01 RMLoad System:Modules.Network.MimeMap
 
+RMEnsure Toolbox    0.00 RMLoad System:Modules.Toolbox.Toolbox
+RMEnsure Toolbox    1.52 Error Sunfish requires Toolbox 1.52 or later
+RMEnsure Window     0.00 RMLoad System:Modules.Toolbox.Window
+RMEnsure Window     1.70 Error Sunfish requires Window 1.70 or later
+RMEnsure Menu       0.00 RMLoad System:Modules.Toolbox.Menu
+RMEnsure Menu       0.36 Error Sunfish requires Menu 0.36 or later
+RMEnsure Iconbar    0.00 RMLoad System:Modules.Toolbox.Iconbar
+RMEnsure Iconbar    1.20 Error Sunfish requires Iconbar 1.20 or later
+RMEnsure ProgInfo   0.00 RMLoad System:Modules.Toolbox.ProgInfo
+RMEnsure ProgInfo   0.18 Error Sunfish requires ProgInfo 0.18 or later
+
 RMEnsure Internet 5.00 Error Sunfish requires Internet 5.00 or later
 
 RMLoad <Sunfish$Dir>.Sunfish
 
 If "%*0" <> "" Then Filer_OpenDir %*0
+If "%*0" = "" Then Run <Sunfish$Dir>.!RunImage
