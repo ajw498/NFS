@@ -10,6 +10,8 @@
 #include <string.h>
 #include <swis.h>
 #include <unixlib.h>
+#include <unistd.h>
+#include <sys/param.h>
 
 #include "imageentry_func.h"
 
@@ -30,8 +32,6 @@ struct dir_entry {
 	unsigned int type;
 };
 
-
-/*FIXME - verify stack usage is < 1024 bytes */
 
 static void free_conn_info(struct conn_info *conn)
 {
@@ -208,6 +208,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	string dir;
 	struct fhstatus rootfh;
 	os_error *err;
+	static char machinename[MAXHOSTNAMELEN] = "";
 
 	/* Allocate the conn structure which hold all information about the mount.
 	   The image filing system internal handle is a pointer to this struct */
@@ -251,7 +252,11 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	}
 
 	if (conn->machinename == NULL) {
-		conn->machinename = ""; /* FIXME: get hostname */
+		/* Get the hostname of the machine we are running on */
+		conn->machinename = machinename;
+		if (machinename[0] == '\0') {
+			gethostname(machinename, MAXHOSTNAMELEN);
+		}
 	}
 
 	/* Create the opaque auth structure */
