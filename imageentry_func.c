@@ -585,6 +585,8 @@ static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struc
 					(*leafname)[file->size - 0] = '\0';
 				}
 	
+				if (filetype) *filetype = (int)strtol(file->data + file->size - 3, NULL, 16);
+
 				/* Lookup the handle with the new leafname */
 				err = NFSPROC_LOOKUP(&current, &next, conn);
 				if (err) return err;
@@ -592,7 +594,6 @@ static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struc
 	
 				*finfo = &(next.u.diropok);
 
-				if (filetype) *filetype = (int)strtol(file->data + file->size - 3, NULL, 16);
 				if (extfound) *extfound = 1;
 			}
 		}
@@ -938,11 +939,11 @@ os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype,
 	return NULL;
 }
 
-static char *newleafname(char *leafname, unsigned int len, int extfound, int filetype, int newfiletype, unsigned int *newlen, struct conn_info *conn)
+static char *newleafname(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, struct conn_info *conn)
 {
     static char newleafname[MAXNAMLEN];
 
-	if (conn->xyzext == NEVER || filetype == newfiletype) {
+	if (conn->xyzext == NEVER) {
 		if (newlen) *newlen = len;
 		return leafname;
 	} else {
@@ -967,7 +968,7 @@ static char *newleafname(char *leafname, unsigned int len, int extfound, int fil
 				newleafname[extlen] = '\0';
 				mimefiletype = lookup_mimetype(newleafname, conn);
 
-				if (mimefiletype == conn->defaultfiletype || mimefiletype == newfiletype) {
+				if (mimefiletype == newfiletype) {
 					/* Don't need an extension */
 					extneeded = 0;
 				} else {
@@ -1025,7 +1026,7 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 		renameargs.from.name.size = strlen(leafname);
 
 		memcpy(renameargs.to.dir, renameargs.from.dir, FHSIZE);
-		renameargs.to.name.data = newleafname(leafname, renameargs.from.name.size, extfound, filetype, newfiletype, &(renameargs.to.name.size), conn);
+		renameargs.to.name.data = newleafname(leafname, renameargs.from.name.size, extfound, newfiletype, &(renameargs.to.name.size), conn);
 
 		err = NFSPROC_RENAME(&renameargs, &renameres, conn);
 		if (err) return err;
@@ -1068,7 +1069,7 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 		createargs.where.name.size = strlen(*leafname);
 	} else {
 		/* We may need to add a ,xyz extension */
-		createargs.where.name.data = newleafname(*leafname, strlen(*leafname), 0, -1, newfiletype, &(createargs.where.name.size), conn);
+		createargs.where.name.data = newleafname(*leafname, strlen(*leafname), 0, newfiletype, &(createargs.where.name.size), conn);
 	}
 
 	createargs.attributes.mode = 0x00008000 | ((dir ? 0777 : 0666) & ~(conn->umask));
@@ -1167,32 +1168,37 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
     enum nstat renameres;
     os_error *err;
     char *leafname;
+    static char oldleafname[MAXNAMLEN];
+    int filetype;
 
-	err = filename_to_finfo(oldfilename, &dinfo, &finfo, &leafname, NULL, NULL, conn);
+	err = filename_to_finfo(oldfilename, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
 	if (err) return err;
-	if (finfo == NULL) return_error("file not found");
+	if (finfo == NULL) return gen_nfsstatus_error(NFSERR_NOENT);
 
 	memcpy(renameargs.from.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
-	renameargs.from.name.data = leafname;
-	renameargs.from.name.size = strlen(leafname);
+	strcpy(oldleafname, leafname);
+	renameargs.from.name.data = oldleafname;
+	renameargs.from.name.size = strlen(oldleafname);
 
 	if (strncmp(oldfilename, newfilename, leafname - oldfilename) == 0) {
 		/* Both files are in the same directory */
 		memcpy(renameargs.to.dir, renameargs.from.dir, FHSIZE);
-		renameargs.to.name.data = newfilename + (leafname - oldfilename);
-		renameargs.to.name.size = strlen(renameargs.to.name.data);
+		leafname = newfilename + (leafname - oldfilename);
 	} else {
-		/* FIXME this call corrupts leafname */
+		/* Files are in different directories, so find the handle of the new dir */
 		err = filename_to_finfo(newfilename, &dinfo, NULL, &leafname, NULL, NULL, conn);
 		if (err) return err;
+
 		memcpy(renameargs.to.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
-		renameargs.to.name.data = leafname;
-		renameargs.to.name.size = strlen(leafname);
 	}
+
+	/* Add ,xyz on if nessacery to preserve filetype */
+	renameargs.to.name.data = newleafname(leafname, strlen(leafname), 0, filetype, &(renameargs.to.name.size), conn);
 
 	err = NFSPROC_RENAME(&renameargs, &renameres, conn);
 	if (err) return err;
 	if (renameres != NFS_OK) return gen_nfsstatus_error(renameres);
+
 	*renamefailed = 0;
 	return NULL;
 }
