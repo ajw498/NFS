@@ -100,13 +100,28 @@ void rpc_init_header(void)
 
 #define Resolver_GetHost 0x46001
 
-/* A version of gethostbyname that will timeout */
+/* A version of gethostbyname that will timeout.
+   Also handles IP addresses without needing a reverse lookup */
 static os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct hostent **hp)
 {
 	unsigned long starttime;
 	unsigned long endtime;
 	os_error *err;
 	int errnum;
+	int quad1, quad2, quad3, quad4;
+
+	if (sscanf(host, "%d.%d.%d.%d", &quad1, &quad2, &quad3, &quad4) == 4) {
+		/* Host is an IP address, so doesn't need resolving */
+		static struct hostent hostent;
+		static int addr;
+
+		addr = quad1 | (quad2 << 8) | (quad3 << 16) | (quad4 << 24);
+		hostent.h_addr = (char *)&addr;
+		hostent.h_length = sizeof(addr);
+
+		*hp = &hostent;
+		return NULL;
+	}
 
 	err = _swix(OS_ReadMonotonicTime, _OUT(0), &starttime);
 	if (err) return err;
