@@ -379,16 +379,18 @@ static int filename_riscosify(char *name, int len, char **buffer)
 	}
 	(*buffer)[len] = '\0';
 	(*buffer) += (len + 4) & ~3;
-    if (filetype == -1 && lastdot) {
-    	os_error *err;
-
-    	/* No explicit ,xyz found, so try MimeMap to get a filetype */
-    	err = _swix(MimeMap_Translate,_INR(0,2) | _OUT(3), MMM_TYPE_DOT_EXTN, lastdot + 1, MMM_TYPE_RISCOS, &filetype);
-    	if (err) filetype = 0xFFF;
-    } else {
-    	/* No ,xyz and no extension, so default to text */
-    	filetype = 0xFFF;
-    }
+    if (filetype == -1) {
+    	if (lastdot) {
+			os_error *err;
+		
+			/* No explicit ,xyz found, so try MimeMap to get a filetype */
+			err = _swix(MimeMap_Translate,_INR(0,2) | _OUT(3), MMM_TYPE_DOT_EXTN, lastdot + 1, MMM_TYPE_RISCOS, &filetype);
+			if (err) filetype = 0xFFF;
+		} else {
+			/* No ,xyz and no extension, so default to text */
+			filetype = 0xFFF;
+		}
+	}
 	return filetype;
 }
 
@@ -428,6 +430,35 @@ static os_error *lookup_leafname(char *dhandle, char *leafname, int len,  struct
 	return NULL;
 }
 
+#define NFSSTATBASE 1
+/*FIXME*/
+
+static os_error *gen_nfsstatus_error(enum nstat stat)
+{
+	char *str;
+
+	switch (stat) {
+		case NFSERR_PERM: str = "Not owner"; break;
+		case NFSERR_NOENT: str = "No such file or directory"; break;
+		case NFSERR_IO: str = "IO error"; break;
+		case NFSERR_NXIO: str = "No such device or address"; break;
+		case NFSERR_ACCES: str = "Permission denied"; break;
+		case NFSERR_EXIST: str = "File already exists"; break;
+		case NFSERR_NODEV: str = "No such device"; break;
+		case NFSERR_NOTDIR: str = "Not a directory"; break;
+		case NFSERR_ISDIR: str = "Is a directory"; break;
+		case NFSERR_FBIG: str = "File too large"; break;
+		case NFSERR_NOSPC: str = "No space left on device"; break;
+		case NFSERR_ROFS: str = "Read only filesystem"; break;
+		case NFSERR_NAMETOOLONG: str = "File name too long"; break;
+		case NFSERR_NOTEMPTY: str = "Directory not empty"; break;
+		case NFSERR_DQUOT: str = "Disc quota exceeded"; break;
+		case NFSERR_STALE: str = "Stale nfs filehandle"; break;
+		default: str = "Unknown error"; break;
+	}
+	return gen_error(NFSSTATBASE, "NFS call failed (%s)", str);
+}
+
 static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struct diropok **finfo, char **leafname, struct conn_info *conn)
 {
 	char *start = filename;
@@ -437,7 +468,6 @@ static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struc
 	static struct diropres next;
 	os_error *err;
 
-/*return_error("foo");*/
 	if (dinfo) *dinfo = NULL;
 	if (finfo) *finfo = NULL;
 
@@ -454,7 +484,7 @@ static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struc
 
 		if (leafname) *leafname = current.name.data;
 		if (next.status == NFSERR_NOENT) break;
-		if (next.status != NFS_OK) return_error("Lookup failed");
+		if (next.status != NFS_OK) return gen_nfsstatus_error(next.status);
 		if (*end != '\0') {
 			if (next.u.diropok.attributes.type != NFDIR) return_error("not a directory");
 			if (dinfo) *dinfo = &(next.u.diropok);
@@ -472,7 +502,7 @@ static os_error *filename_to_finfo(char *filename, struct diropok **dinfo, struc
 				current.name.size = file->size;
 				err = NFSPROC_LOOKUP(&current, &next, conn);
 				if (err) return err;
-				if (next.status != NFS_OK) return_error("Lookup failed");
+				if (next.status != NFS_OK) return gen_nfsstatus_error(next.status);
 				*finfo = &(next.u.diropok);
 			}
 		}
@@ -528,7 +558,7 @@ os_error *func_readdirinfo(int info, char *dirname, void *buffer, int numobjs, i
 	rddir.cookie = start;
 	err = NFSPROC_READDIR(&rddir, &rdres, conn);
 	if (err) return err;
-	if (rdres.status != NFS_OK) return_error("readdir failed");
+	if (rdres.status != NFS_OK) return gen_nfsstatus_error(rdres.status);
 	swap_rxbuffers();
 	direntry = rdres.u.readdirok.entries;
 	while (direntry) {
@@ -559,7 +589,7 @@ os_error *func_readdirinfo(int info, char *dirname, void *buffer, int numobjs, i
 				lookupargs.name.size = direntry->name.size;
 				err = NFSPROC_LOOKUP(&lookupargs, &lookupres, conn);
 				if (err) return err;
-				if (lookupres.status != NFS_OK) return_error("lookup failed");
+				if (lookupres.status != NFS_OK) return gen_nfsstatus_error(lookupres.status);
 
 				timeval_to_loadexec(&(lookupres.u.diropok.attributes.mtime), filetype, &(entry->load), &(entry->exec));
 				entry->len = lookupres.u.diropok.attributes.size;
@@ -617,7 +647,7 @@ os_error *open_file(char *filename, int access, struct conn_info *conn, int *fil
 				free(handle);
 				return err;
 			}
-			if (createres.status != NFS_OK) return_error("create file failed");
+			if (createres.status != NFS_OK) return gen_nfsstatus_error(createres.status);
 			finfo = &(createres.u.diropok);
 		} else {
 			*internal_handle = 0;
@@ -658,8 +688,8 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned len, unsi
 		offset += args.count;
 		err = NFSPROC_READ(&args, &res, handle->conn);
 		if (err) return err;
-		if (res.status != NFS_OK) return_error("read failed");
-		if (res.u.data.size > args.count)return_error("unexpectedly large amount of data read");
+		if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
+		if (res.u.data.size > args.count) return_error("unexpectedly large amount of data read");
 		memcpy(buffer, res.u.data.data, res.u.data.size);
 		buffer += args.count;
 		len -= args.count;
@@ -684,7 +714,7 @@ os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned len, unsi
 		buffer += args.data.size;
 		err = NFSPROC_WRITE(&args, &res, handle->conn);
 		if (err) return err;
-		if (res.status != NFS_OK) return_error("write failed");
+		if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
 	} while (len > 0);
 	return NULL;
 }
@@ -694,7 +724,6 @@ os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype,
     struct diropok *finfo;
     os_error *err;
 
-/*	return_error("ofla avoidance");*/
 	err = filename_to_finfo(filename, NULL, &finfo, NULL, conn);
 	if (err) return err;
 	if (finfo == NULL) {
@@ -702,7 +731,7 @@ os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype,
 		return NULL;
 	}
 
-	*objtype = finfo->attributes.type == NFDIR ? 2 : 1;
+	*objtype = finfo->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE; /* other types? */
 	*load = (int)0xFFFFFF00;
 	*exec = 0;
 	*len = finfo->attributes.size;
@@ -743,7 +772,7 @@ static os_error *createfile(char *filename, int dir, int load, int exec, char *b
 		err = NFSPROC_CREATE(&createargs, &createres, conn);
 	}
 	if (err) return err;
-	if (createres.status != NFS_OK && createres.status != NFSERR_EXIST) return_error("create file failed");
+	if (createres.status != NFS_OK && createres.status != NFSERR_EXIST) return gen_nfsstatus_error(createres.status);
 	if (fhandle) *fhandle = createres.u.diropok.file;
 	return NULL;
 }
@@ -804,7 +833,7 @@ os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, int 
 			err = NFSPROC_REMOVE(&removeargs, &removeres, conn);
 		}
 		if (err) return err;
-		if (removeres != NFS_OK) return_error("remove failed");
+		if (removeres != NFS_OK) return gen_nfsstatus_error(removeres);
 		*objtype = finfo->attributes.type == NFDIR ? 2 : 1;
 		*load = (int)0xFFFFFF00;
 		*exec = 0;
@@ -846,7 +875,7 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 
 	err = NFSPROC_RENAME(&renameargs, &renameres, conn);
 	if (err) return err;
-	if (renameres != NFS_OK) return_error("rename failed");
+	if (renameres != NFS_OK) return gen_nfsstatus_error(renameres);
 	*renamefailed = 0;
 	return NULL;
 }
@@ -868,7 +897,7 @@ os_error *args_writeextent(struct file_handle *handle, unsigned extent)
 	args.size = extent;
 	err = NFSPROC_SETATTR(&args, &res, handle->conn);
 	if (err) return err;
-	if (res.status != NFS_OK) return_error("setattr failed"); */
+	if (res.status != NFS_OK) return gen_nfsstatus_error(res.status); */
 	/* FIXME: should zero pad if new extent > old extent */  /*
 	return NULL;
 }
