@@ -27,6 +27,7 @@
 #include <string.h>
 #include <kernel.h>
 #include <stdarg.h>
+#include <stddef.h>
 #include <ctype.h>
 #include <unixlib.h>
 
@@ -45,6 +46,8 @@
 #include "oslib/osfile.h"
 #include "oslib/osfscontrol.h"
 #include "oslib/osgbpb.h"
+#include "oslib/wimp.h"
+#include "oslib/filer.h"
 
 #include "moduledefs.h"
 #include "sunfish.h"
@@ -165,6 +168,7 @@ static toolbox_o unmountedicon;
 
 struct mounticon {
 	toolbox_o icon;
+	wimp_i iconhandle;
 	char filename[1024];
 	struct mounticon *next;
 };
@@ -426,6 +430,7 @@ static void add_mount(char *filename)
 		E(xtoolbox_hide_object(0, unmountedicon));
 		E(xmenu_set_fade(0, mainmenuid, gadget_menu_REMOVE, FALSE));
 	}
+	E(xiconbar_get_icon_handle(0, icon, &(mountdetails->iconhandle)));
 	mountdetails->icon = icon;
 	mountdetails->next = iconhead;
 	iconhead = mountdetails;
@@ -905,6 +910,79 @@ static osbool message_data_open(wimp_message *message, void *handle)
 	return 1;
 }
 
+static char *mountpathfromicon(wimp_i icon)
+{
+	struct mounticon *current = iconhead;
+
+	while (current) {
+		if (current->iconhandle == icon) return current->filename;
+		current = current->next;
+	}
+	return NULL;
+}
+
+static osbool message_data_save(wimp_message *message, void *handle)
+{
+	UNUSED(handle);
+	char leafname[STRMAX];
+	char *defaultpath = getenv("Sunfish$DefaultPath");
+	char *mountpath = mountpathfromicon(message->data.data_xfer.i);
+
+	if (mountpath == NULL) return 0;
+
+	snprintf(leafname, sizeof(leafname), "%s", message->data.data_xfer.file_name);
+
+	snprintf(message->data.data_xfer.file_name, sizeof(message->data.data_xfer.file_name),
+	         "%s%s%s.%s", mountpath, defaultpath ? "." : "", defaultpath ? defaultpath : "", leafname);
+	message->size = ((message->data.data_xfer.file_name - (char *)message) + strlen(message->data.data_xfer.file_name) + 1 + 3) & ~3;
+	message->your_ref = message->my_ref;
+	message->action = message_DATA_SAVE_ACK;
+
+	E(xwimp_send_message(wimp_USER_MESSAGE, message, message->sender));
+
+	return 1;
+}
+
+static osbool message_data_load(wimp_message *message, void *handle)
+{
+	UNUSED(handle);
+	char cmd[STRMAX];
+
+	if (message->your_ref == 0) {
+		char *defaultpath = getenv("Sunfish$DefaultPath");
+		char *mountpath = mountpathfromicon(message->data.data_xfer.i);
+
+		if (mountpath == NULL) return 0;
+
+		snprintf((char *)message->data.reserved, sizeof(message->data.reserved),
+		         "%s%s%s", mountpath, defaultpath ? "." : "", defaultpath ? defaultpath : "");
+		message->size = (((char *)(message->data.reserved) - (char *)message) + strlen((char *)(message->data.reserved)) + 1 + 3) & ~3;
+		message->your_ref = message->my_ref;
+		message->action = message_FILER_DEVICE_DIR;
+	
+		E(xwimp_send_message(wimp_USER_MESSAGE, message, message->sender));
+
+		snprintf(cmd, sizeof(cmd), "Filer_OpenDir %s", message->data.reserved);
+		E(xwimp_start_task(cmd, NULL));
+	} else {
+		char *leaf;
+
+		snprintf(cmd, sizeof(cmd), "Filer_OpenDir %s", message->data.data_xfer.file_name);
+
+		leaf = strrchr(cmd, '.');
+		if (leaf) *leaf = '\0';
+
+		E(xwimp_start_task(cmd, NULL));
+
+		message->your_ref = message->my_ref;
+		message->action = message_DATA_LOAD_ACK;
+
+		E(xwimp_send_message(wimp_USER_MESSAGE, message, message->sender));
+	}
+
+	return 1;
+}
+
 int main(void)
 {
 	int toolbox_events[] = {0};
@@ -947,6 +1025,8 @@ int main(void)
 	event_register_message_handler(message_QUIT, message_quit, NULL);
 
 	event_register_message_handler(message_DATA_OPEN, message_data_open, NULL);
+	event_register_message_handler(message_DATA_SAVE, message_data_save, NULL);
+	event_register_message_handler(message_DATA_LOAD, message_data_load, NULL);
 
 	E(xtoolbox_create_object(0, (toolbox_id)"unmounted", &unmountedicon));
 	E(xtoolbox_show_object(0, unmountedicon, toolbox_POSITION_DEFAULT, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
