@@ -1,5 +1,6 @@
 /*
 	$Id$
+	$URL$
 
 	Main module entry points.
 	This then calls the imageentry_* functions as appropriate.
@@ -24,11 +25,9 @@
 #error cmhg out of date
 #endif
 
-#define UNUSED(x) x=x
+#define IMAGE_FILETYPE 0x1B6
 
-#define IMAGE_FILETYPE 0x001
-
-#define LOGNAME "NFS"
+#define LOGNAME "Sunfish"
 #define LOGENTRY 50
 #define LOGEXIT  75
 #define LOGERROR 25
@@ -110,8 +109,8 @@ static os_error *declare_fs(void *private_word)
 void service_call(int service_number, _kernel_swi_regs *r, void *private_word)
 {
 	/* The veneer will have already filtered out uninteresting calls */
-    UNUSED(service_number);
-    UNUSED(r);
+    (void)service_number;
+    (void)r;
 
 	declare_fs(private_word); /* Ignore errors */
 }
@@ -120,8 +119,8 @@ _kernel_oserror *initialise(const char *cmd_tail, int podule_base, void *private
 {
 	os_error *err;
 
-    UNUSED(cmd_tail);
-    UNUSED(podule_base);
+    (void)cmd_tail;
+    (void)podule_base;
 
 	err = declare_fs(private_word);
 
@@ -134,9 +133,9 @@ _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 {
 	os_error *err;
 
-    UNUSED(fatal);
-    UNUSED(podule_base);
-    UNUSED(private_word);
+    (void)fatal;
+    (void)podule_base;
+    (void)private_word;
 
 	if (enablelog) syslogf(LOGNAME, LOGENTRY, "Module finalisation");
 
@@ -149,7 +148,7 @@ _kernel_oserror *imageentry_open_handler(_kernel_swi_regs *r, void *pw)
 {
 	os_error *err;
 
-	UNUSED(pw);
+	(void)pw;
 
 	if (enablelog) logentry("Open", (char *)(r->r[1]), r);
 
@@ -164,7 +163,7 @@ _kernel_oserror *imageentry_getbytes_handler(_kernel_swi_regs *r, void *pw)
 {
 	os_error *err;
 
-	UNUSED(pw);
+	(void)pw;
 
 	if (enablelog) logentry("GetBytes", "", r);
 
@@ -179,7 +178,7 @@ _kernel_oserror *imageentry_putbytes_handler(_kernel_swi_regs *r, void *pw)
 {
 	os_error *err = NULL;
 
-	UNUSED(pw);
+	(void)pw;
 
 	if (enablelog) logentry("PutBytes", "", r);
 
@@ -194,7 +193,7 @@ _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 {
 	os_error *err;
 
-	UNUSED(pw);
+	(void)pw;
 
 	if (enablelog) logentry("Args", "", r);
 
@@ -230,7 +229,7 @@ _kernel_oserror *imageentry_close_handler(_kernel_swi_regs *r, void *pw)
 {
 	os_error *err;
 
-	UNUSED(pw);
+	(void)pw;
 
 	if (enablelog) logentry("Close", "", r);
 
@@ -245,7 +244,7 @@ _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 {
 	os_error *err;
 
-	UNUSED(pw);
+	(void)pw;
 
 	if (enablelog) logentry("File", (char *)(r->r[1]), r);
 
@@ -284,7 +283,8 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 {
 	os_error *err;
 
-	UNUSED(pw);
+	(void)pw;
+
 	if (enablelog) logentry("Func", r->r[0] == 22 ? "" : (char *)(r->r[1]), r);
 
 	switch (r->r[0]) {

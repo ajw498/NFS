@@ -63,7 +63,7 @@
 
 
 /* Error numbers */
-#define ERRBASE 0
+#define ERRBASE 0x0081b400
 
 #define NOMEM (ERRBASE + 0)
 #define NOMEMMESS "Unable to allocate memory"
@@ -74,7 +74,7 @@
 /* 1 error */
 #define BYTESERRBASE (ERRBASE + 2)
 
-/* 1 error */
+/* 3 errors */
 #define FUNCERRBASE (ERRBASE + 10)
 
 /* 1 error */
@@ -85,6 +85,8 @@
 #define RPCBUFOVERFLOW (RPCERRBASE + 0)
 #define RPCBUFOVERFLOWMESS "RPC buffer overflow"
 
+
+#define MAX_GIDS 16
 
 
 /* All infomation associated with an open file */
@@ -103,6 +105,7 @@ struct conn_info {
 	unsigned int portmapper_port;
 	unsigned int mount_port;
 	unsigned int nfs_port;
+	unsigned int pcnfsd_port;
 	char *export;
 	char rootfh[FHSIZE];
 	char *config;
@@ -111,10 +114,11 @@ struct conn_info {
 	long timeout;
 	int retries;
 	int hidden;
-	int umask;
-	char *gids;
-	int uid;
-	int gid;
+	unsigned int umask;
+	unsigned int numgids;
+	unsigned int uid;
+	unsigned int gid;
+	unsigned int gids[MAX_GIDS];
 	char *username;
 	char *password;
 	int logging;

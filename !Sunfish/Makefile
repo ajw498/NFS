@@ -25,17 +25,22 @@ mount-calls.c mount-calls.h: mount-spec ProcessSpec
 portmapper-calls.c portmapper-calls.h: portmapper-spec ProcessSpec
 	perl ProcessSpec portmapper portmapper-spec
 
+pcnfsd-calls.c pcnfsd-calls.h: pcnfsd-spec ProcessSpec
+	perl ProcessSpec pcnfsd pcnfsd-spec
+
 GENHDRS = \
 rpc-calls.h \
 nfs-calls.h \
 mount-calls.h \
-portmapper-calls.h
+portmapper-calls.h \
+pcnfsd-calls.h
 
 GENOBJS = \
 rpc-calls.o \
 nfs-calls.o \
 mount-calls.o \
-portmapper-calls.o
+portmapper-calls.o \
+pcnfsd-calls.o
 
 OBJS = \
 rpc.o \

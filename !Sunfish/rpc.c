@@ -8,6 +8,7 @@
 #include "portmapper-calls.h"
 #include "mount-calls.h"
 #include "nfs-calls.h"
+#include "pcnfsd-calls.h"
 #include "rpc.h"
 
 
@@ -74,7 +75,6 @@ void rpc_init_header(void)
 	xid = 1;
 	call_header.body.mtype = CALL;
 	call_header.body.u.cbody.rpcvers = RPC_VERSION;
-	call_header.body.u.cbody.cred.flavor = AUTH_UNIX;
 	call_header.body.u.cbody.verf.flavor = AUTH_NULL;
 	call_header.body.u.cbody.verf.body.size = 0;
 }
@@ -111,8 +111,15 @@ void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, s
 	call_header.body.u.cbody.prog = prog;
 	call_header.body.u.cbody.vers = vers;
 	call_header.body.u.cbody.proc = proc;
-	call_header.body.u.cbody.cred.body.size = conn->authsize;
-	call_header.body.u.cbody.cred.body.data = conn->auth;
+
+	if (conn->auth) {
+		call_header.body.u.cbody.cred.flavor = AUTH_UNIX;
+		call_header.body.u.cbody.cred.body.size = conn->authsize;
+		call_header.body.u.cbody.cred.body.data = conn->auth;
+	} else {
+		call_header.body.u.cbody.cred.flavor = AUTH_NULL;
+		call_header.body.u.cbody.cred.body.size = 0;
+	}
 
 	buf = tx_buffer;
 	bufend = tx_buffer + sizeof(tx_buffer);
@@ -141,6 +148,9 @@ os_error *rpc_do_call(struct conn_info *conn)
 		break;
 	case MOUNT_RPC_PROGRAM:
 		port = htons(conn->mount_port);
+		break;
+	case PCNFSD_RPC_PROGRAM:
+		port = htons(conn->pcnfsd_port);
 		break;
 	case NFS_RPC_PROGRAM:
 	default:

@@ -19,9 +19,7 @@
 #include "nfs-calls.h"
 #include "mount-calls.h"
 #include "portmapper-calls.h"
-
-
-#define MAX_GIDS 16
+#include "pcnfsd-calls.h"
 
 
 struct dir_entry {
@@ -63,8 +61,16 @@ os_error *func_closeimage(struct conn_info *conn)
 	return NULL;
 }
 
-#define CHECK(str) (strncasecmp(line,str,sizeof(str))==0)
+/* Encode a username or password for pcnfsd */
+static void encode(char *str)
+{
+	while (*str) {
+		*str = *str ^ 0x5b;
+		str++;
+	}
+}
 
+#define CHECK(str) (strncasecmp(line,str,sizeof(str))==0)
 
 static os_error *parse_line(char *line, struct conn_info *conn)
 {
@@ -94,6 +100,8 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		conn->mount_port = (int)strtol(val, NULL, 10);
 	} else if (CHECK("NFSPort")) {
 		conn->nfs_port = (int)strtol(val, NULL, 10);
+	} else if (CHECK("PCNFSDPort")) {
+		conn->pcnfsd_port = (int)strtol(val, NULL, 10);
 	} else if (CHECK("Export")) {
 		conn->export = val;
 	} else if (CHECK("UID")) {
@@ -101,11 +109,18 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 	} else if (CHECK("GID")) {
 		conn->gid = (int)strtol(val, NULL, 10);
 	} else if (CHECK("GIDs")) {
-		conn->gids = val;
+		char *end = val;
+
+		while (*end && conn->numgids < MAX_GIDS) {
+			conn->gids[conn->numgids++] = (int)strtol(val, &end, 10);
+			val = end;
+		}
 	} else if (CHECK("Username")) {
 		conn->username = val;
+		encode(val);
 	} else if (CHECK("Password")) {
 		conn->password = val;
+		encode(val);
 	} else if (CHECK("Logging")) {
 		conn->logging = (int)strtol(val, NULL, 10);
 	} else if (CHECK("umask")) {
@@ -168,7 +183,6 @@ static os_error *parse_file(unsigned int fileswitchhandle, struct conn_info *con
 static os_error *create_auth(struct conn_info *conn)
 {
 	struct auth_unix auth_unix;
-	unsigned int gids[MAX_GIDS];
 
 	/* Make an estimate of the maximum size needed for the
 	   auth structure */
@@ -181,17 +195,9 @@ static os_error *create_auth(struct conn_info *conn)
 	auth_unix.machinename.size = strlen(conn->machinename);
 	auth_unix.uid = conn->uid;
 	auth_unix.gid = conn->gid;
-	auth_unix.gids.size = 0;
-	auth_unix.gids.data = gids;
-	if (conn->gids) {
-		char *str = conn->gids;
-		char *end = str;
+	auth_unix.gids.size = conn->numgids;
+	auth_unix.gids.data = conn->gids;
 
-		while (*end && auth_unix.gids.size < MAX_GIDS) {
-			gids[auth_unix.gids.size++] = (int)strtol(str, &end, 10);
-			str = end;
-		}
-	}
 	buf = conn->auth;
 	bufend = conn->auth + conn->authsize;
 	process_struct_auth_unix(0, auth_unix, 0);
@@ -201,6 +207,22 @@ buffer_overflow: /* Should never occur */
 	return NULL;
 }
 
+static os_error *getport(int program, int version, unsigned int *progport, struct conn_info *conn)
+{
+	struct mapping map = {program, version, IPPROTO_UDP, 0};
+	os_error *err;
+	int port;
+
+	err = PMAPPROC_GETPORT(&map, &port, conn);
+	if (err) return err;
+	if (port == 0) {
+		return gen_error(FUNCERRBASE + 1, "Unable to map RPC program to port number (%d, %d)", program, version);
+	}
+	
+	*progport = port;
+
+	return NULL;
+}
 
 os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhandle)
 {
@@ -221,6 +243,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->portmapper_port = PMAP_PORT;
 	conn->mount_port = 0;
 	conn->nfs_port = 0;
+	conn->pcnfsd_port = 0;
 	conn->server = "";
 	conn->export = "";
 	conn->timeout = 3;
@@ -228,10 +251,10 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->hidden = 1;
 	conn->umask = 022;
 	conn->username = NULL;
-	conn->password = NULL;
+	conn->password = "";
 	conn->uid = 0;
 	conn->gid = 0;
-	conn->gids = NULL;
+	conn->numgids = 0;
 	conn->logging = 0;
 	conn->auth = NULL;
 	conn->machinename = NULL;
@@ -247,23 +270,12 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 
 	if (conn->logging) enablelog++;
 
-	if (conn->password) {
-		/* use pcnfsd to map to uid/gid */
-	}
-
 	if (conn->machinename == NULL) {
 		/* Get the hostname of the machine we are running on */
 		conn->machinename = machinename;
 		if (machinename[0] == '\0') {
 			gethostname(machinename, MAXHOSTNAMELEN);
 		}
-	}
-
-	/* Create the opaque auth structure */
-	err = create_auth(conn);
-	if (err) {
-		free_conn_info(conn);
-		return err;
 	}
 
 	/* Initialise socket etc. */
@@ -274,28 +286,67 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	}
 
 	/* Get port numbers if not specified */
-	if (conn->mount_port == 0) {
-		struct mapping map = {MOUNT_RPC_PROGRAM,MOUNT_RPC_VERSION,IPPROTO_UDP,0};
-		int port;
-
-		err = PMAPPROC_GETPORT(&map,&port,conn);
+	if (conn->pcnfsd_port == 0 && conn->username) {
+		err = getport(PCNFSD_RPC_PROGRAM, PCNFSD_RPC_VERSION, &(conn->pcnfsd_port), conn);
 		if (err) {
 			free_conn_info(conn);
 			return err;
 		}
-		conn->mount_port = port;
+	}
+
+	if (conn->mount_port == 0) {
+		err = getport(MOUNT_RPC_PROGRAM, MOUNT_RPC_VERSION, &(conn->mount_port), conn);
+		if (err) {
+			free_conn_info(conn);
+			return err;
+		}
 	}
 
 	if (conn->nfs_port == 0) {
-		struct mapping map = {NFS_RPC_PROGRAM,NFS_RPC_VERSION,IPPROTO_UDP,0};
-		int port;
-
-		err = PMAPPROC_GETPORT(&map,&port,conn);
+		err = getport(NFS_RPC_PROGRAM, NFS_RPC_VERSION, &(conn->nfs_port), conn);
 		if (err) {
 			free_conn_info(conn);
 			return err;
 		}
-		conn->nfs_port = port;
+	}
+
+	/* Use pcnfsd to map username/password to uid/gid */
+	if (conn->username) {
+		struct auth_args args;
+		struct auth_res res;
+		int i;
+
+		args.system.data = conn->machinename;
+		args.system.size = strlen(conn->machinename);
+		args.id.data = conn->username;
+		args.id.size = strlen(conn->username);
+		args.pw.data = conn->password;
+		args.pw.size = strlen(conn->password);
+		args.comment.size = 0;
+
+		err = PCNFSD_AUTH(&args, &res, conn);
+		if (err) {
+			free_conn_info(conn);
+			return err;
+		}
+		if (res.stat != AUTH_RES_OK) {
+			free_conn_info(conn);
+			return gen_error(FUNCERRBASE + 2, "PCNFSD authentication failed");
+		}
+		conn->uid = res.uid;
+		conn->gid = res.gid;
+		conn->umask = res.def_umask;
+		conn->numgids = res.gids.size;
+		for (i = 0; i < res.gids.size; i++) {
+			conn->gids[i] = res.gids.data[i];
+		}
+	}
+
+	/* Create the opaque auth structure */
+	err = create_auth(conn);
+	if (err) {
+		free_conn_info(conn);
+		return err;
 	}
 
 	/* Get a filehandle for the root directory */

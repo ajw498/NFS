@@ -243,6 +243,9 @@ while (<>) {
       } elsif ($procname =~ m/^MNT/) {
         $prog = "MOUNT_RPC_PROGRAM";
         $vers = "MOUNT_RPC_VERSION";
+      } elsif ($procname =~ m/^PCNFSD/) {
+        $prog = "PCNFSD_RPC_PROGRAM";
+        $vers = "PCNFSD_RPC_VERSION";
       } else {
         $prog = "PMAP_RPC_PROGRAM";
         $vers = "PMAP_RPC_VERSION";

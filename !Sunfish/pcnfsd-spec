@@ -1,0 +1,44 @@
+/*
+	$Id: rpc-spec 45 2003-10-08 22:06:21Z ajw $
+	$URL: $
+
+	XDR Specification for PCNFSD.
+
+	StrongEd$Mode=C
+*/
+
+#define PCNFSD_RPC_PROGRAM 150001
+#define PCNFSD_RPC_VERSION 2
+
+const IDENTLEN = 32;
+const PASSWORDLEN = 64;
+const EXTRAGIDLEN = 16;
+const HOMEDIRLEN = 255;
+const COMMENTLEN = 255;
+const CLIENTLEN = 64;
+
+
+enum arstat {
+	AUTH_RES_OK = 0,
+	AUTH_RES_FAKE = 1,
+	AUTH_RES_FAIL = 2
+};
+
+struct auth_args {
+	opaque system<CLIENTLEN>;
+	opaque id<IDENTLEN>;
+	opaque pw<PASSWORDLEN>;
+	opaque comment<COMMENTLEN>;
+};
+
+struct auth_res {
+	arstat stat;
+	unsigned int uid;
+	unsigned int gid;
+	unsigned int gids<EXTRAGIDLEN>;
+	opaque home<HOMEDIRLEN>;
+	int def_umask;
+	opaque cm<COMMENTLEN>;
+};
+
+auth_res PCNFSD_AUTH(auth_args) = 13;
