@@ -1,0 +1,196 @@
+<html>
+<head>
+  <title>Sunfish NFS client</title>
+</head>
+
+<body bgcolor="#ffffff" text="#000000">
+<p align="center"><img src="title.png" alt="Sunfish" border=0>
+
+<p>
+
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff">Contents</font></h2>
+</td></tr></table>
+<ul>
+<li><a href="#license">License</a><br>
+<li><a href="#requirements">Requirements</a><br>
+<li><a href="#setup">Setting up a Mount</a><br>
+<li><a href="#reportingbugs">Reporting Bugs</a><br>
+<li><a href="#knownbugs">Known Bugs</a><br>
+<li><a href="#recompiling">Recompiling</a><br>
+</ul>
+
+
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="license">License</a></font></h2>
+</td></tr></table>
+
+<p>
+Sunfish is copyright &copy; 2003 Alex Waugh
+<p>
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+<p>
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+<p>
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+<p>
+
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="requirements">Requirements</a></font></h2>
+</td></tr></table>
+
+Sunfish requires a working network connection and an NFS server to connect to. The server should be running version 2 of the NFS protocol, version 1 of the Mount protocol, version 2 of the portmapper protocol, and optionally version 2 of the pcnfsd protocol. It has currently only been tested with the Linux kernel server present in Debian Woody, but it should work with other servers.
+<p>
+Sunfish should run on RISC OS 3.11 or later, but has only been tested on RISC OS 5 at present. It is 26/32bit neutral.
+
+<p>
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="setup">Setting up a mount</a></font></h2>
+</td></tr></table>
+<p>
+Sunfish is implemented as an image filing system. Currently you have to setup a mount file by hand, but in future versions a frontend may be supplied.
+<p>
+Ensure the Sunfish module is loaded by double clicking on !Sunfish. Then, using your favorite<!-- <message type="subliminal">StrongED</message> --> text editor create a file with the appropriate options as described below. Save this, then set it's filetype to Sunfish (&1b6). The double click on the mount file you have just created and the server will be mounted and you can navigate the filesystem as normal.
+
+<h3>Example mount files</h3>
+<p>
+This is a very simple mount file. It will use pcnfsd to map the username and password onto a uid and gid.
+<pre>
+Protocol: NFS2
+Server: mint.cp15.org
+Export: /home/ajw498
+Username: ajw498
+Password: fiddlesticks
+</pre>
+<p>
+The same as above, but specifying the uid and gid explicitly. pcnfsd is not required in this case, and there is no need for the password to be stored in the file either.
+<pre>
+Protocol: NFS2
+Server: mint.cp15.org
+Export: /home/ajw498
+UID: 1001
+GID: 50
+</pre>
+<p>
+A more complex example.
+<pre>
+Protocol: NFS2
+Server: mint.cp15.org
+Export: /tmp
+UID: 1002
+GID: 51
+GIDs: 52 53 105
+umask: 066
+MachineName: caramel
+ShowHidden: 0
+Timeout: 5
+Retries: 0
+DefaultFiletype: FFF
+AddExt: 2
+</pre>
+
+<p>
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="options">Options</a></font></h2>
+</td></tr></table>
+<p>
+Any line beginning with a # is treated as a comment. 
+
+<h3>Mandatory options</h3>
+These options must appear in the file for a working connection to be established. Either a uid and gid must be specified <em>or</em> a username and password.
+<p>
+<h4>Protocol</h4>
+Specifies the protocol to use. An error will be generated in the current version if this is not NFS2.
+<p>
+<h4>Server</h4>
+The domain name or ip address of the NFS server.
+<p>
+<h4>Export</h4>
+The name of the exported directory to mount. This should match one of the entries in /etc/exports or equivalent on the server.
+<p>
+<h4>UID</h4>
+The user id to use. If this is not specified, then a username and password should be specified instead.
+<p>
+<h4>GID</h4>
+The group id to use. If this is not specified, then a username and password should be specified instead.
+<p>
+<h4>Username</h4>
+The username to connect as. If specified, then pcnfsd will be used to map the username and password to a uid and gid. If not specified, or pcnfsd is not available, then the uid and gid should be specified instead.
+<p>
+<h4>Password</h4>
+The password to give to pcnfsd with the username. This password has to be stored in the file in plain text, so if that is a concern then you should specify the uid/gid instead.
+<p>
+<h3>Optional options</h3>
+These options can be specified if needed, but if they are not then default values will be used. For most connections, the defaults will be sufficient.
+<p>
+<h4>MachineName</h4>
+The name of the machine the client is running on. Some servers may use it to allow or deny access. If ommitted, it defaults to the value of <code>&lt;Inet$Hostname&gt;</code> which should be sufficient in most cases.
+<p>
+<h4>PortMapperPort</h4>
+The port number to use for the portmapper service. If omitted, it defaults to the assigned number 111.
+<p>
+<h4>MountPort</h4>
+The port number to use for the mount service. If omitted, the portmapper service will be used to find the correct port.
+<p>
+<h4>NFSPort</h4>
+The port number to use for NFS. If omitted, the portmapper service will be used to find the correct port.
+<p>
+<h4>PCNFSDPort</h4>
+The port number to use for PCNFSD. If omitted, the portmapper service will be used to find the correct port.
+<p>
+<h4>GIDs</h4>
+A list of additional group ids that the user is part of. There can be up to 16 gids in the list, separated by whitespace. If pcnfsd is used then the list returned by that will override this setting.
+<p>
+<h4>Logging</h4>
+If set to 1 then all operations will be reported to syslog. This should only be enabled for debugging, as it significantly slows things down. Note: if one connection specifies logging, then activity on all connections will be logged while that connection is mounted.
+<p>
+<h4>umask</h4>
+The umask to use, specified in octal. All operations that modify a files attributes will have the Unix mode bits modifed according to the umask. If not specified, it defaults to 022. If pcnfsd is used then the umask returned by that will override this setting.
+<p>
+<h4>ShowHidden</h4>
+If set to 1, all files will be shown, if set to 0 then all files beginning with a . will be hidden from filer views. If not specified, then defaults to 1.
+<p>
+<h4>Timeout</h4>
+The time in seconds to wait for a reply from the server before retrying or giving up. Defaults to 3 seconds.
+<p>
+<h4>Retries</h4>
+The number of times to resend a request if no reply is recieved. Defaults to 2 retries.
+<p>
+<h4>DefaultFiletype</h4>
+The hexadecimal filetype to give a file if it doesn't have an ,xyz extension or a . extension that matches a mimemap entry. If not specified then it defaults to FFF.
+<p>
+<h4>AddExt</h4>
+Controls adding of a ,xyz extension. When 0, no ,xyz extensions are added, and all files get the default filetype. When 1, a ,xyz extension is only added when necessary. If the file has a . extension that matches a mimemap entry then no extension is added. When 2, a ,xyz extension is always added. If not specified, the default is 1.
+<p>
+
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="reportingbugs">Reporting Bugs</a></font></h2>
+</td></tr></table>
+If you discover a bug, please report it to <a href="mailto:alex@alexwaugh.com">me</a>, or better still fix it yourself and send me a patch. When reporting a bug, first load syslog, then set the logging option before doing the operation that triggers the bug. If you have access to a machine that can run ethereal then it would be very useful to use that to save a dump of the network traffic along with the syslog file, a description of the problem and exactly what operation you were doing to trigger the bug. Also details of what OS and NFS version the server is running would be helpful. 
+<p>
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="knownbugs">Known Bugs</a></font></h2>
+</td></tr></table>
+<p>
+The leafname returned from an OS_File 0 call will be in Unix format and may still have a ,xyz extension. This is only used for printing *opt 1 info so is not crucial. The PRMs state that *opt 1 may not work correctly on RISC OS 3 onwards anyway.
+<p>
+Wildcards in filenames are not supported. This would be a lot of hassle to implement for little benefit, and in any case I believe that it really should be fileswitch's job to sort out wildcards, not each and every filing system.
+<p>
+Some operations are not as fast as they could be. For the first release I have concentrated on getting a functional and stable program, and there are some places where performance could be improved in the future. In particular, file attributes and mappings between filenames and NFS file handles should be cached, as this would reduce network traffic and delay for directory listings and many other operations. Also read and write requests should be pipelined to remove the latency between blocks, which should speed up reading and writing large files.
+<p>
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="recompiling">Recompiling</a></font></h2>
+</td></tr></table>
+<p>
+Full source code is provided. To recompile the module, you will need Norcroft v5.53 or later, cmhg 5.42 or later, TCPIPLibs, and Perl. Earlier 26bit versions of Norcroft will not work because the code makes use of 64bit integers and some C99 functions.
+
+</body>
+</html>
