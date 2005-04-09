@@ -1,3 +1,6 @@
+v1.05 9-Apr-05
+Fixed bug in renaming files that was caused by the changes in 1.04.
+
 v1.04 2-Apr-05
 Fixed bug when a mount was mounted before the iconbar menu was displayed.
 Hard spaces in filenames on the server are now escaped correctly.

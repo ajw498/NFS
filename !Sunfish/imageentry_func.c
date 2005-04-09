@@ -596,6 +596,7 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 	static char oldleafname[MAXNAMLEN];
 	int filetype;
 	int dirnamelen;
+	unsigned int leafnamelen;
 
 	err = filename_to_finfo(oldfilename, 1, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
 	if (err) return err;
@@ -608,20 +609,24 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 
 	dirnamelen = strlen(oldfilename) - renameargs.from.name.size;
 
-	if (strncmp(oldfilename, newfilename, dirnamelen) == 0) {
+	if (strncmp(oldfilename, newfilename, dirnamelen) == 0 &&
+	    newfilename[dirnamelen] &&
+	    strchr(newfilename + dirnamelen + 1, '.') == NULL) {
 		/* Both files are in the same directory */
 		memcpy(renameargs.to.dir, renameargs.from.dir, FHSIZE);
 		leafname = newfilename + dirnamelen;
+		leafname = filename_unixify(leafname, strlen(leafname), &leafnamelen);
 	} else {
 		/* Files are in different directories, so find the handle of the new dir */
 		err = filename_to_finfo(newfilename, 1, &dinfo, NULL, &leafname, NULL, NULL, conn);
 		if (err) return err;
 
+		leafnamelen = strlen(leafname);
 		memcpy(renameargs.to.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
 	}
 
 	/* Add ,xyz on if necessary to preserve filetype */
-	renameargs.to.name.data = addfiletypeext(leafname, strlen(leafname), 0, filetype, &(renameargs.to.name.size), conn);
+	renameargs.to.name.data = addfiletypeext(leafname, leafnamelen, 0, filetype, &(renameargs.to.name.size), conn);
 
 	err = NFSPROC_RENAME(&renameargs, &renameres, conn);
 	if (err) return err;

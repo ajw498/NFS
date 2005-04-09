@@ -171,6 +171,9 @@ os_error *gen_nfsstatus_error(enum nstat stat);
 /* Convert unix leafname into RISC OS format */
 int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetype, struct conn_info *conn);
 
+/* Convert a RISC OS leafname into unix format */
+char *filename_unixify(char *name, unsigned int len, unsigned int *newlen);
+
 /* Convert a leafname into an nfs handle, following symlinks as necessary */
 os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int followsymlinks, char *dirhandle, struct diropok **finfo, enum nstat *status, struct conn_info *conn);
 

@@ -81,7 +81,7 @@ os_error *gen_nfsstatus_error(enum nstat stat)
 	return gen_error(NFSSTATBASE, "NFS call failed (%s)", str);
 }
 
-static char *filename_unixify(char *name, unsigned int len, unsigned int *newlen)
+char *filename_unixify(char *name, unsigned int len, unsigned int *newlen)
 {
 	static char namebuffer[MAXNAMLEN + 1];
 	int i;
