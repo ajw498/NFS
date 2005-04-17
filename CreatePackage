@@ -9,15 +9,15 @@ $version = $1;
 
 open(OUT,">pkg/RiscPkg/Control");
 
-print OUT <<EOF
+print OUT qq{
 Package: Sunfish
 Priority: Standard
 Section: Misc
-Maintainer: Alex Waugh <alex\@alexwaugh.com>
+Maintainer: Alex Waugh <alex@alexwaugh.com>
 Standards-Version: 0.1.0
 Source: Sunfish
 Version: $version
 Licence: Free
 Description: An NFS client.
-EOF
+}
 
