@@ -21,11 +21,18 @@ const MNTNAMLEN = 255;
 /* The size in bytes of the opaque file handle. */
 const FHSIZE = 32;
 
-typedef opaque fhandle[FHSIZE];
+#ifndef FHANDLE_DEFINED
+#define FHANDLE_DEFINED
+typedef opaque nfs_fhandle[FHSIZE];
+
+struct nfs_fh {
+    nfs_fhandle handle;
+};
+#endif
 
 union fhstatus switch (unsigned status) {
 case 0:
-    fhandle directory;
+    nfs_fh directory;
 default:
     void;
 }

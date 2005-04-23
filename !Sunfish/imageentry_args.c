@@ -39,7 +39,7 @@ os_error *args_zeropad(struct file_handle *handle, unsigned int offset, unsigned
 	/* This is going to be pretty slow, but any sensible program won't
 	   be calling this entry point */
 	while (size > sizeof(zeros)) {
-		err = writebytes(handle->fhandle, zeros, sizeof(zeros), offset, handle->conn);
+		err = writebytes(&(handle->fhandle), zeros, sizeof(zeros), offset, handle->conn);
 		if (err) return err;
 
 		size -= sizeof(zeros);
@@ -47,7 +47,7 @@ os_error *args_zeropad(struct file_handle *handle, unsigned int offset, unsigned
 	}
 
 	if (size > 0) {
-		err = writebytes(handle->fhandle, zeros, size, offset, handle->conn);
+		err = writebytes(&(handle->fhandle), zeros, size, offset, handle->conn);
 		if (err) return err;
 	}
 
@@ -60,7 +60,7 @@ static os_error *writeextent(struct file_handle *handle, unsigned int extent)
 	struct sattrargs args;
 	struct attrstat res;
 
-	memcpy(args.file, handle->fhandle, FHSIZE);
+	args.file = handle->fhandle;
 	args.attributes.mode = NOVALUE;
 	args.attributes.uid = NOVALUE;
 	args.attributes.gid = NOVALUE;

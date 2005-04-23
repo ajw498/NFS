@@ -35,7 +35,7 @@
 
 os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype, unsigned int *load, unsigned int *exec, int *len, int *attr)
 {
-    struct diropok *finfo;
+    struct objinfo *finfo;
     os_error *err;
     int filetype;
 
@@ -57,8 +57,8 @@ os_error *file_readcatinfo(char *filename, struct conn_info *conn, int *objtype,
 
 os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec, int attr, struct conn_info *conn)
 {
-	struct diropok *finfo;
-	struct diropok *dinfo;
+	struct objinfo *finfo;
+	struct objinfo *dinfo;
 	struct sattrargs sattrargs;
 	struct attrstat sattrres;
 	os_error *err;
@@ -89,11 +89,11 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 	    struct renameargs renameargs;
 	    enum nstat renameres;
 
-		memcpy(renameargs.from.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
+		renameargs.from.dir = dinfo ? dinfo->objhandle : conn->rootfh;
 		renameargs.from.name.data = leafname;
 		renameargs.from.name.size = strlen(leafname);
 
-		memcpy(renameargs.to.dir, renameargs.from.dir, FHSIZE);
+		renameargs.to.dir = renameargs.from.dir;
 		renameargs.to.name.data = addfiletypeext(leafname, renameargs.from.name.size, extfound, newfiletype, &(renameargs.to.name.size), conn);
 
 		err = NFSPROC_RENAME(&renameargs, &renameres, conn);
@@ -102,7 +102,7 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 	}
 
 	/* Set the datestamp and attributes */
-	memcpy(sattrargs.file, finfo->file, FHSIZE);
+	sattrargs.file = finfo->objhandle;
 	sattrargs.attributes.mode = attr_to_mode(attr, finfo->attributes.mode, conn);
 	sattrargs.attributes.uid = NOVALUE;
 	sattrargs.attributes.gid = NOVALUE;
@@ -119,10 +119,10 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 }
 
 /* Create a new file or directory */
-static os_error *createobj(char *filename, int dir, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **fhandle, char **leafname)
+static os_error *createobj(char *filename, int dir, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn, struct nfs_fh **fhandle, char **leafname)
 {
-	struct diropok *dinfo;
-	struct diropok *finfo;
+	struct objinfo *dinfo;
+	struct objinfo *finfo;
 	os_error *err;
 	struct createargs createargs;
 	static struct diropres createres;
@@ -139,7 +139,7 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 	err = filename_to_finfo(filename, 1, &dinfo, &finfo, leafname, &filetype, &extfound, conn);
 	if (err) return err;
 
-	memcpy(createargs.where.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
+	createargs.where.dir = dinfo ? dinfo->objhandle : conn->rootfh;
 
 	if (dir) {
 		createargs.where.name.data = *leafname;
@@ -158,11 +158,11 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 			    struct renameargs renameargs;
 			    enum nstat renameres;
 		
-				memcpy(renameargs.from.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
+				renameargs.from.dir = dinfo ? dinfo->objhandle : conn->rootfh;
 				renameargs.from.name.data = *leafname;
 				renameargs.from.name.size = strlen(*leafname);
 		
-				memcpy(renameargs.to.dir, renameargs.from.dir, FHSIZE);
+				renameargs.to.dir = renameargs.from.dir;
 				renameargs.to.name.data = createargs.where.name.data;
 				renameargs.to.name.size = createargs.where.name.size;
 		
@@ -172,7 +172,7 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 			}
 	
 			/* Set the file size */
-			memcpy(sattrargs.file, finfo->file, FHSIZE);
+			sattrargs.file = finfo->objhandle;
 			sattrargs.attributes.mode = NOVALUE;
 			sattrargs.attributes.uid = NOVALUE;
 			sattrargs.attributes.gid = NOVALUE;
@@ -185,7 +185,7 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 			if (err) return err;
 			if (sattrres.status != NFS_OK) return gen_nfsstatus_error(sattrres.status);
 
-			if (fhandle) *fhandle = finfo->file;
+			if (fhandle) *fhandle = &(finfo->objhandle);
 	
 			return NULL;
 		}
@@ -207,7 +207,7 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 	if (err) return err;
 	if (createres.status != NFS_OK) return gen_nfsstatus_error(createres.status);
 
-	if (fhandle) *fhandle = createres.u.diropok.file;
+	if (fhandle) *fhandle = &(createres.u.diropok.file);
 
 	return NULL;
 }
@@ -230,7 +230,7 @@ os_error *file_createdir(char *filename, unsigned int load, unsigned int exec, s
 os_error *file_savefile(char *filename, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn, char **leafname)
 {
 	os_error *err;
-	char *fhandle;
+	struct nfs_fh *fhandle;
 
 	err = createobj(filename, 0, load, exec, buffer, buffer_end, conn, &fhandle, leafname);
 	if (err) return err;
@@ -241,8 +241,8 @@ os_error *file_savefile(char *filename, unsigned int load, unsigned int exec, ch
 /* Delete a file or directory */
 os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, unsigned int *load, unsigned int *exec, int *len, int *attr)
 {
-	struct diropok *dinfo;
-	struct diropok *finfo;
+	struct objinfo *dinfo;
+	struct objinfo *finfo;
 	os_error *err;
 	char *leafname;
 	int filetype;
@@ -257,7 +257,7 @@ os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, unsi
 	    struct diropargs removeargs;
 	    enum nstat removeres;
 
-		memcpy(removeargs.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
+		removeargs.dir = dinfo ? dinfo->objhandle : conn->rootfh;
 		removeargs.name.data = leafname;
 		removeargs.name.size = strlen(leafname);
 

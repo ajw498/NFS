@@ -44,7 +44,7 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 	}
 
 	args.totalcount = 0; /* Unused in NFS2 */
-	memcpy(args.file, handle->fhandle, FHSIZE);
+	args.file = handle->fhandle;
 
 	while (len > 0 || outstanding > 0) {
 		args.offset = offset;
@@ -74,7 +74,7 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 
 /* Write a number of bytes to the open file.
    Used by put_bytes and file_savefile */
-os_error *writebytes(char *fhandle, char *buffer, unsigned int len, unsigned int offset, struct conn_info *conn)
+os_error *writebytes(struct nfs_fh *fhandle, char *buffer, unsigned int len, unsigned int offset, struct conn_info *conn)
 {
 	os_error *err;
 	struct writeargs args;
@@ -83,7 +83,7 @@ os_error *writebytes(char *fhandle, char *buffer, unsigned int len, unsigned int
 
 	args.beginoffset = 0; /* Unused in NFS2 */
 	args.totalcount = 0;  /* Unused in NFS2 */
-	memcpy(args.file, fhandle, FHSIZE);
+	args.file = *fhandle;
 
 	while (len > 0 || outstanding > 0) {
 		args.offset = offset;
@@ -115,7 +115,7 @@ os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 
 	if (offset + len > handle->extent) handle->extent = offset + len;
 
-	return writebytes(handle->fhandle, buffer, len, offset, handle->conn);
+	return writebytes(&(handle->fhandle), buffer, len, offset, handle->conn);
 }
 
 

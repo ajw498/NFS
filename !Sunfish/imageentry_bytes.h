@@ -12,5 +12,5 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned len, unsi
 
 os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned len, unsigned offset);
 
-os_error *writebytes(char *fhandle, char *buffer, unsigned int len, unsigned int offset, struct conn_info *conn);
+os_error *writebytes(struct nfs_fh *fhandle, char *buffer, unsigned int len, unsigned int offset, struct conn_info *conn);
 

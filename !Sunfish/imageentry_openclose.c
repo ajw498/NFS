@@ -40,8 +40,9 @@ os_error *open_file(char *filename, int access, struct conn_info *conn,
                     unsigned int *allocatedspace)
 {
 	struct file_handle *handle;
-	struct diropok *dinfo;
-	struct diropok *finfo;
+	struct objinfo *dinfo;
+	struct objinfo *finfo;
+	struct objinfo createinfo;
 	struct createargs createargs;
 	struct diropres createres;
 	os_error *err;
@@ -54,7 +55,7 @@ os_error *open_file(char *filename, int access, struct conn_info *conn,
 	if (finfo == NULL) {
 		if (access == 1) {
 			/* Create and open for update */
-			memcpy(createargs.where.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
+			createargs.where.dir = dinfo ? dinfo->objhandle : conn->rootfh;
 			createargs.where.name.data = leafname;
 			createargs.where.name.size = strlen(leafname);
 			createargs.attributes.mode = 0x00008000 | (0666 & ~(conn->umask));
@@ -70,7 +71,9 @@ os_error *open_file(char *filename, int access, struct conn_info *conn,
 			if (err) return err;
 			if (createres.status != NFS_OK) return gen_nfsstatus_error(createres.status);
 
-			finfo = &(createres.u.diropok);
+			createinfo.objhandle = createres.u.diropok.file;
+			createinfo.attributes = createres.u.diropok.attributes;
+			finfo = &createinfo;
 			filetype = conn->defaultfiletype;
 		} else {
 			/* File not found */
@@ -83,7 +86,7 @@ os_error *open_file(char *filename, int access, struct conn_info *conn,
 	if (handle == NULL) return gen_error(NOMEM, NOMEMMESS);
 
 	handle->conn = conn;
-	memcpy(handle->fhandle, finfo->file, FHSIZE);
+	handle->fhandle = finfo->objhandle;
 	handle->extent = finfo->attributes.size;
 	handle->type = finfo->attributes.type;
 	timeval_to_loadexec(&(finfo->attributes.mtime), filetype, &(handle->load), &(handle->exec));

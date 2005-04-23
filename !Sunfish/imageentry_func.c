@@ -433,7 +433,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 		/* status is an errno value. Probably the same as an NFS status value. */
 		return gen_nfsstatus_error((enum nstat)rootfh.status);
 	}
-	memcpy(conn->rootfh, rootfh.u.directory, FHSIZE);
+	conn->rootfh = rootfh.u.directory;
 
 	return NULL;
 }
@@ -455,21 +455,21 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 
 	if (start != 0 && start == conn->laststart && strcmp(dirname, conn->lastdir) == 0) {
 		/* Used cached values */
-		memcpy(rddir.dir, conn->lastdirhandle, FHSIZE);
+		rddir.dir = conn->lastdirhandle;
 		cookie = conn->lastcookie;
 		dirpos = start;
 	} else if (dirname[0] == '\0') {
 		/* An empty dirname specifies the root directory */
-		memcpy(rddir.dir, conn->rootfh, FHSIZE);
+		rddir.dir = conn->rootfh;
 	} else {
-		struct diropok *finfo;
+		struct objinfo *finfo;
 
 		/* Find the handle of the directory */
 		err = filename_to_finfo(dirname, 1, NULL, &finfo, NULL, NULL, NULL, conn);
 		if (err) return err;
 		if (finfo == NULL) return gen_nfsstatus_error(NFSERR_NOENT);
 
-		memcpy(rddir.dir, finfo->file, FHSIZE);
+		rddir.dir = finfo->objhandle;
 	}
 
 	while (dirpos <= start) {
@@ -515,14 +515,14 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 					bufferpos += len;
 		
 					if (info) {
-						struct diropok *lookupres;
+						struct objinfo *lookupres;
 						enum nstat status;
 		
 						bufferpos = (char *)(((int)bufferpos + 3) & ~3);
 		
 						/* Lookup file attributes.
 						   READDIRPLUS in NFS3 would eliminate this call. */
-						err = leafname_to_finfo(direntry->name.data, &(direntry->name.size), 1, 1, rddir.dir, &lookupres, &status, conn);
+						err = leafname_to_finfo(direntry->name.data, &(direntry->name.size), 1, 1, &(rddir.dir), &lookupres, &status, conn);
 						if (err) return err;
 						if (status == NFS_OK && lookupres->attributes.type != NFLNK) {
 							timeval_to_loadexec(&(lookupres->attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
@@ -567,7 +567,7 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 		   within the directory */
 		*continuepos = dirpos;
         conn->lastcookie = cookie;
-		memcpy(conn->lastdirhandle, rddir.dir, FHSIZE);
+		conn->lastdirhandle = rddir.dir;
         len = strlen(dirname);
         if (len < MAXNAMLEN) {
         	memcpy(conn->lastdir, dirname, len + 1);
@@ -587,8 +587,8 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 /* Rename a file or directory */
 os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *conn, int *renamefailed)
 {
-	struct diropok *dinfo;
-	struct diropok *finfo;
+	struct objinfo *dinfo;
+	struct objinfo *finfo;
 	struct renameargs renameargs;
 	enum nstat renameres;
 	os_error *err;
@@ -602,7 +602,7 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 	if (err) return err;
 	if (finfo == NULL) return gen_nfsstatus_error(NFSERR_NOENT);
 
-	memcpy(renameargs.from.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
+	renameargs.from.dir = dinfo ? dinfo->objhandle : conn->rootfh;
 	strcpy(oldleafname, leafname);
 	renameargs.from.name.data = oldleafname;
 	renameargs.from.name.size = strlen(oldleafname);
@@ -613,7 +613,7 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 	    newfilename[dirnamelen] &&
 	    strchr(newfilename + dirnamelen + 1, '.') == NULL) {
 		/* Both files are in the same directory */
-		memcpy(renameargs.to.dir, renameargs.from.dir, FHSIZE);
+		renameargs.to.dir = renameargs.from.dir;
 		leafname = newfilename + dirnamelen;
 		leafname = filename_unixify(leafname, strlen(leafname), &leafnamelen);
 	} else {
@@ -622,7 +622,7 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 		if (err) return err;
 
 		leafnamelen = strlen(leafname);
-		memcpy(renameargs.to.dir, dinfo ? dinfo->file : conn->rootfh, FHSIZE);
+		renameargs.to.dir = dinfo ? dinfo->objhandle : conn->rootfh;
 	}
 
 	/* Add ,xyz on if necessary to preserve filetype */

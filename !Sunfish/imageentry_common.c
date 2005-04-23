@@ -221,14 +221,14 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
    first found is used. This function would benefit in many cases by some
    cacheing of leafnames and extensions. The returned leafname is a pointer
    to static data and should be copied before any subsequent calls. */
-static os_error *lookup_leafname(char *dhandle, char *leafname, int leafnamelen, struct opaque **found, struct conn_info *conn)
+static os_error *lookup_leafname(struct nfs_fh *dhandle, char *leafname, int leafnamelen, struct opaque **found, struct conn_info *conn)
 {
 	static struct readdirargs rddir;
 	static struct readdirres rdres;
 	struct entry *direntry;
 	os_error *err;
 
-	memcpy(rddir.dir, dhandle, FHSIZE);
+	rddir.dir = *dhandle;
 	rddir.count = conn->maxdatabuffer;
 	rddir.cookie = 0;
 
@@ -279,17 +279,17 @@ static os_error *lookup_leafname(char *dhandle, char *leafname, int leafnamelen,
 /* Convert a leafname into nfs handle and attributes.
    May follow symlinks if needed.
    Returns a pointer to static data, and updates the leafname in place. */
-os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int followsymlinks, char *dirhandle, struct diropok **finfo, enum nstat *status, struct conn_info *conn)
+os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int followsymlinks, struct nfs_fh *dirhandle, struct objinfo **finfo, enum nstat *status, struct conn_info *conn)
 {
 	struct diropargs lookupargs;
-	static struct diropres lookupres;
-	static struct diropres lookupres2;
+	struct diropres lookupres;
+	static struct objinfo retinfo;
 	os_error *err;
 	int follow;
 
 	lookupargs.name.data = leafname;
 	lookupargs.name.size = *len;
-	memcpy(lookupargs.dir, dirhandle, FHSIZE);
+	lookupargs.dir = *dirhandle;
 
 	err = NFSPROC_LOOKUP(&lookupargs, &lookupres, conn);
 	if (err) return err;
@@ -318,19 +318,20 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 		return NULL;
 	}
 
-	*finfo = &(lookupres.u.diropok);
-	memcpy(&lookupres2, &lookupres, sizeof(struct diropres));
+	retinfo.objhandle = lookupres.u.diropok.file;
+	retinfo.attributes = lookupres.u.diropok.attributes;
+	*finfo = &retinfo;
 
 	follow = followsymlinks ? conn->followsymlinks : 0;
-	
-	while (follow > 0 && lookupres2.u.diropok.attributes.type == NFLNK) {
+
+	while (follow > 0 && lookupres.u.diropok.attributes.type == NFLNK) {
 		struct readlinkargs linkargs;
 		struct readlinkres linkres;
 		char *segment;
 		unsigned int segmentmaxlen;
 		static char link[MAXPATHLEN];
 
-		memcpy(linkargs.fhandle, lookupres2.u.diropok.file, FHSIZE);
+		linkargs.fhandle = lookupres.u.diropok.file;
 		err = NFSPROC_READLINK(&linkargs, &linkres, conn);
 		if (err) return err;
 		if (linkres.status != NFS_OK) {
@@ -353,7 +354,7 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 					segment++;
 					segmentmaxlen--;
 				}
-				dirhandle = conn->rootfh;
+				dirhandle = &(conn->rootfh);
 			} else {
 				/* Not within the export. Return the details
 				   of the symlink instead. If we returned
@@ -372,23 +373,26 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 	
 			lookupargs.name.data = segment;
 			lookupargs.name.size = i;
-			memcpy(lookupargs.dir, dirhandle, FHSIZE);
+			lookupargs.dir = *dirhandle;
 	
-			err = NFSPROC_LOOKUP(&lookupargs, &lookupres2, conn);
+			err = NFSPROC_LOOKUP(&lookupargs, &lookupres, conn);
 			if (err) return err;
-			if (lookupres2.status != NFS_OK) {
-				if (lookupres2.status == NFSERR_NOENT) {
+			if (lookupres.status != NFS_OK) {
+				if (lookupres.status == NFSERR_NOENT) {
 					/* Return the details for the last
 					   valid symlink */
 					*status = NFS_OK;
 				} else {
-					*status = lookupres2.status;
+					*status = lookupres.status;
 				}
 				return NULL;
 			}
-			*finfo = &(lookupres2.u.diropok);
+			retinfo.objhandle = lookupres.u.diropok.file;
+			retinfo.attributes = lookupres.u.diropok.attributes;
 
-			if (lookupres2.u.diropok.attributes.type == NFDIR) dirhandle = lookupres2.u.diropok.file;
+			if (lookupres.u.diropok.attributes.type == NFDIR) {
+				dirhandle = &(lookupres.u.diropok.file);
+			}
 			while (i < segmentmaxlen && segment[i] == '/') i++;
 			segment += i;
 			segmentmaxlen -= i;
@@ -407,19 +411,19 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
    This function would really benefit from some cacheing.
    In theory it should deal with wildcarded names, but that is just too much
    hassle. And, really, that should be the job of fileswitch. */
-os_error *filename_to_finfo(char *filename, int followsymlinks, struct diropok **dinfo, struct diropok **finfo, char **leafname, int *filetype, int *extfound, struct conn_info *conn)
+os_error *filename_to_finfo(char *filename, int followsymlinks, struct objinfo **dinfo, struct objinfo **finfo, char **leafname, int *filetype, int *extfound, struct conn_info *conn)
 {
 	char *start = filename;
 	char *end;
-	char dirhandle[FHSIZE];
-	static struct diropok dirinfo;
+	struct nfs_fh dirhandle;
+	static struct objinfo dirinfo;
 	char *segmentname;
 	unsigned int segmentlen;
-	struct diropok *segmentinfo;
+	struct objinfo *segmentinfo;
 	enum nstat status;
 	os_error *err;
 
-	memcpy(dirhandle, conn->rootfh, FHSIZE);
+	dirhandle = conn->rootfh;
 
 	if (dinfo) *dinfo = NULL; /* A NULL directory indicates the root directory */
 	if (finfo) *finfo = NULL; /* A NULL file indicates it wasn't found */
@@ -434,7 +438,7 @@ os_error *filename_to_finfo(char *filename, int followsymlinks, struct diropok *
 
 		if (leafname) *leafname = segmentname;
 
-		err = leafname_to_finfo(segmentname, &segmentlen, 0, followsymlinks || (*end != '\0'), dirhandle, &segmentinfo, &status, conn);
+		err = leafname_to_finfo(segmentname, &segmentlen, 0, followsymlinks || (*end != '\0'), &dirhandle, &segmentinfo, &status, conn);
 		if (err) return err;
 
 		/* It is not an error if the file isn't found, but the
@@ -465,7 +469,7 @@ os_error *filename_to_finfo(char *filename, int followsymlinks, struct diropok *
 			}
 		}
 
-		if (*end != '\0') memcpy(dirhandle, segmentinfo->file, FHSIZE);
+		if (*end != '\0') dirhandle = segmentinfo->objhandle;
 		start = end + 1;
 	} while (*end != '\0');
 

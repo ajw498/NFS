@@ -88,7 +88,7 @@ while (<>) {
       } else {
         print STRUCTS "};\n";
       }
-      print PROCS "} while (0)\n\n";
+      print PROCS "} while (0)\n#endif\n\n";
       $state = "none";
     } elsif (/\}.+\;/) {
       die "struct/union instance: $_";
@@ -96,14 +96,16 @@ while (<>) {
       print UNIONS "break;\\\n" if (!$firstcase);
       print UNIONS "case $1:\\\n";
       print UNIONS "process_union_body_${name}_$1(input,${structbase}u);\\\n";
-      print PROCS "} while (0)\n" if (!$firstcase);
+      print PROCS "} while (0)\n#endif\n" if (!$firstcase);
+      print PROCS "#ifndef process_union_body_${name}\n";
       print PROCS "#define process_union_body_${name}_$1(input,structbase) do {\\\n";
       $firstcase = 0;
     } elsif (/default\:/) {
       print UNIONS "break;\\\n" if (!$firstcase);
       print UNIONS "default:\\\n";
       print UNIONS "process_union_body_${name}_default(input,${structbase}u);\\\n";
-      print PROCS "} while (0)\n" if (!$firstcase);
+      print PROCS "} while (0)\n#endif\n" if (!$firstcase);
+      print PROCS "#ifndef process_union_body_${name}_default\n";
       print PROCS "#define process_union_body_${name}_default(input,structbase) do {\\\n";
       $firstcase = 0;
     } elsif (/\s*void\;/) {
@@ -194,6 +196,7 @@ while (<>) {
       $typessize{$name} = 0;
       print STRUCTS "struct ${name} {\n";
       print STRUCTS "int opted;\n";
+      print PROCS "#ifndef process_linklist_${name}\n";
       print PROCS "#define process_linklist_${name}(input, structbase, maxsize) do {\\\n";
       print PROCS "struct $name **ptr = &##structbase;\\\n";
       print PROCS "int opted;\\\n";
@@ -208,8 +211,9 @@ while (<>) {
       $name = $1;
       $types{$name} = $state = "struct";
       $typessize{$name} = 0;
+      print PROCS "#ifndef process_struct_${name}\n";
       print PROCS "#define process_struct_${name}(input,structbase, maxsize) do {\\\n";
-    } elsif (/^\s*\#define/) {
+    } elsif (/^\s*\#((define)|(ifndef)|(endif))/) {
       print STRUCTS;
     } elsif (/^\s*typedef (.*) (\S+)\[(\w*)\]\;/) {
       #print STRUCTS "typedef char $2\[$3\];" if ($1 eq "opaque");

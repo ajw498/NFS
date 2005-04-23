@@ -76,6 +76,8 @@ moduledefs.h modulehdr.o: @.cmhg.modulehdr
 .s.o:
 	$(CC) -c  $(CFLAGS) -o $@ $<
 
+.INIT:
+	cdir o
 
 clean:
 	-remove Sunfish
