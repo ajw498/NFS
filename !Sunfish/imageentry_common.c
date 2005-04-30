@@ -35,7 +35,12 @@
 
 #include "sunfish.h"
 
-#include "nfs-calls.h"
+#ifdef NFS3
+#include "nfs3-calls.h"
+#else
+#include "nfs2-calls.h"
+#endif
+
 #include "rpc.h"
 
 
@@ -76,7 +81,7 @@ os_error *gen_nfsstatus_error(enum nstat stat)
 		case NFSERR_NOTEMPTY: str = "Directory not empty"; break;
 		case NFSERR_DQUOT: str = "Disc quota exceeded"; break;
 		case NFSERR_STALE: str = "Stale NFS filehandle"; break;
-		default: str = "Unknown error"; break;
+		default: str = "Unknown error"; break; /*FIXME*/
 	}
 	return gen_error(NFSSTATBASE, "NFS call failed (%s)", str);
 }
@@ -231,11 +236,19 @@ static os_error *lookup_leafname(struct nfs_fh *dhandle, char *leafname, int lea
 	rddir.dir = *dhandle;
 	rddir.count = conn->maxdatabuffer;
 	rddir.cookie = 0;
+#ifdef NFS3
+	memset(rddir.cookieverf, 0, NFS3_COOKIEVERFSIZE);
+	/*FIXME and handle a bad cookie error? */
+#endif
 
 	do {
-		err = NFSPROC_READDIR(&rddir, &rdres, conn);
+		err = NFSPROC(READDIR, (&rddir, &rdres, conn));
 		if (err) return err;
 		if (rdres.status != NFS_OK) return gen_nfsstatus_error(rdres.status);
+
+#ifdef NFS3
+		memcpy(rddir.cookieverf, rdres.u.readdirok.cookieverf, NFS3_COOKIEVERFSIZE);
+#endif
 
 		direntry = rdres.u.readdirok.entries;
 		while (direntry) {
@@ -291,7 +304,7 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 	lookupargs.name.size = *len;
 	lookupargs.dir = *dirhandle;
 
-	err = NFSPROC_LOOKUP(&lookupargs, &lookupres, conn);
+	err = NFSPROC(LOOKUP, (&lookupargs, &lookupres, conn));
 	if (err) return err;
 
 	if (!simple && lookupres.status == NFSERR_NOENT) {
@@ -309,7 +322,7 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 		*len = file->size;
 		leafname[*len] = '\0';
 
-		err = NFSPROC_LOOKUP(&lookupargs, &lookupres, conn);
+		err = NFSPROC(LOOKUP, (&lookupargs, &lookupres, conn));
 		if (err) return err;
 	}
 
@@ -318,30 +331,60 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 		return NULL;
 	}
 
+#ifdef NFS3
+	if (lookupres.u.diropok.obj_attributes.attributes_follow == FALSE) {
+		gen_error(NOATTRS, NOATTRSMESS);
+	}
+#endif
+
 	retinfo.objhandle = lookupres.u.diropok.file;
+#ifdef NFS3
+	memcpy(retinfo.handledata, lookupres.u.diropok.file.data.data, lookupres.u.diropok.file.data.size);
+	retinfo.objhandle.data.data = retinfo.handledata;
+	retinfo.attributes = lookupres.u.diropok.obj_attributes.u.attributes;
+#else
 	retinfo.attributes = lookupres.u.diropok.attributes;
+#endif
 	*finfo = &retinfo;
 
 	follow = followsymlinks ? conn->followsymlinks : 0;
 
+#ifdef NFS3
+	while (follow > 0 && lookupres.u.diropok.obj_attributes.u.attributes.type == NFLNK) {
+#else
 	while (follow > 0 && lookupres.u.diropok.attributes.type == NFLNK) {
+#endif
 		struct readlinkargs linkargs;
 		struct readlinkres linkres;
 		char *segment;
 		unsigned int segmentmaxlen;
-		static char link[MAXPATHLEN];
+		static char link[MAXNAMLEN/*MAXPATHLEN*/];
 
 		linkargs.fhandle = lookupres.u.diropok.file;
-		err = NFSPROC_READLINK(&linkargs, &linkres, conn);
+		err = NFSPROC(READLINK, (&linkargs, &linkres, conn));
 		if (err) return err;
 		if (linkres.status != NFS_OK) {
 			*status = linkres.status;
 			return NULL;
 		}
 
+#ifdef NFS3
+		if (lookupres.u.diropok.obj_attributes.attributes_follow == FALSE) {
+			gen_error(NOATTRS, NOATTRSMESS);
+		}
+#endif
+
+#ifdef NFS3
+		memcpy(link, linkres.u.resok.data.data, linkres.u.resok.data.size);
+#else
 		memcpy(link, linkres.u.data.data, linkres.u.data.size);
+#endif
 		segment = link;
+#ifdef NFS3
+		segmentmaxlen = linkres.u.resok.data.size;
+#else
 		segmentmaxlen = linkres.u.data.size;
+#endif
 		if (segmentmaxlen > 0 && segment[0] == '/') {
 			int exportlen = strlen(conn->export);
 
@@ -374,8 +417,8 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 			lookupargs.name.data = segment;
 			lookupargs.name.size = i;
 			lookupargs.dir = *dirhandle;
-	
-			err = NFSPROC_LOOKUP(&lookupargs, &lookupres, conn);
+
+			err = NFSPROC(LOOKUP, (&lookupargs, &lookupres, conn));
 			if (err) return err;
 			if (lookupres.status != NFS_OK) {
 				if (lookupres.status == NFSERR_NOENT) {
@@ -387,10 +430,24 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 				}
 				return NULL;
 			}
-			retinfo.objhandle = lookupres.u.diropok.file;
+#ifdef NFS3
+			if (lookupres.u.diropok.obj_attributes.attributes_follow == FALSE) {
+				gen_error(NOATTRS, NOATTRSMESS);
+			}
+			retinfo.attributes = lookupres.u.diropok.obj_attributes.u.attributes;
+			memcpy(retinfo.handledata, lookupres.u.diropok.file.data.data, lookupres.u.diropok.file.data.size); 
+			retinfo.objhandle.data.size = lookupres.u.diropok.file.data.size;
+			retinfo.objhandle.data.data = retinfo.handledata;
+#else
 			retinfo.attributes = lookupres.u.diropok.attributes;
+			retinfo.objhandle = lookupres.u.diropok.file;
+#endif
 
+#ifdef NFS3
+			if (lookupres.u.diropok.obj_attributes.u.attributes.type == NFDIR) {
+#else
 			if (lookupres.u.diropok.attributes.type == NFDIR) {
+#endif
 				dirhandle = &(lookupres.u.diropok.file);
 			}
 			while (i < segmentmaxlen && segment[i] == '/') i++;
@@ -522,7 +579,11 @@ void timeval_to_loadexec(struct ntimeval *unixtime, int filetype, unsigned int *
 
 	csecs = unixtime->seconds;
 	csecs *= 100;
+#ifdef NFS3
+	csecs += ((int64_t)unixtime->nseconds / 10000000);
+#else
 	csecs += ((int64_t)unixtime->useconds / 10000);
+#endif
 	csecs += 0x336e996a00; /* Difference between 1900 and 1970 */
 	*load = (unsigned int)((csecs >> 32) & 0xFF);
 	*load |= (0xFFF00000 | ((filetype & 0xFFF) << 8));
@@ -535,7 +596,11 @@ void loadexec_to_timeval(unsigned int load, unsigned int exec, struct ntimeval *
 	if ((load & 0xFFF00000) != 0xFFF00000) {
 		/* A real load/exec address */
 		unixtime->seconds = -1;
+#ifdef NFS3
+		unixtime->nseconds = -1; /*FIXME*/
+#else
 		unixtime->useconds = -1;
+#endif
 	} else {
 		uint64_t csecs;
 
@@ -543,7 +608,11 @@ void loadexec_to_timeval(unsigned int load, unsigned int exec, struct ntimeval *
 		csecs |= ((uint64_t)load & 0xFF) << 32;
 		csecs -= 0x336e996a00; /* Difference between 1900 and 1970 */
 		unixtime->seconds = (unsigned int)((csecs / 100) & 0xFFFFFFFF);
+#ifdef NFS3
+		unixtime->nseconds = (unsigned int)((csecs % 100) * 10000000);
+#else
 		unixtime->useconds = (unsigned int)((csecs % 100) * 10000);
+#endif
 	}
 }
 

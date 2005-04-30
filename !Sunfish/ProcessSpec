@@ -60,6 +60,8 @@ print CALLSH  "#include \"$spectype-process1.h\"\n";
 print CALLSH  "#include \"$spectype-process2.h\"\n\n";
 
 $types{"unsigned int"} = "int";
+$types{"uint32"} = "int";
+$types{"uint64"} = "uint64_t";
 $types{"unsigned"} = "int";
 $types{"int"} = "int";
 $types{"void"} = "void";
@@ -71,7 +73,10 @@ $typessize{"bool"} = "bool";
 
 $structbase = "##structbase.";
 
+$line = 0;
+
 while (<>) {
+  $line++;
   #print "$state - $_";
   if ($state =~ /(struct)|(union)|(linklist)/) {
     if (/\}\;*/) {
@@ -110,7 +115,7 @@ while (<>) {
       $firstcase = 0;
     } elsif (/\s*void\;/) {
       # do nothing
-    } elsif (/(.*)opaque (\w*)\<(\w*)\>\;/) {
+    } elsif (/(.*)opaque +(\w*)\<(\w*)\>\;/) {
       my $ws = $1;
       my $opaquename = $2;
       my $maxsize = $3;
@@ -131,8 +136,11 @@ while (<>) {
       my $element = $5;
       my $type = $types{$elementtype};
       my $typesize = $typessize{$elementtype};
+      while ($type ne "int" and exists $types{$type}) {
+        $type = $types{$type};
+      }
       die "Unknown type \"$elementtype\"\n" unless defined $type;
-      die "next ptr not named next\n" if ($elementtype eq $name and $element ne "next");
+      die "next ptr not named next (line $line)\n" if ($elementtype eq $name and $element ne "next");
       if ($type eq "linklist" and $element eq "next") {
         print STRUCTS "${ws}struct $elementtype $ptr$element;\n";
       } elsif ($type eq "struct" or $type eq "union" or $type eq "linklist") {
@@ -158,7 +166,7 @@ while (<>) {
     } elsif (/^\s*$/) {
       print STRUCTS;
     } else {
-      die "Unknown struct field: $_\n";
+      die "Unknown struct field (line $line): $_\n";
     }
   } elsif ($state eq "enum") {
     print STRUCTS;
@@ -238,7 +246,8 @@ while (<>) {
       my $args = $3;
       my $procno = $4;
       my $prog;
-      die "type not defined\n" if (!defined $types{$args} || !defined $types{$res});
+      die "type $args not defined\n" if (!defined $types{$args});
+      die "type $res not defined\n" if (!defined $types{$res});
       my $proto = "\nos_error *$procname(";
       my $calltype = "TXBLOCKING";
       if (!($args =~ /^void$/)) {
@@ -270,15 +279,17 @@ while (<>) {
       if ($procname =~ m/^NFS/) {
         $prog = "NFS_RPC_PROGRAM";
         $vers = "NFS_RPC_VERSION";
-      } elsif ($procname =~ m/^MNT/) {
+      } elsif ($procname =~ m/^(MNT)|(MOUNT)/) {
         $prog = "MOUNT_RPC_PROGRAM";
         $vers = "MOUNT_RPC_VERSION";
       } elsif ($procname =~ m/^PCNFSD/) {
         $prog = "PCNFSD_RPC_PROGRAM";
         $vers = "PCNFSD_RPC_VERSION";
-      } else {
+      } elsif ($procname =~ m/^PMAP/) {
         $prog = "PMAP_RPC_PROGRAM";
         $vers = "PMAP_RPC_VERSION";
+      } else {
+        die "Unknown prefix";
       }
       print CALLSH "$proto;\n";
       print CALLS  "$proto\n";

@@ -38,8 +38,13 @@
 #include "sunfish.h"
 
 #include "rpc-calls.h"
-#include "nfs-calls.h"
-#include "mount-calls.h"
+#ifdef NFS3
+#include "nfs3-calls.h"
+#include "mount3-calls.h"
+#else
+#include "nfs2-calls.h"
+#include "mount1-calls.h"
+#endif
 #include "portmapper-calls.h"
 #include "pcnfsd-calls.h"
 
@@ -69,7 +74,7 @@ os_error *func_closeimage(struct conn_info *conn)
 
 	dir.size = strlen(conn->export);
 	dir.data = conn->export;
-	err = MNTPROC_UMNT(&dir, conn);
+	err = MNTPROC(UMNT, (&dir, conn));
 	if (err && err != ERR_WOULDBLOCK && enablelog) log_error(err);
 
 	/* Close socket etc. */
@@ -172,7 +177,7 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		conn->pipelining = (int)strtol(val, NULL, 10);
 	} else if (CHECK("MaxDataBuffer")) {
 		conn->maxdatabuffer = (int)strtol(val, NULL, 10);
-		if (conn->maxdatabuffer > MAXDATA) conn->maxdatabuffer = MAXDATA;
+/* FIXME		if (conn->maxdatabuffer > MAXDATA) conn->maxdatabuffer = MAXDATA;*/
 	} else if (CHECK("FollowSymlinks")) {
 		conn->followsymlinks = (int)strtol(val, NULL, 10);
 	} else if (CHECK("CaseSensitive")) {
@@ -274,7 +279,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 {
 	struct conn_info *conn;
 	string dir;
-	struct fhstatus rootfh;
+	struct mountres mountres;
 	os_error *err;
 	static char machinename[MAXHOSTNAMELEN] = "";
 
@@ -421,19 +426,24 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	/* Get a filehandle for the root directory */
 	dir.size = strlen(conn->export);
 	dir.data = conn->export;
-	err = MNTPROC_MNT(&dir, &rootfh, conn);
+	err = MNTPROC(MNT, (&dir, &mountres, conn));
 	if (err) {
 		rpc_close_connection(conn);
 		free_conn_info(conn);
 		return err;
 	}
-	if (rootfh.status != 0) {
+	if (mountres.status != 0) {
 		rpc_close_connection(conn);
 		free_conn_info(conn);
 		/* status is an errno value. Probably the same as an NFS status value. */
-		return gen_nfsstatus_error((enum nstat)rootfh.status);
+		return gen_nfsstatus_error((enum nstat)mountres.status);
 	}
-	conn->rootfh = rootfh.u.directory;
+	{
+		static char tmp[64]; /*FIXME*/
+		memcpy(tmp, mountres.u.directory.data.data, mountres.u.directory.data.size);
+		conn->rootfh.data.size = mountres.u.directory.data.size;
+		conn->rootfh.data.data = tmp;
+	}
 
 	return NULL;
 }
@@ -452,30 +462,39 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 
 	bufferpos = buffer;
 	*objsread = 0;
+#ifdef NFS3
+	memset(rddir.cookieverf, 0, NFS3_COOKIEVERFSIZE);
+#endif
 
 	if (start != 0 && start == conn->laststart && strcmp(dirname, conn->lastdir) == 0) {
 		/* Used cached values */
 		rddir.dir = conn->lastdirhandle;
 		cookie = conn->lastcookie;
+#ifdef NFS3
+		memcpy(rddir.cookieverf, conn->lastcookieverf, NFS3_COOKIEVERFSIZE);
+#endif
 		dirpos = start;
 	} else if (dirname[0] == '\0') {
 		/* An empty dirname specifies the root directory */
 		rddir.dir = conn->rootfh;
 	} else {
 		struct objinfo *finfo;
+		static char handle[FHSIZE];
 
 		/* Find the handle of the directory */
 		err = filename_to_finfo(dirname, 1, NULL, &finfo, NULL, NULL, NULL, conn);
 		if (err) return err;
 		if (finfo == NULL) return gen_nfsstatus_error(NFSERR_NOENT);
 
-		rddir.dir = finfo->objhandle;
+		memcpy(handle, finfo->objhandle.data.data, finfo->objhandle.data.size);
+		rddir.dir.data.data = handle;
+		rddir.dir.data.size = finfo->objhandle.data.size;
 	}
 
 	while (dirpos <= start) {
 		rddir.count = conn->maxdatabuffer;
 		rddir.cookie = cookie;
-		err = NFSPROC_READDIR(&rddir, &rdres, conn);
+		err = NFSPROC(READDIR, (&rddir, &rdres, conn));
 		if (err) return err;
 		if (rdres.status != NFS_OK) return gen_nfsstatus_error(rdres.status);
 	
@@ -483,6 +502,9 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 		   corrupt the rx buffer which holds our list, so swap buffers */
 		swap_rxbuffers();
 	
+#ifdef NFS3
+		memcpy(rddir.cookieverf, rdres.u.readdirok.cookieverf, NFS3_COOKIEVERFSIZE);
+#endif
 		direntry = rdres.u.readdirok.entries;
 		while (direntry && *objsread < numobjs) {
 			if (direntry->name.size == 0) {
@@ -566,16 +588,19 @@ os_error *func_readdirinfo(int info, char *dirname, char *buffer, int numobjs, i
 		   really shouldn't, and treats the value being the position
 		   within the directory */
 		*continuepos = dirpos;
-        conn->lastcookie = cookie;
-		conn->lastdirhandle = rddir.dir;
-        len = strlen(dirname);
-        if (len < MAXNAMLEN) {
-        	memcpy(conn->lastdir, dirname, len + 1);
-        	conn->laststart = dirpos;
-        } else {
-        	/* No room to cache dirname, so don't bother */
-        	conn->laststart = 0;
-        }
+		conn->lastcookie = cookie;
+		conn->lastdirhandle = rddir.dir;  /*FIXME - deep copy */
+#ifdef NFS3
+		memcpy(conn->lastcookieverf, rdres.u.readdirok.cookieverf, NFS3_COOKIEVERFSIZE);
+#endif
+		len = strlen(dirname);
+		if (len < MAXNAMLEN) {
+			memcpy(conn->lastdir, dirname, len + 1);
+			conn->laststart = dirpos;
+		} else {
+			/* No room to cache dirname, so don't bother */
+			conn->laststart = 0;
+		}
 		/* At this point we could speculatively request the next set of
 		   entries to reduce the latency on the next request */
 	}
@@ -590,7 +615,7 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 	struct objinfo *dinfo;
 	struct objinfo *finfo;
 	struct renameargs renameargs;
-	enum nstat renameres;
+	struct renameres renameres;
 	os_error *err;
 	char *leafname;
 	static char oldleafname[MAXNAMLEN];
@@ -628,9 +653,9 @@ os_error *func_rename(char *oldfilename, char *newfilename, struct conn_info *co
 	/* Add ,xyz on if necessary to preserve filetype */
 	renameargs.to.name.data = addfiletypeext(leafname, leafnamelen, 0, filetype, &(renameargs.to.name.size), conn);
 
-	err = NFSPROC_RENAME(&renameargs, &renameres, conn);
+	err = NFSPROC(RENAME, (&renameargs, &renameres, conn));
 	if (err) return err;
-	if (renameres != NFS_OK) return gen_nfsstatus_error(renameres);
+	if (renameres.status != NFS_OK) return gen_nfsstatus_error(renameres.status);
 
 	*renamefailed = 0;
 	return NULL;

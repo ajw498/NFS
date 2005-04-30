@@ -28,7 +28,11 @@
 #include "imageentry_file.h"
 #include "imageentry_bytes.h"
 
-#include "nfs-calls.h"
+#ifdef NFS3
+#include "nfs3-calls.h"
+#else
+#include "nfs2-calls.h"
+#endif
 
 #include "sunfish.h"
 
@@ -60,7 +64,11 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 	struct objinfo *finfo;
 	struct objinfo *dinfo;
 	struct sattrargs sattrargs;
+#ifdef NFS3
+	struct sattrres sattrres;
+#else
 	struct attrstat sattrres;
+#endif
 	os_error *err;
 	int filetype;
 	int newfiletype;
@@ -86,8 +94,8 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 	
 	/* If the filetype has changed we may need to rename the file */
 	if (conn->xyzext != NEVER && newfiletype != filetype && finfo->attributes.type == NFREG) {
-	    struct renameargs renameargs;
-	    enum nstat renameres;
+		struct renameargs renameargs;
+		struct renameres renameres;
 
 		renameargs.from.dir = dinfo ? dinfo->objhandle : conn->rootfh;
 		renameargs.from.name.data = leafname;
@@ -96,13 +104,24 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 		renameargs.to.dir = renameargs.from.dir;
 		renameargs.to.name.data = addfiletypeext(leafname, renameargs.from.name.size, extfound, newfiletype, &(renameargs.to.name.size), conn);
 
-		err = NFSPROC_RENAME(&renameargs, &renameres, conn);
+		err = NFSPROC(RENAME, (&renameargs, &renameres, conn));
 		if (err) return err;
-		if (renameres != NFS_OK) return gen_nfsstatus_error(renameres);
+		if (renameres.status != NFS_OK) return gen_nfsstatus_error(renameres.status);
 	}
 
 	/* Set the datestamp and attributes */
 	sattrargs.file = finfo->objhandle;
+#ifdef NFS3
+	sattrargs.attributes.mode.set_it = TRUE;
+	sattrargs.attributes.mode.u.mode = attr_to_mode(attr, finfo->attributes.mode, conn);
+	sattrargs.attributes.uid.set_it = FALSE;
+	sattrargs.attributes.gid.set_it = FALSE;
+	sattrargs.attributes.atime.set_it = DONT_CHANGE;
+	sattrargs.attributes.mtime.set_it = SET_TO_CLIENT_TIME;
+	loadexec_to_timeval(load, exec, &(sattrargs.attributes.mtime.u.mtime));
+	sattrargs.attributes.size.set_it = FALSE;
+	sattrargs.guard.check = FALSE;
+#else
 	sattrargs.attributes.mode = attr_to_mode(attr, finfo->attributes.mode, conn);
 	sattrargs.attributes.uid = NOVALUE;
 	sattrargs.attributes.gid = NOVALUE;
@@ -110,8 +129,9 @@ os_error *file_writecatinfo(char *filename, unsigned int load, unsigned int exec
 	sattrargs.attributes.atime.seconds = NOVALUE;
 	sattrargs.attributes.atime.useconds = NOVALUE;
 	loadexec_to_timeval(load, exec, &(sattrargs.attributes.mtime));
+#endif
 
-	err = NFSPROC_SETATTR(&sattrargs, &sattrres, conn);
+	err = NFSPROC(SETATTR, (&sattrargs, &sattrres, conn));
 	if (err) return err;
 	if (sattrres.status != NFS_OK) gen_nfsstatus_error(sattrres.status);
 
@@ -125,7 +145,8 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 	struct objinfo *finfo;
 	os_error *err;
 	struct createargs createargs;
-	static struct diropres createres;
+	struct mkdirargs mkdirargs;
+	static struct createres createres;
 	int filetype;
 	int newfiletype;
 	int extfound;
@@ -151,13 +172,16 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 		/* If a file already exists then we must overwrite it */
 		if (finfo && finfo->attributes.type == NFREG) {
 			struct sattrargs sattrargs;
+#ifdef NFS3
+			struct sattrres sattrres;
+#else
 			struct attrstat sattrres;
-	
+#endif
 			/* If the filetype has changed we may need to rename the file */
 			if (conn->xyzext != NEVER && newfiletype != filetype) {
-			    struct renameargs renameargs;
-			    enum nstat renameres;
-		
+				struct renameargs renameargs;
+				struct renameres renameres;
+
 				renameargs.from.dir = dinfo ? dinfo->objhandle : conn->rootfh;
 				renameargs.from.name.data = *leafname;
 				renameargs.from.name.size = strlen(*leafname);
@@ -165,14 +189,24 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 				renameargs.to.dir = renameargs.from.dir;
 				renameargs.to.name.data = createargs.where.name.data;
 				renameargs.to.name.size = createargs.where.name.size;
-		
-				err = NFSPROC_RENAME(&renameargs, &renameres, conn);
+
+				err = NFSPROC(RENAME, (&renameargs, &renameres, conn));
 				if (err) return err;
-				if (renameres != NFS_OK) return gen_nfsstatus_error(renameres);
+				if (renameres.status != NFS_OK) return gen_nfsstatus_error(renameres.status);
 			}
 	
 			/* Set the file size */
 			sattrargs.file = finfo->objhandle;
+#ifdef NFS3
+			sattrargs.attributes.mode.set_it = FALSE;
+			sattrargs.attributes.uid.set_it = FALSE;
+			sattrargs.attributes.gid.set_it = FALSE;
+			sattrargs.attributes.atime.set_it = DONT_CHANGE;
+			sattrargs.attributes.mtime.set_it = DONT_CHANGE;
+			sattrargs.attributes.size.set_it = TRUE;
+			sattrargs.attributes.size.u.size = buffer_end - buffer;
+			sattrargs.guard.check = FALSE;
+#else
 			sattrargs.attributes.mode = NOVALUE;
 			sattrargs.attributes.uid = NOVALUE;
 			sattrargs.attributes.gid = NOVALUE;
@@ -181,7 +215,8 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 			sattrargs.attributes.mtime.useconds = NOVALUE;
 			sattrargs.attributes.atime.seconds = NOVALUE;
 			sattrargs.attributes.atime.useconds = NOVALUE;
-			err = NFSPROC_SETATTR(&sattrargs, &sattrres, conn);
+#endif
+			err = NFSPROC(SETATTR, (&sattrargs, &sattrres, conn));
 			if (err) return err;
 			if (sattrres.status != NFS_OK) return gen_nfsstatus_error(sattrres.status);
 
@@ -191,6 +226,18 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 		}
 	}
 
+#ifdef NFS3
+	createargs.how.mode = GUARDED;
+	createargs.how.u.obj_attributes.mode.set_it = TRUE;
+	createargs.how.u.obj_attributes.mode.u.mode = 0x00008000 | ((dir ? 0777 : 0666) & ~(conn->umask));
+	createargs.how.u.obj_attributes.uid.set_it = FALSE;
+	createargs.how.u.obj_attributes.gid.set_it = FALSE;
+	createargs.how.u.obj_attributes.size.set_it = TRUE;
+	createargs.how.u.obj_attributes.size.u.size = buffer_end - buffer;
+	createargs.how.u.obj_attributes.atime.set_it = SET_TO_SERVER_TIME;
+	createargs.how.u.obj_attributes.mtime.set_it = SET_TO_CLIENT_TIME;
+	loadexec_to_timeval(load, exec, &(createargs.how.u.obj_attributes.mtime.u.mtime));
+#else
 	createargs.attributes.mode = 0x00008000 | ((dir ? 0777 : 0666) & ~(conn->umask));
 	createargs.attributes.uid = NOVALUE;
 	createargs.attributes.gid = NOVALUE;
@@ -198,16 +245,22 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 	createargs.attributes.atime.seconds = NOVALUE;
 	createargs.attributes.atime.useconds = NOVALUE;
 	loadexec_to_timeval(load, exec, &(createargs.attributes.mtime));
+#endif
 
 	if (dir) {
-		err = NFSPROC_MKDIR(&createargs, &createres, conn);
+		/* FIXME err = NFSPROC(MKDIR, (&createargs, &createres, conn));*/
 	} else {
-		err = NFSPROC_CREATE(&createargs, &createres, conn);
+		err = NFSPROC(CREATE, (&createargs, &createres, conn));
 	}
 	if (err) return err;
 	if (createres.status != NFS_OK) return gen_nfsstatus_error(createres.status);
 
+#ifdef NFS3
+	/* FIXME - check the handle_follows field */
+	if (fhandle) *fhandle = &(createres.u.diropok.obj.u.handle);
+#else
 	if (fhandle) *fhandle = &(createres.u.diropok.file);
+#endif
 
 	return NULL;
 }
@@ -254,20 +307,20 @@ os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, unsi
 		/* Object not found */
 		*objtype = 0;
 	} else {
-	    struct diropargs removeargs;
-	    enum nstat removeres;
+		struct diropargs removeargs;
+		struct removeres removeres;
 
 		removeargs.dir = dinfo ? dinfo->objhandle : conn->rootfh;
 		removeargs.name.data = leafname;
 		removeargs.name.size = strlen(leafname);
 
 		if (finfo->attributes.type == NFDIR) {
-			err = NFSPROC_RMDIR(&removeargs, &removeres, conn);
+			err = NFSPROC(RMDIR, (&removeargs, &removeres, conn));
 		} else {
-			err = NFSPROC_REMOVE(&removeargs, &removeres, conn);
+			err = NFSPROC(REMOVE, (&removeargs, &removeres, conn));
 		}
 		if (err) return err;
-		switch (removeres) {
+		switch (removeres.status) {
 			case NFS_OK:
 				break;
 			case NFSERR_EXIST:
@@ -276,7 +329,7 @@ os_error *file_delete(char *filename, struct conn_info *conn, int *objtype, unsi
 				   Filer_Action may not delete directories properly */
 				return gen_error(ERRDIRNOTEMPTY,"Directory not empty");
 			default:
-				return gen_nfsstatus_error(removeres);
+				return gen_nfsstatus_error(removeres.status);
 		}
 
 		/* Treat all special files as if they were regular files */

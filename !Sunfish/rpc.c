@@ -25,8 +25,13 @@
 
 #include "rpc-calls.h"
 #include "portmapper-calls.h"
-#include "mount-calls.h"
-#include "nfs-calls.h"
+#ifdef NFS3
+#include "mount3-calls.h"
+#include "nfs3-calls.h"
+#else
+#include "mount1-calls.h"
+#include "nfs2-calls.h"
+#endif
 #include "pcnfsd-calls.h"
 #include "rpc.h"
 

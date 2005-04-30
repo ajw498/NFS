@@ -28,7 +28,11 @@
 #include "imageentry_args.h"
 #include "imageentry_bytes.h"
 
-#include "nfs-calls.h"
+#ifdef NFS3
+#include "nfs3-calls.h"
+#else
+#include "nfs2-calls.h"
+#endif
 
 
 os_error *args_zeropad(struct file_handle *handle, unsigned int offset, unsigned int size)
@@ -58,9 +62,23 @@ static os_error *writeextent(struct file_handle *handle, unsigned int extent)
 {
 	os_error *err;
 	struct sattrargs args;
+#ifdef NFS3
+	struct sattrres res;
+#else
 	struct attrstat res;
+#endif
 
 	args.file = handle->fhandle;
+#ifdef NFS3
+	args.attributes.mode.set_it = FALSE;
+	args.attributes.uid.set_it = FALSE;
+	args.attributes.gid.set_it = FALSE;
+	args.attributes.atime.set_it = DONT_CHANGE;
+	args.attributes.mtime.set_it = DONT_CHANGE;
+	args.attributes.size.set_it = TRUE;
+	args.attributes.size.u.size = extent;
+	args.guard.check = FALSE;
+#else
 	args.attributes.mode = NOVALUE;
 	args.attributes.uid = NOVALUE;
 	args.attributes.gid = NOVALUE;
@@ -69,7 +87,8 @@ static os_error *writeextent(struct file_handle *handle, unsigned int extent)
 	args.attributes.mtime.seconds = NOVALUE;
 	args.attributes.mtime.useconds = NOVALUE;
 	args.attributes.size = extent;
-	err = NFSPROC_SETATTR(&args, &res, handle->conn);
+#endif
+	err = NFSPROC(SETATTR, (&args, &res, handle->conn));
 	if (err) return err;
 	if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
 

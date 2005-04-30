@@ -14,7 +14,11 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include "nfs-structs.h"
+#ifdef NFS3
+#include "nfs3-structs.h"
+#else
+#include "nfs2-structs.h"
+#endif
 
 #define IMAGEENTRY_FUNC_RENAME 8
 #define IMAGEENTRY_FUNC_READDIR 14
@@ -85,6 +89,10 @@
 /* 1 error */
 #define MODULEERRBASE (ERRBASE + 48)
 
+#define NOATTRS (ERRBASE + 49)
+/*FIXME*/
+#define NOATTRSMESS "Attributes not supplied"
+
 /* Directory not empty error number must match what filecore uses */
 #define ERRDIRNOTEMPTY 67764
 
@@ -94,6 +102,7 @@
 struct objinfo {
     struct nfs_fh objhandle;
     struct fattr attributes;
+    char handledata[FHSIZE];
 };
 
 /* All infomation associated with an open file */
@@ -142,8 +151,9 @@ struct conn_info {
 	int followsymlinks;
 	int pipelining;
 	int casesensitive;
-	char lastdir[MAXNAMLEN];
+	char lastdir[1024]; /*FIXME*/
 	int lastcookie;
+	char lastcookieverf[NFS3_COOKIEVERFSIZE];
 	int laststart;
 	struct nfs_fh lastdirhandle;
 	int tcp;
@@ -202,6 +212,18 @@ char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfile
 
 /* Drop to user mode to trigger any pending callbacks */
 void trigger_callback(void);
+
+#ifdef NFS3
+#define NFSPROC(proc, args) NFSPROC3_##proc args
+#else
+#define NFSPROC(proc, args) NFSPROC_##proc args
+#endif
+
+#ifdef NFS3
+#define MNTPROC(proc, args) MOUNTPROC3_##proc args
+#else
+#define MNTPROC(proc, args) MNTPROC_##proc args
+#endif
 
 #endif
 

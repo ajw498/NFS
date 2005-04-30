@@ -28,7 +28,11 @@
 
 #include "imageentry_openclose.h"
 
-#include "nfs-calls.h"
+#ifdef NFS3
+#include "nfs3-calls.h"
+#else
+#include "nfs2-calls.h"
+#endif
 
 
 /* Open a file. The handle returned is a pointer to a struct holding the
@@ -44,7 +48,11 @@ os_error *open_file(char *filename, int access, struct conn_info *conn,
 	struct objinfo *finfo;
 	struct objinfo createinfo;
 	struct createargs createargs;
+#ifdef NFS3
+	struct createres createres;
+#else
 	struct diropres createres;
+#endif
 	os_error *err;
 	char *leafname;
 	int filetype;
@@ -58,6 +66,17 @@ os_error *open_file(char *filename, int access, struct conn_info *conn,
 			createargs.where.dir = dinfo ? dinfo->objhandle : conn->rootfh;
 			createargs.where.name.data = leafname;
 			createargs.where.name.size = strlen(leafname);
+#ifdef NFS3
+			createargs.how.mode = GUARDED;
+			createargs.how.u.obj_attributes.mode.set_it = TRUE;
+			createargs.how.u.obj_attributes.mode.u.mode = 0x00008000 | (0666 & ~(conn->umask));
+			createargs.how.u.obj_attributes.uid.set_it = FALSE;
+			createargs.how.u.obj_attributes.gid.set_it = FALSE;
+			createargs.how.u.obj_attributes.size.set_it = TRUE;
+			createargs.how.u.obj_attributes.size.u.size = 0;
+			createargs.how.u.obj_attributes.atime.set_it = SET_TO_SERVER_TIME;
+			createargs.how.u.obj_attributes.mtime.set_it = SET_TO_SERVER_TIME;
+#else
 			createargs.attributes.mode = 0x00008000 | (0666 & ~(conn->umask));
 			createargs.attributes.uid = NOVALUE;
 			createargs.attributes.gid = NOVALUE;
@@ -66,13 +85,24 @@ os_error *open_file(char *filename, int access, struct conn_info *conn,
 			createargs.attributes.atime.useconds = NOVALUE;
 			createargs.attributes.mtime.seconds = NOVALUE;
 			createargs.attributes.mtime.useconds = NOVALUE;
+#endif
 
-			err = NFSPROC_CREATE(&createargs, &createres, conn);
+			err = NFSPROC(CREATE, (&createargs, &createres, conn));
 			if (err) return err;
 			if (createres.status != NFS_OK) return gen_nfsstatus_error(createres.status);
 
+#ifdef NFS3
+			if (createres.u.diropok.obj.handle_follows == FALSE
+			    || createres.u.diropok.obj_attributes.attributes_follow == FALSE) {
+				gen_error(NOATTRS, NOATTRSMESS);
+			}
+
+			createinfo.objhandle = createres.u.diropok.obj.u.handle;
+			createinfo.attributes = createres.u.diropok.obj_attributes.u.attributes;
+#else
 			createinfo.objhandle = createres.u.diropok.file;
 			createinfo.attributes = createres.u.diropok.attributes;
+#endif
 			finfo = &createinfo;
 			filetype = conn->defaultfiletype;
 		} else {

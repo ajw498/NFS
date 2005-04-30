@@ -27,7 +27,11 @@
 
 #include "imageentry_bytes.h"
 
-#include "nfs-calls.h"
+#ifdef NFS3
+#include "nfs3-calls.h"
+#else
+#include "nfs2-calls.h"
+#endif
 
 
 /* Read a number of bytes from the open file */
@@ -43,7 +47,9 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 		return gen_error(BYTESERRBASE + 1,"Cannot read data from a non-regular file");
 	}
 
+#ifndef NFS3
 	args.totalcount = 0; /* Unused in NFS2 */
+#endif
 	args.file = handle->fhandle;
 
 	while (len > 0 || outstanding > 0) {
@@ -54,18 +60,25 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 		len -= args.count;
 		if (args.count > 0) outstanding++;
 
-		err = NFSPROC_READ(&args, &res, handle->conn, handle->conn->pipelining ? (args.count > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING);
+		err = NFSPROC(READ, (&args, &res, handle->conn, handle->conn->pipelining ? (args.count > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING));
 		if (err != ERR_WOULDBLOCK) {
+			struct opaque *data;
+
 			if (err) return err;
 			if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
 
+#ifdef NFS3
+			data = &(res.u.resok.data);
+#else
+			data = &(res.u.data);
+#endif
 			outstanding--;
-			if (buffer + res.u.data.size > bufferend) {
+			if (buffer + data->size > bufferend) {
 				return gen_error(BYTESERRBASE + 0,"Read returned more data than expected");
 			}
-	
-			memcpy(buffer, res.u.data.data, res.u.data.size);
-			buffer += res.u.data.size;
+			/* FIXME - check data size == count, and check EOF */
+			memcpy(buffer, data->data, data->size);
+			buffer += data->size;
 		}
 	}
 
@@ -78,24 +91,36 @@ os_error *writebytes(struct nfs_fh *fhandle, char *buffer, unsigned int len, uns
 {
 	os_error *err;
 	struct writeargs args;
+#ifdef NFS3
+	struct writeres res;
+#else
 	struct attrstat res;
+#endif
 	int outstanding = 0;
 
+#ifndef NFS3
 	args.beginoffset = 0; /* Unused in NFS2 */
 	args.totalcount = 0;  /* Unused in NFS2 */
+#endif
 	args.file = *fhandle;
 
 	while (len > 0 || outstanding > 0) {
 		args.offset = offset;
 		args.data.size = len;
+#ifdef NFS3
+		args.count = len;
+		args.stable = FILE_SYNC; /* FIXME - Use unstable and COMMIT on close? */
+#endif
 		if (args.data.size > conn->maxdatabuffer) args.data.size = conn->maxdatabuffer;
+		/* FIXME should also truncate to wtmax from FSINFO */
 		offset += args.data.size;
 		len -= args.data.size;
 		args.data.data = buffer;
 		buffer += args.data.size;
 		if (args.data.size > 0) outstanding++;
 
-		err = NFSPROC_WRITE(&args, &res, conn, conn->pipelining ? (args.data.size > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING);
+		err = NFSPROC(WRITE, (&args, &res, conn, conn->pipelining ? (args.data.size > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING));
+		/*FIXME - cope with count being less than requested */
 		if (err != ERR_WOULDBLOCK) {
 			if (err) return err;
 			if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);

@@ -58,14 +58,7 @@ enum ftype {
     NFLNK = 5
 };
 
-#ifndef FHANDLE_DEFINED
-#define FHANDLE_DEFINED
-typedef opaque nfs_fhandle[FHSIZE];
-
-struct nfs_fh {
-    nfs_fhandle handle;
-};
-#endif
+typedef opaque fhandle[FHSIZE];
 
 struct ntimeval {
     unsigned int seconds;
@@ -114,12 +107,12 @@ default:
 };
 
 struct diropargs {
-    nfs_fh  dir;
+    fhandle  dir;
     filename name;
 };
 
 struct diropok {
-    nfs_fh file;
+    fhandle file;
     fattr   attributes;
 };
 
@@ -136,7 +129,7 @@ diropres NFSPROC_LOOKUP(diropargs) = 4;
 typedef int nfscookie;
 
 struct readdirargs {
-        nfs_fh dir;
+        fhandle dir;
         nfscookie cookie;
         unsigned count;
 };
@@ -163,7 +156,7 @@ default:
 readdirres NFSPROC_READDIR(readdirargs) = 16;
 
 struct readargs {
-        nfs_fh file;
+        fhandle file;
         unsigned offset;
         unsigned count;
         unsigned totalcount;
@@ -180,7 +173,7 @@ default:
 readres NFSPROC_READ(readargs) = 6;
 
 struct writeargs {
-        nfs_fh file;
+        fhandle file;
         unsigned beginoffset;
         unsigned offset;
         unsigned totalcount;
@@ -208,7 +201,7 @@ struct renameargs {
 nstat NFSPROC_RENAME(renameargs) = 11;
 
 struct getattrargs {
-	nfs_fh fhandle;
+	fhandle fhandle;
 };
 
 attrstat NFSPROC_GETATTR(getattrargs) = 1;
@@ -216,7 +209,7 @@ attrstat NFSPROC_GETATTR(getattrargs) = 1;
 diropres NFSPROC_MKDIR(createargs) = 14;
 
 struct sattrargs {
-        nfs_fh file;
+        fhandle file;
         sattr attributes;
 };
 
@@ -238,13 +231,13 @@ default:
 };
 
 struct statfsargs {
-	nfs_fh fhandle;
+	fhandle fhandle;
 };
 
 statfsres NFSPROC_STATFS(statfsargs) = 17;
 
 struct readlinkargs {
-	nfs_fh fhandle;
+	fhandle fhandle;
 };
 
 union readlinkres switch (nstat status) {
