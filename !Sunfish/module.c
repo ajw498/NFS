@@ -48,6 +48,7 @@
 #define SYSLOGF_BUFSIZE 1024
 #define Syslog_LogMessage 0x4C880
 
+
 extern int module_base_address;
 
 typedef int veneer;
@@ -184,12 +185,13 @@ _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 _kernel_oserror *imageentry_open_handler(_kernel_swi_regs *r, void *pw)
 {
 	os_error *err;
+	struct conn_info *conn = (struct conn_info *)(r->r[6]);
 
 	(void)pw;
 
 	ENTRY("Open    ", (char *)(r->r[1]), r);
 
-	err = open_file((char *)r->r[1], r->r[0], (struct conn_info *)(r->r[6]), (unsigned int *)&(r->r[0]), (struct file_handle **)&(r->r[1]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), (unsigned int *)&(r->r[4]));
+	err = CALLENTRY(open_file, conn, ((char *)r->r[1], r->r[0], conn, (unsigned int *)&(r->r[0]), (struct file_handle **)&(r->r[1]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), (unsigned int *)&(r->r[4])));
 
         EXIT(r, err);
 
@@ -199,12 +201,13 @@ _kernel_oserror *imageentry_open_handler(_kernel_swi_regs *r, void *pw)
 _kernel_oserror *imageentry_getbytes_handler(_kernel_swi_regs *r, void *pw)
 {
 	os_error *err;
+	struct file_handle *handle = (struct file_handle *)(r->r[1]);
 
 	(void)pw;
 
 	ENTRY("GetBytes", "", r);
 
-	err = get_bytes((struct file_handle *)(r->r[1]), (char *)(r->r[2]), r->r[3], r->r[4]);
+	err = CALLENTRY(get_bytes, handle->conn, (handle, (char *)(r->r[2]), r->r[3], r->r[4]));
 
 	EXIT(r, err);
 
@@ -214,12 +217,13 @@ _kernel_oserror *imageentry_getbytes_handler(_kernel_swi_regs *r, void *pw)
 _kernel_oserror *imageentry_putbytes_handler(_kernel_swi_regs *r, void *pw)
 {
 	os_error *err = NULL;
+	struct file_handle *handle = (struct file_handle *)(r->r[1]);
 
 	(void)pw;
 
 	ENTRY("PutBytes", "", r);
 
-	err = put_bytes((struct file_handle *)(r->r[1]), (char *)(r->r[2]), r->r[3], r->r[4]);
+	err = CALLENTRY(put_bytes, handle->conn, (handle, (char *)(r->r[2]), r->r[3], r->r[4]));
 
 	EXIT(r, err);
 
@@ -229,6 +233,7 @@ _kernel_oserror *imageentry_putbytes_handler(_kernel_swi_regs *r, void *pw)
 _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 {
 	os_error *err;
+	struct file_handle *handle = (struct file_handle *)(r->r[1]);
 
 	(void)pw;
 
@@ -236,22 +241,22 @@ _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_ARGS_WRITEEXTENT:
-			err = args_writeextent((struct file_handle *)(r->r[1]),(unsigned int)(r->r[2]));
+			err = CALLENTRY(args_writeextent, handle->conn, (handle, (unsigned int)(r->r[2])));
 			break;
 		case IMAGEENTRY_ARGS_READSIZE:
-			err = args_readallocatedsize((struct file_handle *)(r->r[1]), (unsigned int *)&(r->r[2]));
+			err = CALLENTRY(args_readallocatedsize, handle->conn, (handle, (unsigned int *)&(r->r[2])));
 			break;
 		case IMAGEENTRY_ARGS_FLUSH:
-			err = args_readdatestamp((struct file_handle *)(r->r[1]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]));
+			err = CALLENTRY(args_readdatestamp, handle->conn,  (handle, (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3])));
 			break;
 		case IMAGEENTRY_ARGS_ENSURESIZE:
-			err = args_ensuresize((struct file_handle *)(r->r[1]),(unsigned int)(r->r[2]), (unsigned int *)&(r->r[2]));
+			err = CALLENTRY(args_ensuresize, handle->conn, (handle, (unsigned int)(r->r[2]), (unsigned int *)&(r->r[2])));
 			break;
 		case IMAGEENTRY_ARGS_ZEROPAD:
-			err = args_zeropad((struct file_handle *)(r->r[1]), (unsigned int)(r->r[2]), (unsigned int)(r->r[3]));
+			err = CALLENTRY(args_zeropad, handle->conn, (handle, (unsigned int)(r->r[2]), (unsigned int)(r->r[3])));
 			break;
 		case IMAGEENTRY_ARGS_READDATESTAMP:
-			err = args_readdatestamp((struct file_handle *)(r->r[1]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]));
+			err = CALLENTRY(args_readdatestamp, handle->conn, (handle, (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3])));
 			break;
 		default:
 			err = gen_error(UNSUPP, UNSUPPMESS);
@@ -265,12 +270,13 @@ _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 _kernel_oserror *imageentry_close_handler(_kernel_swi_regs *r, void *pw)
 {
 	os_error *err;
+	struct file_handle *handle = (struct file_handle *)(r->r[1]);
 
 	(void)pw;
 
 	ENTRY("Close   ", "", r);
 
-	err = close_file((struct file_handle *)(r->r[1]), r->r[2], r->r[3]);
+	err = CALLENTRY(close_file, handle->conn, (handle, r->r[2], r->r[3]));
 
 	EXIT(r, err);
 
@@ -280,6 +286,7 @@ _kernel_oserror *imageentry_close_handler(_kernel_swi_regs *r, void *pw)
 _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 {
 	os_error *err;
+	struct conn_info *conn = (struct conn_info *)(r->r[6]);
 
 	(void)pw;
 
@@ -287,25 +294,26 @@ _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_FILE_SAVEFILE:
-			err = file_savefile((char *)(r->r[1]), r->r[2], r->r[3], (char *)(r->r[4]), (char *)(r->r[5]),  (struct conn_info *)(r->r[6]), (char **)(&(r->r[6])));
+			err = CALLENTRY(file_savefile, conn, ((char *)(r->r[1]), r->r[2], r->r[3], (char *)(r->r[4]), (char *)(r->r[5]),  conn, (char **)(&(r->r[6]))));
 			break;
 		case IMAGEENTRY_FILE_WRITECATINFO:
-			err = file_writecatinfo((char *)(r->r[1]), r->r[2], r->r[3], r->r[5], (struct conn_info *)(r->r[6]));
+			err = CALLENTRY(file_writecatinfo, conn, ((char *)(r->r[1]), r->r[2], r->r[3], r->r[5], conn));
 			break;
 		case IMAGEENTRY_FILE_READCATINFO:
-			err = file_readcatinfo((char *)(r->r[1]), (struct conn_info *)(r->r[6]), &(r->r[0]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), &(r->r[4]), &(r->r[5]));
+			err = CALLENTRY(file_readcatinfo, conn, ((char *)(r->r[1]), conn, &(r->r[0]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), &(r->r[4]), &(r->r[5])));
 			break;
 		case IMAGEENTRY_FILE_DELETE:
-			err = file_delete((char *)(r->r[1]), (struct conn_info *)(r->r[6]), &(r->r[0]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), &(r->r[4]), &(r->r[5]));
+			err = CALLENTRY(file_delete, conn, ((char *)(r->r[1]), conn, &(r->r[0]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), &(r->r[4]), &(r->r[5])));
 			break;
 		case IMAGEENTRY_FILE_CREATEFILE:
-			err = file_createfile((char *)(r->r[1]), r->r[2], r->r[3], (char *)(r->r[4]), (char *)(r->r[5]),  (struct conn_info *)(r->r[6]));
+			err = CALLENTRY(file_createfile, conn, ((char *)(r->r[1]), r->r[2], r->r[3], (char *)(r->r[4]), (char *)(r->r[5]), conn));
 			break;
 		case IMAGEENTRY_FILE_CREATEDIR:
-			err = file_createdir((char *)(r->r[1]), r->r[2], r->r[3], (struct conn_info *)(r->r[6]));
+			err = CALLENTRY(file_createdir, conn, ((char *)(r->r[1]), r->r[2], r->r[3], conn));
 			break;
 		case IMAGEENTRY_FILE_READBLKSIZE:
-			err = file_readblocksize((unsigned int *)&(r->r[2]));
+			r->r[2] = FAKE_BLOCKSIZE;
+			err = NULL;
 			break;
 		default:
 			err = gen_error(UNSUPP, UNSUPPMESS);
@@ -319,6 +327,7 @@ _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 {
 	os_error *err;
+	struct conn_info *conn = (struct conn_info *)(r->r[6]);
 
 	(void)pw;
 
@@ -326,22 +335,26 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_FUNC_RENAME:
-			err = func_rename((char *)(r->r[1]), (char *)(r->r[2]), (struct conn_info *)(r->r[6]), &(r->r[1]));
+			err = CALLENTRY(func_rename, conn, ((char *)(r->r[1]), (char *)(r->r[2]), conn, &(r->r[1])));
 			break;
 		case IMAGEENTRY_FUNC_READDIR:
-			err = func_readdirinfo(0, (char *)r->r[1], (void *)r->r[2], r->r[3], r->r[4], r->r[5], (struct conn_info *)(r->r[6]), &(r->r[3]), &(r->r[4]));
+			err = CALLENTRY(func_readdirinfo, conn, (0, (char *)r->r[1], (void *)r->r[2], r->r[3], r->r[4], r->r[5], conn, &(r->r[3]), &(r->r[4])));
 			break;
 		case IMAGEENTRY_FUNC_READDIRINFO:
-			err = func_readdirinfo(1, (char *)r->r[1], (void *)r->r[2], r->r[3], r->r[4], r->r[5], (struct conn_info *)(r->r[6]), &(r->r[3]), &(r->r[4]));
+			err = CALLENTRY(func_readdirinfo, conn, (1, (char *)r->r[1], (void *)r->r[2], r->r[3], r->r[4], r->r[5], conn, &(r->r[3]), &(r->r[4])));
 			break;
 		case IMAGEENTRY_FUNC_NEWIMAGE:
 			err = func_newimage(r->r[1],(struct conn_info **)&(r->r[1]));
 			break;
 		case IMAGEENTRY_FUNC_CLOSEIMAGE:
-			err = func_closeimage((struct conn_info *)(r->r[1]));
+			conn = (struct conn_info *)(r->r[1]);
+			err = CALLENTRY(func_closeimage, conn, (conn));
 			break;
 		case IMAGEENTRY_FUNC_READBOOT:
-			err = func_readboot(&(r->r[2]));
+			/* This entry point is meaningless, but we must
+			   support it as *ex et al call it. */
+			r->r[2] = 0;
+			err = NULL;
 			break;
 
 		/* The following entrypoints are meaningless for NFS.

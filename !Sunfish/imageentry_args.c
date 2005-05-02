@@ -35,7 +35,7 @@
 #endif
 
 
-os_error *args_zeropad(struct file_handle *handle, unsigned int offset, unsigned int size)
+os_error *ENTRYFUNC(args_zeropad) (struct file_handle *handle, unsigned int offset, unsigned int size)
 {
 	static char zeros[] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 	os_error *err;
@@ -43,7 +43,7 @@ os_error *args_zeropad(struct file_handle *handle, unsigned int offset, unsigned
 	/* This is going to be pretty slow, but any sensible program won't
 	   be calling this entry point */
 	while (size > sizeof(zeros)) {
-		err = writebytes(&(handle->fhandle), zeros, sizeof(zeros), offset, handle->conn);
+		err = ENTRYFUNC(writebytes) (&(handle->fhandle), zeros, sizeof(zeros), offset, handle->conn);
 		if (err) return err;
 
 		size -= sizeof(zeros);
@@ -51,7 +51,7 @@ os_error *args_zeropad(struct file_handle *handle, unsigned int offset, unsigned
 	}
 
 	if (size > 0) {
-		err = writebytes(&(handle->fhandle), zeros, size, offset, handle->conn);
+		err = ENTRYFUNC(writebytes) (&(handle->fhandle), zeros, size, offset, handle->conn);
 		if (err) return err;
 	}
 
@@ -68,7 +68,7 @@ static os_error *writeextent(struct file_handle *handle, unsigned int extent)
 	struct attrstat res;
 #endif
 
-	args.file = handle->fhandle;
+	commonfh_to_fh(args.file, handle->fhandle);
 #ifdef NFS3
 	args.attributes.mode.set_it = FALSE;
 	args.attributes.uid.set_it = FALSE;
@@ -90,12 +90,12 @@ static os_error *writeextent(struct file_handle *handle, unsigned int extent)
 #endif
 	err = NFSPROC(SETATTR, (&args, &res, handle->conn));
 	if (err) return err;
-	if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
+	if (res.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (res.status);
 
 	return NULL;
 }
 
-os_error *args_writeextent(struct file_handle *handle, unsigned int extent)
+os_error *ENTRYFUNC(args_writeextent) (struct file_handle *handle, unsigned int extent)
 {
 	os_error *err;
 
@@ -103,7 +103,7 @@ os_error *args_writeextent(struct file_handle *handle, unsigned int extent)
 	if (err) return err;
 
 	if (extent > handle->extent) {
-		err = args_zeropad(handle, handle->extent, extent - handle->extent);
+		err = ENTRYFUNC(args_zeropad) (handle, handle->extent, extent - handle->extent);
 		if (err) return err;
 	}
 
@@ -112,7 +112,7 @@ os_error *args_writeextent(struct file_handle *handle, unsigned int extent)
 	return NULL;
 }
 
-os_error *args_ensuresize(struct file_handle *handle, unsigned int size, unsigned int *actualsize)
+os_error *ENTRYFUNC(args_ensuresize) (struct file_handle *handle, unsigned int size, unsigned int *actualsize)
 {
 	os_error *err;
 
@@ -128,7 +128,7 @@ os_error *args_ensuresize(struct file_handle *handle, unsigned int size, unsigne
 	return NULL;
 }
 
-os_error *args_readdatestamp(struct file_handle *handle, unsigned int *load, unsigned int *exec)
+os_error *ENTRYFUNC(args_readdatestamp) (struct file_handle *handle, unsigned int *load, unsigned int *exec)
 {
 	*load = handle->load;
 	*exec = handle->exec;
@@ -136,7 +136,7 @@ os_error *args_readdatestamp(struct file_handle *handle, unsigned int *load, uns
 	return NULL;
 }
 
-os_error *args_readallocatedsize(struct file_handle *handle, unsigned int *size)
+os_error *ENTRYFUNC(args_readallocatedsize) (struct file_handle *handle, unsigned int *size)
 {
 	*size = (handle->extent + (FAKE_BLOCKSIZE - 1)) & ~(FAKE_BLOCKSIZE - 1);
 

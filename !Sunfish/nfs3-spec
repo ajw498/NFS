@@ -111,9 +111,12 @@ struct specdata3 {
      uint32     specdata2;
 };
 
+#ifndef NFS_FH
+#define NFS_FH
 struct nfs_fh {
    opaque       data<NFS3_FHSIZE>;
 };
+#endif
 
 
 struct ntimeval {

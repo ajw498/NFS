@@ -35,7 +35,7 @@
 
 
 /* Read a number of bytes from the open file */
-os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned int len, unsigned int offset)
+os_error *ENTRYFUNC(get_bytes) (struct file_handle *handle, char *buffer, unsigned int len, unsigned int offset)
 {
 	os_error *err;
 	struct readargs args;
@@ -43,14 +43,14 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 	char *bufferend = buffer + len;
 	int outstanding = 0;
 
-	if (handle->type != NFREG) {
+/*	if (handle->type != NFREG) { FIXME
 		return gen_error(BYTESERRBASE + 1,"Cannot read data from a non-regular file");
-	}
+	} */
 
 #ifndef NFS3
 	args.totalcount = 0; /* Unused in NFS2 */
 #endif
-	args.file = handle->fhandle;
+	commonfh_to_fh(args.file, handle->fhandle);
 
 	while (len > 0 || outstanding > 0) {
 		args.offset = offset;
@@ -65,7 +65,7 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 			struct opaque *data;
 
 			if (err) return err;
-			if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
+			if (res.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (res.status);
 
 #ifdef NFS3
 			data = &(res.u.resok.data);
@@ -87,7 +87,7 @@ os_error *get_bytes(struct file_handle *handle, char *buffer, unsigned int len, 
 
 /* Write a number of bytes to the open file.
    Used by put_bytes and file_savefile */
-os_error *writebytes(struct nfs_fh *fhandle, char *buffer, unsigned int len, unsigned int offset, struct conn_info *conn)
+os_error *ENTRYFUNC(writebytes) (struct commonfh *fhandle, char *buffer, unsigned int len, unsigned int offset, struct conn_info *conn)
 {
 	os_error *err;
 	struct writeargs args;
@@ -102,7 +102,7 @@ os_error *writebytes(struct nfs_fh *fhandle, char *buffer, unsigned int len, uns
 	args.beginoffset = 0; /* Unused in NFS2 */
 	args.totalcount = 0;  /* Unused in NFS2 */
 #endif
-	args.file = *fhandle;
+	commonfh_to_fh(args.file, *fhandle);
 
 	while (len > 0 || outstanding > 0) {
 		args.offset = offset;
@@ -123,7 +123,7 @@ os_error *writebytes(struct nfs_fh *fhandle, char *buffer, unsigned int len, uns
 		/*FIXME - cope with count being less than requested */
 		if (err != ERR_WOULDBLOCK) {
 			if (err) return err;
-			if (res.status != NFS_OK) return gen_nfsstatus_error(res.status);
+			if (res.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (res.status);
 			outstanding--;
 		}
 	}
@@ -132,15 +132,15 @@ os_error *writebytes(struct nfs_fh *fhandle, char *buffer, unsigned int len, uns
 }
 
 /* Write a number of bytes to the open file */
-os_error *put_bytes(struct file_handle *handle, char *buffer, unsigned int len, unsigned int offset)
+os_error *ENTRYFUNC(put_bytes) (struct file_handle *handle, char *buffer, unsigned int len, unsigned int offset)
 {
-	if (handle->type != NFREG) {
+/*	if (handle->type != NFREG) { FIXME
 		return gen_error(BYTESERRBASE + 2,"Cannot write data to a non-regular file");
-	}
+	}*/
 
 	if (offset + len > handle->extent) handle->extent = offset + len;
 
-	return writebytes(&(handle->fhandle), buffer, len, offset, handle->conn);
+	return ENTRYFUNC(writebytes) (&(handle->fhandle), buffer, len, offset, handle->conn);
 }
 
 

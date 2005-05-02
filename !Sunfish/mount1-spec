@@ -21,11 +21,18 @@ const MNTNAMLEN = 255;
 /* The size in bytes of the opaque file handle. */
 const FHSIZE = 32;
 
-typedef opaque fhandle[FHSIZE];
+#ifndef NFS_FH
+#define NFS_FH
+typedef opaque fhdata[FHSIZE];
 
-union fhstatus switch (unsigned status) {
+struct nfs_fh {
+   fhdata data;
+};
+#endif
+
+union mountres switch (unsigned status) {
 case 0:
-    fhandle directory;
+    nfs_fh directory;
 default:
     void;
 }
@@ -35,7 +42,7 @@ typedef string name<MNTNAMLEN>;
 
 void MNTPROC_NULL(void) = 0;
 
-fhstatus MNTPROC_MNT(dirpath) = 1;
+mountres MNTPROC_MNT(dirpath) = 1;
 
 struct *mountlist {
         name hostname;

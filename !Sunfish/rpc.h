@@ -8,7 +8,7 @@
 #ifndef RPC_H
 #define RPC_H
 
-#include "imageentry_common.h"
+#include "utils.h"
 
 
 void rpc_init_header(void);

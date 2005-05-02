@@ -37,7 +37,7 @@
 
 /* Open a file. The handle returned is a pointer to a struct holding the
    NFS handle and any other info needed */
-os_error *open_file(char *filename, int access, struct conn_info *conn,
+os_error *ENTRYFUNC(open_file) (char *filename, int access, struct conn_info *conn,
                     unsigned int *file_info_word,
                     struct file_handle **internal_handle,
                     unsigned int *fileswitchbuffersize, unsigned int *extent,
@@ -48,22 +48,22 @@ os_error *open_file(char *filename, int access, struct conn_info *conn,
 	struct objinfo *finfo;
 	struct objinfo createinfo;
 	struct createargs createargs;
-#ifdef NFS3
 	struct createres createres;
-#else
-	struct diropres createres;
-#endif
 	os_error *err;
 	char *leafname;
 	int filetype;
 
-	err = filename_to_finfo(filename, 1, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
+	err = ENTRYFUNC(filename_to_finfo) (filename, 1, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
 	if (err) return err;
 
 	if (finfo == NULL) {
 		if (access == 1) {
 			/* Create and open for update */
-			createargs.where.dir = dinfo ? dinfo->objhandle : conn->rootfh;
+			if (dinfo) {
+				commonfh_to_fh(createargs.where.dir, dinfo->objhandle);
+			} else {
+				commonfh_to_fh(createargs.where.dir, conn->rootfh);
+			}
 			createargs.where.name.data = leafname;
 			createargs.where.name.size = strlen(leafname);
 #ifdef NFS3
@@ -89,7 +89,7 @@ os_error *open_file(char *filename, int access, struct conn_info *conn,
 
 			err = NFSPROC(CREATE, (&createargs, &createres, conn));
 			if (err) return err;
-			if (createres.status != NFS_OK) return gen_nfsstatus_error(createres.status);
+			if (createres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (createres.status);
 
 #ifdef NFS3
 			if (createres.u.diropok.obj.handle_follows == FALSE
@@ -97,10 +97,10 @@ os_error *open_file(char *filename, int access, struct conn_info *conn,
 				gen_error(NOATTRS, NOATTRSMESS);
 			}
 
-			createinfo.objhandle = createres.u.diropok.obj.u.handle;
+			fh_to_commonfh(createinfo.objhandle, createres.u.diropok.obj.u.handle);
 			createinfo.attributes = createres.u.diropok.obj_attributes.u.attributes;
 #else
-			createinfo.objhandle = createres.u.diropok.file;
+			fh_to_commonfh(createinfo.objhandle, createres.u.diropok.file);
 			createinfo.attributes = createres.u.diropok.attributes;
 #endif
 			finfo = &createinfo;
@@ -118,8 +118,8 @@ os_error *open_file(char *filename, int access, struct conn_info *conn,
 	handle->conn = conn;
 	handle->fhandle = finfo->objhandle;
 	handle->extent = finfo->attributes.size;
-	handle->type = finfo->attributes.type;
-	timeval_to_loadexec(&(finfo->attributes.mtime), filetype, &(handle->load), &(handle->exec));
+	/*handle->type = finfo->attributes.type; FIXME */
+	ENTRYFUNC(timeval_to_loadexec) (&(finfo->attributes.mtime), filetype, &(handle->load), &(handle->exec));
 
 	*internal_handle = handle;
 	/* It is too difficult to determine if we will have permission to read
@@ -132,7 +132,7 @@ os_error *open_file(char *filename, int access, struct conn_info *conn,
 	return NULL;
 }
 
-os_error *close_file(struct file_handle *handle, unsigned int load, unsigned int exec)
+os_error *ENTRYFUNC(close_file) (struct file_handle *handle, unsigned int load, unsigned int exec)
 {
 	/* The filetype shouldn't have changed since the file was opened and
 	   the server will set the datestamp for us, therefore there is not

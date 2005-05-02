@@ -16,7 +16,8 @@ const MNTPATHLEN = 1024;  /* Maximum bytes in a path name */
 const MNTNAMLEN  = 255;   /* Maximum bytes in a name */
 const FHSIZE3    = 64;    /* Maximum bytes in a V3 file handle */
 
-#ifndef MOUNT_RPC_VERSION /*FIXME*/ 
+#ifndef NFS_FH
+#define NFS_FH
 struct nfs_fh {
    opaque       data<FHSIZE3>;
 };

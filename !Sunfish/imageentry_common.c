@@ -31,7 +31,7 @@
 #include <stdio.h>
 #include <unixlib.h>
 
-#include "imageentry_func.h"
+#include "imageentry_common.h"
 
 #include "sunfish.h"
 
@@ -44,23 +44,8 @@
 #include "rpc.h"
 
 
-/* Generate a RISC OS error block based on the given number and message */
-os_error *gen_error(int num, char *msg, ...)
-{
-	static os_error module_err_buf;
-	va_list ap;
-
-	rpc_resetfifo();
-	
-	va_start(ap, msg);
-	vsnprintf(module_err_buf.errmess, sizeof(module_err_buf.errmess), msg, ap);
-	va_end(ap);
-	module_err_buf.errnum = num;
-	return &module_err_buf;
-}
-
 /* Generate a RISC OS error block based on the NFS status code */
-os_error *gen_nfsstatus_error(enum nstat stat)
+os_error *ENTRYFUNC(gen_nfsstatus_error) (enum nstat stat)
 {
 	char *str;
 
@@ -86,154 +71,19 @@ os_error *gen_nfsstatus_error(enum nstat stat)
 	return gen_error(NFSSTATBASE, "NFS call failed (%s)", str);
 }
 
-char *filename_unixify(char *name, unsigned int len, unsigned int *newlen)
-{
-	static char namebuffer[MAXNAMLEN + 1];
-	int i;
-	int j;
-
-	/* Truncate if there is not enough buffer space. This is slightly
-	   pessimistic if the name has escape sequences */
-	if (len > MAXNAMLEN) len = MAXNAMLEN;
-
-	for (i = 0, j = 0; i < len; i++) {
-		switch (name[i]) {
-			case '/':
-				namebuffer[j++] = '.';
-				break;
-			case 160: /*hard space*/
-				namebuffer[j++] = ' ';
-				break;
-			case '?':
-				if (i + 2 < len && isxdigit(name[i+1]) && !islower(name[i+1]) && isxdigit(name[i+2]) && !islower(name[i+2])) {
-					/* An escape sequence */
-					i++;
-					namebuffer[j] = (name[i] > '9' ? name[i] - 'A' + 10 : name[i] - '0') << 4;
-					i++;
-					namebuffer[j++] |= name[i] > '9' ? name[i] - 'A' + 10 : name[i] - '0';
-				} else {
-					namebuffer[j++] = name[i];
-				}
-				break;
-			default:
-				namebuffer[j++] = name[i];
-		}
-	}
-
-	namebuffer[j] = '\0';
-	*newlen = j;
-
-	return namebuffer;
-}
-
-#define MimeMap_Translate 0x50B00
-#define MMM_TYPE_RISCOS 0
-#define MMM_TYPE_RISCOS_STRING 1
-#define MMM_TYPE_MIME 2
-#define MMM_TYPE_DOT_EXTN 3
-
-/* Use MimeMap to lookup a filetype from an extension */
-static int lookup_mimetype(char *ext, struct conn_info *conn)
-{
-	os_error *err;
-	int filetype;
-
-	/* Try MimeMap to get a filetype, use the default type if the call fails */
-	err = _swix(MimeMap_Translate,_INR(0,2) | _OUT(3), MMM_TYPE_DOT_EXTN, ext, MMM_TYPE_RISCOS, &filetype);
-	if (err) filetype = conn->defaultfiletype;
-
-	return filetype;
-}
-
-
-int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetype, struct conn_info *conn)
-{
-	int i;
-	int j;
-	char *dotext = NULL;
-
-	*filetype = -1;
-
-	for (i = 0, j = 0; (i < namelen) && (j + 3 < buflen); i++) {
-		if (name[i] == '.') {
-			buffer[j++] = '/';
-			dotext = buffer + j;
-		} else if (name[i] == ' ') {
-			buffer[j++] = 160; /* spaces to hard spaces */
-		} else if (name[i] == ',') {
-			if (conn->xyzext != NEVER && namelen - i == 4
-			     && isxdigit(name[i+1])
-			     && isxdigit(name[i+2])
-			     && isxdigit(name[i+3])) {
-				char tmp[4];
-
-				tmp[0] = name[i+1];
-				tmp[1] = name[i+2];
-				tmp[2] = name[i+3];
-				tmp[3] = '\0';
-				*filetype = (int)strtol(tmp, NULL, 16);
-				namelen -= sizeof(",xyz") - 1;
-			} else {
-				buffer[j++] = name[i];
-			}
-		} else if (name[i] == '!') {
-			buffer[j++] = name[i];
-		} else if (name[i] < '\''
-				|| name[i] == '/'
-				|| name[i] == ':'
-				|| name[i] == '?'
-				|| name[i] == '@'
-				|| name[i] == '\\'
-				|| name[i] == 127
-				|| name[i] == 160) {
-			int val;
-
-			/* Turn illegal chars into ?XX escape sequences */
-			buffer[j++] = '?';
-			val = ((name[i] & 0xF0) >> 4);
-			buffer[j++] = val < 10 ? val + '0' : (val - 10) + 'A';
-			val = (name[i] & 0x0F);
-			buffer[j++] = val < 10 ? val + '0' : (val - 10) + 'A';
-		} else {
-			/* All other chars translate unchanged */
-			buffer[j++] = name[i];
-		}
-	}
-
-	if (i < namelen) return 0; /* Buffer overflow */
-
-	buffer[j++] = '\0';
-
-	if (conn->xyzext != NEVER) {
-		if (*filetype == -1) {
-			/* No ,xyz found */
-			if (dotext) {
-				*filetype = lookup_mimetype(dotext, conn);
-			} else {
-				/* No ,xyz and no extension, so use default */
-				*filetype = conn->defaultfiletype;
-			}
-		}
-	} else {
-		*filetype = conn->defaultfiletype;
-	}
-
-	return j;
-}
-
 /* Find leafname,xyz given leafname by enumerating the entire directory
    until a matching file is found. If there are two matching files, the
    first found is used. This function would benefit in many cases by some
    cacheing of leafnames and extensions. The returned leafname is a pointer
    to static data and should be copied before any subsequent calls. */
-static os_error *lookup_leafname(struct nfs_fh *dhandle, char *leafname, int leafnamelen, struct opaque **found, struct conn_info *conn)
+static os_error *lookup_leafname(struct commonfh *dhandle, char *leafname, int leafnamelen, struct opaque **found, struct conn_info *conn)
 {
 	static struct readdirargs rddir;
 	static struct readdirres rdres;
 	struct entry *direntry;
 	os_error *err;
 
-	rddir.dir = *dhandle;
+	commonfh_to_fh(rddir.dir, *dhandle);
 	rddir.count = conn->maxdatabuffer;
 	rddir.cookie = 0;
 #ifdef NFS3
@@ -244,7 +94,7 @@ static os_error *lookup_leafname(struct nfs_fh *dhandle, char *leafname, int lea
 	do {
 		err = NFSPROC(READDIR, (&rddir, &rdres, conn));
 		if (err) return err;
-		if (rdres.status != NFS_OK) return gen_nfsstatus_error(rdres.status);
+		if (rdres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (rdres.status);
 
 #ifdef NFS3
 		memcpy(rddir.cookieverf, rdres.u.readdirok.cookieverf, NFS3_COOKIEVERFSIZE);
@@ -292,7 +142,7 @@ static os_error *lookup_leafname(struct nfs_fh *dhandle, char *leafname, int lea
 /* Convert a leafname into nfs handle and attributes.
    May follow symlinks if needed.
    Returns a pointer to static data, and updates the leafname in place. */
-os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int followsymlinks, struct nfs_fh *dirhandle, struct objinfo **finfo, enum nstat *status, struct conn_info *conn)
+os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int simple, int followsymlinks, struct commonfh *dirhandle, struct objinfo **finfo, enum nstat *status, struct conn_info *conn)
 {
 	struct diropargs lookupargs;
 	struct diropres lookupres;
@@ -302,7 +152,7 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 
 	lookupargs.name.data = leafname;
 	lookupargs.name.size = *len;
-	lookupargs.dir = *dirhandle;
+	commonfh_to_fh(lookupargs.dir, *dirhandle);
 
 	err = NFSPROC(LOOKUP, (&lookupargs, &lookupres, conn));
 	if (err) return err;
@@ -337,10 +187,8 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 	}
 #endif
 
-	retinfo.objhandle = lookupres.u.diropok.file;
+	fh_to_commonfh(retinfo.objhandle, lookupres.u.diropok.file);
 #ifdef NFS3
-	memcpy(retinfo.handledata, lookupres.u.diropok.file.data.data, lookupres.u.diropok.file.data.size);
-	retinfo.objhandle.data.data = retinfo.handledata;
 	retinfo.attributes = lookupres.u.diropok.obj_attributes.u.attributes;
 #else
 	retinfo.attributes = lookupres.u.diropok.attributes;
@@ -416,7 +264,7 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 	
 			lookupargs.name.data = segment;
 			lookupargs.name.size = i;
-			lookupargs.dir = *dirhandle;
+			commonfh_to_fh(lookupargs.dir, *dirhandle);
 
 			err = NFSPROC(LOOKUP, (&lookupargs, &lookupres, conn));
 			if (err) return err;
@@ -435,20 +283,17 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
 				gen_error(NOATTRS, NOATTRSMESS);
 			}
 			retinfo.attributes = lookupres.u.diropok.obj_attributes.u.attributes;
-			memcpy(retinfo.handledata, lookupres.u.diropok.file.data.data, lookupres.u.diropok.file.data.size); 
-			retinfo.objhandle.data.size = lookupres.u.diropok.file.data.size;
-			retinfo.objhandle.data.data = retinfo.handledata;
 #else
 			retinfo.attributes = lookupres.u.diropok.attributes;
-			retinfo.objhandle = lookupres.u.diropok.file;
 #endif
+			fh_to_commonfh(retinfo.objhandle, lookupres.u.diropok.file);
 
 #ifdef NFS3
 			if (lookupres.u.diropok.obj_attributes.u.attributes.type == NFDIR) {
 #else
 			if (lookupres.u.diropok.attributes.type == NFDIR) {
 #endif
-				dirhandle = &(lookupres.u.diropok.file);
+				dirhandle = &(retinfo.objhandle);
 			}
 			while (i < segmentmaxlen && segment[i] == '/') i++;
 			segment += i;
@@ -468,11 +313,11 @@ os_error *leafname_to_finfo(char *leafname, unsigned int *len, int simple, int f
    This function would really benefit from some cacheing.
    In theory it should deal with wildcarded names, but that is just too much
    hassle. And, really, that should be the job of fileswitch. */
-os_error *filename_to_finfo(char *filename, int followsymlinks, struct objinfo **dinfo, struct objinfo **finfo, char **leafname, int *filetype, int *extfound, struct conn_info *conn)
+os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, struct objinfo **dinfo, struct objinfo **finfo, char **leafname, int *filetype, int *extfound, struct conn_info *conn)
 {
 	char *start = filename;
 	char *end;
-	struct nfs_fh dirhandle;
+	struct commonfh dirhandle;
 	static struct objinfo dirinfo;
 	char *segmentname;
 	unsigned int segmentlen;
@@ -495,7 +340,7 @@ os_error *filename_to_finfo(char *filename, int followsymlinks, struct objinfo *
 
 		if (leafname) *leafname = segmentname;
 
-		err = leafname_to_finfo(segmentname, &segmentlen, 0, followsymlinks || (*end != '\0'), &dirhandle, &segmentinfo, &status, conn);
+		err = ENTRYFUNC(leafname_to_finfo) (segmentname, &segmentlen, 0, followsymlinks || (*end != '\0'), &dirhandle, &segmentinfo, &status, conn);
 		if (err) return err;
 
 		/* It is not an error if the file isn't found, but the
@@ -509,13 +354,13 @@ os_error *filename_to_finfo(char *filename, int followsymlinks, struct objinfo *
 			return NULL;
 		}
 
-		if (status != NFS_OK) return gen_nfsstatus_error(status);
+		if (status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (status);
 
 		if (*end != '\0') {
 			if (segmentinfo->attributes.type != NFDIR) {
 				/* Every segment except the leafname should be a directory */
 				if (dinfo) {
-					return gen_nfsstatus_error(NFSERR_NOTDIR);
+					return ENTRYFUNC(gen_nfsstatus_error) (NFSERR_NOTDIR);
 				} else {
 					return NULL;
 				}
@@ -573,7 +418,7 @@ os_error *filename_to_finfo(char *filename, int followsymlinks, struct objinfo *
 }
 
 /* Convert a unix timestamp into a RISC OS load and execution address */
-void timeval_to_loadexec(struct ntimeval *unixtime, int filetype, unsigned int *load, unsigned int *exec)
+void ENTRYFUNC(timeval_to_loadexec) (struct ntimeval *unixtime, int filetype, unsigned int *load, unsigned int *exec)
 {
 	uint64_t csecs;
 
@@ -591,7 +436,7 @@ void timeval_to_loadexec(struct ntimeval *unixtime, int filetype, unsigned int *
 }
 
 /* Convert a RISC OS load and execution address into a unix timestamp */
-void loadexec_to_timeval(unsigned int load, unsigned int exec, struct ntimeval *unixtime)
+void ENTRYFUNC(loadexec_to_timeval) (unsigned int load, unsigned int exec, struct ntimeval *unixtime)
 {
 	if ((load & 0xFFF00000) != 0xFFF00000) {
 		/* A real load/exec address */
@@ -614,94 +459,5 @@ void loadexec_to_timeval(unsigned int load, unsigned int exec, struct ntimeval *
 		unixtime->useconds = (unsigned int)((csecs % 100) * 10000);
 #endif
 	}
-}
-
-/* Convert a unix mode to RISC OS attributes */
-unsigned int mode_to_attr(unsigned int mode)
-{
-	unsigned int attr;
-	attr  = (mode & 0x100) >> 8; /* Owner read */
-	attr |= (mode & 0x080) >> 6; /* Owner write */
-	/* Set public read/write if either group or other bits are set */
-	attr |= ((mode & 0x004) << 2) | ((mode & 0x020) >> 1); /* Public read */
-	attr |= ((mode & 0x002) << 4) | ((mode & 0x010) << 1); /* Public write */
-	return attr;
-}
-
-/* Convert RISC OS attributes to a unix mode */
-unsigned int attr_to_mode(unsigned int attr, unsigned int oldmode, struct conn_info *conn)
-{
-	unsigned int newmode;
-	newmode = oldmode & ~0666; /* Preserve existing type and execute bits */
-	newmode |= conn->unumask;
-	newmode |= (attr & 0x01) << 8; /* Owner read */
-	newmode |= (attr & 0x02) << 6; /* Owner write */
-	newmode |= (attr & 0x10) << 1; /* Group read */
-	newmode |= (attr & 0x20) >> 1; /* Group write */
-	newmode |= (attr & 0x10) >> 2; /* Others read */
-	newmode |= (attr & 0x20) >> 4; /* Others write */
-	newmode &= ~(conn->umask);
-	return newmode;
-}
-
-
-char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, struct conn_info *conn)
-{
-    static char newleafname[MAXNAMLEN];
-
-	if (conn->xyzext == NEVER) {
-		if (newlen) *newlen = len;
-		return leafname;
-	} else {
-		/* Check if we need a new extension */
-	    int extneeded = 0;
-
-	    if (extfound) len -= sizeof(",xyz") - 1;
-
-		if (conn->xyzext == ALWAYS) {
-			/* Always add ,xyz */
-			extneeded = 1;
-		} else {
-			/* Only add an extension if needed */
-			char *ext;
-
-			ext = strrchr(leafname, '.');
-			if (ext) {
-				int mimefiletype;
-				int extlen = len - (ext - leafname) - 1;
-
-				memcpy(newleafname, ext + 1, extlen);
-				newleafname[extlen] = '\0';
-				mimefiletype = lookup_mimetype(newleafname, conn);
-
-				if (mimefiletype == newfiletype) {
-					/* Don't need an extension */
-					extneeded = 0;
-				} else {
-					/* A new ,xyz is needed */
-					extneeded = 1;
-				}
-			} else {
-				if (newfiletype == conn->defaultfiletype) {
-					/* Don't need an extension */
-					extneeded = 0;
-				} else {
-					/* A new ,xyz is needed */
-					extneeded = 1;
-				}
-			}
-		}
-
-		memcpy(newleafname, leafname, len);
-		if (extneeded) {
-			snprintf(newleafname + len, sizeof(",xyz"), ",%.3x", newfiletype);
-			*newlen = len + sizeof(",xyz") - 1;
-		} else {
-			newleafname[len] = '\0';
-			*newlen = len;
-		}
-	}
-
-	return newleafname;
 }
 

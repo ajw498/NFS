@@ -102,7 +102,7 @@ while (<>) {
       print UNIONS "case $1:\\\n";
       print UNIONS "process_union_body_${name}_$1(input,${structbase}u);\\\n";
       print PROCS "} while (0)\n#endif\n" if (!$firstcase);
-      print PROCS "#ifndef process_union_body_${name}\n";
+      print PROCS "#ifndef process_union_body_${name}_$1\n";
       print PROCS "#define process_union_body_${name}_$1(input,structbase) do {\\\n";
       $firstcase = 0;
     } elsif (/default\:/) {
@@ -221,7 +221,7 @@ while (<>) {
       $typessize{$name} = 0;
       print PROCS "#ifndef process_struct_${name}\n";
       print PROCS "#define process_struct_${name}(input,structbase, maxsize) do {\\\n";
-    } elsif (/^\s*\#((define)|(ifndef)|(endif))/) {
+    } elsif (/^\s*\#((define)|(ifndef)|(if)|(ifdef)|(endif))/) {
       print STRUCTS;
     } elsif (/^\s*typedef (.*) (\S+)\[(\w*)\]\;/) {
       #print STRUCTS "typedef char $2\[$3\];" if ($1 eq "opaque");
