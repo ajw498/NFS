@@ -25,7 +25,7 @@
 
 #ifdef NFS3
 #define commonfh_to_fh(fh, common) do { \
-	memcpy((fh).data.data, (common).handle, (common).size); \
+	(fh).data.data = (common).handle; \
 	(fh).data.size = (common).size; \
 } while (0)
 #else

@@ -131,13 +131,15 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 		commonfh_to_fh(rddir.dir, conn->rootfh);
 	} else {
 		struct objinfo *finfo;
+		static struct commonfh fh;
 
 		/* Find the handle of the directory */
 		err = ENTRYFUNC(filename_to_finfo) (dirname, 1, NULL, &finfo, NULL, NULL, NULL, conn);
 		if (err) return err;
 		if (finfo == NULL) return ENTRYFUNC(gen_nfsstatus_error) (NFSERR_NOENT);
 
-		commonfh_to_fh(rddir.dir, finfo->objhandle);
+		fh = finfo->objhandle;
+		commonfh_to_fh(rddir.dir, fh);
 	}
 
 	while (dirpos <= start) {

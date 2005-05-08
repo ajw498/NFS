@@ -78,7 +78,11 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 	if (CHECK("#")) {
 		/* A comment */
 	} else if (CHECK("Protocol")) {
-		if (strcasecmp(val, "NFS2") != 0) {
+		if (strcasecmp(val, "NFS2") == 0) {
+			conn->nfs3 = 0;
+		} else if (strcasecmp(val, "NFS3") == 0) {
+			conn->nfs3 = 1;
+		} else {
 			return gen_error(FUNCERRBASE + 0, "Unknown protocol '%s'", val);
 		}
 	} else if (CHECK("Server")) {
