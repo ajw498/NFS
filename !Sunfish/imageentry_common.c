@@ -206,7 +206,7 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 		struct readlinkres linkres;
 		char *segment;
 		unsigned int segmentmaxlen;
-		static char link[MAXNAMLEN/*MAXPATHLEN*/];
+		static char link[MAXNAMLEN/*MAXPATHLEN FIXME*/];
 
 		linkargs.fhandle = lookupres.u.diropok.file;
 		err = NFSPROC(READLINK, (&linkargs, &linkres, conn));
@@ -370,8 +370,9 @@ os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, stru
 				*dinfo = &dirinfo;
 			}
 		}
-
-		if (*end != '\0') dirhandle = segmentinfo->objhandle;
+		/* Use memmove rather than just assign or memcpy to avoid
+		   a bug in Norcroft 5.54 which generates an infinite loop */
+		if (*end != '\0') memmove(&dirhandle, &(segmentinfo->objhandle), sizeof(struct commonfh));
 		start = end + 1;
 	} while (*end != '\0');
 
