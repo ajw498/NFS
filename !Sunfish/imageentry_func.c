@@ -192,11 +192,12 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 		
 						bufferpos = (char *)(((int)bufferpos + 3) & ~3);
 		
+						fh_to_commonfh(fh, rddir.dir);
+
 						/* Lookup file attributes.
 						   READDIRPLUS in NFS3 would eliminate this call. */
 						err = ENTRYFUNC(leafname_to_finfo) (direntry->name.data, &(direntry->name.size), 1, 1, &fh, &lookupres, &status, conn);
 						if (err) return err;
-						commonfh_to_fh(rddir.dir, fh);
 						if (status == NFS_OK && lookupres->attributes.type != NFLNK) {
 							ENTRYFUNC(timeval_to_loadexec) (&(lookupres->attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
 							info_entry->len = lookupres->attributes.size;
