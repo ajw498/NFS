@@ -117,7 +117,7 @@ os_error *ENTRYFUNC(open_file) (char *filename, int access, struct conn_info *co
 
 	handle->conn = conn;
 	handle->fhandle = finfo->objhandle;
-	handle->extent = finfo->attributes.size;
+	handle->extent = filesize(finfo->attributes.size);
 	/*handle->type = finfo->attributes.type; FIXME */
 	ENTRYFUNC(timeval_to_loadexec) (&(finfo->attributes.mtime), filetype, &(handle->load), &(handle->exec));
 
@@ -126,7 +126,7 @@ os_error *ENTRYFUNC(open_file) (char *filename, int access, struct conn_info *co
 	   or write the file so pretend that we can and return an error on read
 	   or write if necessary */
 	*file_info_word = 0xC0000000;
-	*extent = finfo->attributes.size;
+	*extent = filesize(finfo->attributes.size);
 	*fileswitchbuffersize = FAKE_BLOCKSIZE;
 	*allocatedspace = (*extent + (FAKE_BLOCKSIZE - 1)) & ~(FAKE_BLOCKSIZE - 1);
 	return NULL;

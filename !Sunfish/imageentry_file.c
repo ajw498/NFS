@@ -53,7 +53,7 @@ os_error *ENTRYFUNC(file_readcatinfo) (char *filename, struct conn_info *conn, i
 
 	*objtype = finfo->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
 	ENTRYFUNC(timeval_to_loadexec) (&(finfo->attributes.mtime), filetype, load, exec);
-	*len = finfo->attributes.size;
+	*len = filesize(finfo->attributes.size);
 	*attr = mode_to_attr(finfo->attributes.mode);
 
 	return NULL;
@@ -64,11 +64,7 @@ os_error *ENTRYFUNC(file_writecatinfo) (char *filename, unsigned int load, unsig
 	struct objinfo *finfo;
 	struct objinfo *dinfo;
 	struct sattrargs sattrargs;
-#ifdef NFS3
 	struct sattrres sattrres;
-#else
-	struct attrstat sattrres;
-#endif
 	os_error *err;
 	int filetype;
 	int newfiletype;
@@ -143,13 +139,12 @@ os_error *ENTRYFUNC(file_writecatinfo) (char *filename, unsigned int load, unsig
 }
 
 /* Create a new file or directory */
-static os_error *createobj(char *filename, int dir, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn, struct commonfh **fhandle, char **leafname)
+static os_error *createfile(char *filename, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn, struct commonfh **fhandle, char **leafname)
 {
 	struct objinfo *dinfo;
 	struct objinfo *finfo;
 	os_error *err;
 	struct createargs createargs;
-	struct mkdirargs mkdirargs;
 	struct createres createres;
 	static struct commonfh fh;
 	int filetype;
@@ -171,78 +166,70 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 		commonfh_to_fh(createargs.where.dir, conn->rootfh);
 	}
 
-	if (dir) {
-		createargs.where.name.data = *leafname;
-		createargs.where.name.size = strlen(*leafname);
-	} else {
-		/* We may need to add a ,xyz extension */
-		createargs.where.name.data = addfiletypeext(*leafname, strlen(*leafname), extfound, newfiletype, &(createargs.where.name.size), conn);
+	/* We may need to add a ,xyz extension */
+	createargs.where.name.data = addfiletypeext(*leafname, strlen(*leafname), extfound, newfiletype, &(createargs.where.name.size), conn);
 
-		/* If a file already exists then we must overwrite it */
-		if (finfo && finfo->attributes.type == NFREG) {
-			struct sattrargs sattrargs;
-#ifdef NFS3
-			struct sattrres sattrres;
-#else
-			struct attrstat sattrres;
-#endif
-			/* If the filetype has changed we may need to rename the file */
-			if (conn->xyzext != NEVER && newfiletype != filetype) {
-				struct renameargs renameargs;
-				struct renameres renameres;
+	/* If a file already exists then we must overwrite it */
+	if (finfo && finfo->attributes.type == NFREG) {
+		struct sattrargs sattrargs;
+		struct sattrres sattrres;
 
-				if (dinfo) {
-					commonfh_to_fh(renameargs.from.dir, dinfo->objhandle);
-				} else {
-					commonfh_to_fh(renameargs.from.dir, conn->rootfh);
-				}
-				renameargs.from.name.data = *leafname;
-				renameargs.from.name.size = strlen(*leafname);
-		
-				renameargs.to.dir = renameargs.from.dir;
-				renameargs.to.name.data = createargs.where.name.data;
-				renameargs.to.name.size = createargs.where.name.size;
+		/* If the filetype has changed we may need to rename the file */
+		if (conn->xyzext != NEVER && newfiletype != filetype) {
+			struct renameargs renameargs;
+			struct renameres renameres;
 
-				err = NFSPROC(RENAME, (&renameargs, &renameres, conn));
-				if (err) return err;
-				if (renameres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (renameres.status);
+			if (dinfo) {
+				commonfh_to_fh(renameargs.from.dir, dinfo->objhandle);
+			} else {
+				commonfh_to_fh(renameargs.from.dir, conn->rootfh);
 			}
-	
-			/* Set the file size */
-			commonfh_to_fh(sattrargs.file, finfo->objhandle);
-#ifdef NFS3
-			sattrargs.attributes.mode.set_it = FALSE;
-			sattrargs.attributes.uid.set_it = FALSE;
-			sattrargs.attributes.gid.set_it = FALSE;
-			sattrargs.attributes.atime.set_it = DONT_CHANGE;
-			sattrargs.attributes.mtime.set_it = DONT_CHANGE;
-			sattrargs.attributes.size.set_it = TRUE;
-			sattrargs.attributes.size.u.size = buffer_end - buffer;
-			sattrargs.guard.check = FALSE;
-#else
-			sattrargs.attributes.mode = NOVALUE;
-			sattrargs.attributes.uid = NOVALUE;
-			sattrargs.attributes.gid = NOVALUE;
-			sattrargs.attributes.size = buffer_end - buffer;
-			sattrargs.attributes.mtime.seconds = NOVALUE;
-			sattrargs.attributes.mtime.useconds = NOVALUE;
-			sattrargs.attributes.atime.seconds = NOVALUE;
-			sattrargs.attributes.atime.useconds = NOVALUE;
-#endif
-			err = NFSPROC(SETATTR, (&sattrargs, &sattrres, conn));
-			if (err) return err;
-			if (sattrres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (sattrres.status);
+			renameargs.from.name.data = *leafname;
+			renameargs.from.name.size = strlen(*leafname);
 
-			if (fhandle) *fhandle = &(finfo->objhandle);
-	
-			return NULL;
+			renameargs.to.dir = renameargs.from.dir;
+			renameargs.to.name.data = createargs.where.name.data;
+			renameargs.to.name.size = createargs.where.name.size;
+
+			err = NFSPROC(RENAME, (&renameargs, &renameres, conn));
+			if (err) return err;
+			if (renameres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (renameres.status);
 		}
+
+		/* Set the file size */
+		commonfh_to_fh(sattrargs.file, finfo->objhandle);
+#ifdef NFS3
+		sattrargs.attributes.mode.set_it = FALSE;
+		sattrargs.attributes.uid.set_it = FALSE;
+		sattrargs.attributes.gid.set_it = FALSE;
+		sattrargs.attributes.atime.set_it = DONT_CHANGE;
+		sattrargs.attributes.mtime.set_it = DONT_CHANGE;
+		sattrargs.attributes.size.set_it = TRUE;
+		sattrargs.attributes.size.u.size = buffer_end - buffer;
+		sattrargs.guard.check = FALSE;
+#else
+		sattrargs.attributes.mode = NOVALUE;
+		sattrargs.attributes.uid = NOVALUE;
+		sattrargs.attributes.gid = NOVALUE;
+		sattrargs.attributes.size = buffer_end - buffer;
+		sattrargs.attributes.mtime.seconds = NOVALUE;
+		sattrargs.attributes.mtime.useconds = NOVALUE;
+		sattrargs.attributes.atime.seconds = NOVALUE;
+		sattrargs.attributes.atime.useconds = NOVALUE;
+#endif
+		err = NFSPROC(SETATTR, (&sattrargs, &sattrres, conn));
+		if (err) return err;
+		if (sattrres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (sattrres.status);
+
+		if (fhandle) *fhandle = &(finfo->objhandle);
+
+		return NULL;
 	}
 
 #ifdef NFS3
 	createargs.how.mode = GUARDED;
 	createargs.how.u.obj_attributes.mode.set_it = TRUE;
-	createargs.how.u.obj_attributes.mode.u.mode = 0x00008000 | ((dir ? 0777 : 0666) & ~(conn->umask));
+	createargs.how.u.obj_attributes.mode.u.mode = 0x00008000 | (0666 & ~(conn->umask));
 	createargs.how.u.obj_attributes.uid.set_it = FALSE;
 	createargs.how.u.obj_attributes.gid.set_it = FALSE;
 	createargs.how.u.obj_attributes.size.set_it = TRUE;
@@ -251,7 +238,7 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 	createargs.how.u.obj_attributes.mtime.set_it = SET_TO_CLIENT_TIME;
 	ENTRYFUNC(loadexec_to_timeval) (load, exec, &(createargs.how.u.obj_attributes.mtime.u.mtime));
 #else
-	createargs.attributes.mode = 0x00008000 | ((dir ? 0777 : 0666) & ~(conn->umask));
+	createargs.attributes.mode = 0x00008000 | (0666 & ~(conn->umask));
 	createargs.attributes.uid = NOVALUE;
 	createargs.attributes.gid = NOVALUE;
 	createargs.attributes.size = buffer_end - buffer;
@@ -259,12 +246,8 @@ static os_error *createobj(char *filename, int dir, unsigned int load, unsigned 
 	createargs.attributes.atime.useconds = NOVALUE;
 	ENTRYFUNC(loadexec_to_timeval) (load, exec, &(createargs.attributes.mtime));
 #endif
+	err = NFSPROC(CREATE, (&createargs, &createres, conn));
 
-	if (dir) {
-		/* FIXME err = NFSPROC(MKDIR, (&createargs, &createres, conn));*/
-	} else {
-		err = NFSPROC(CREATE, (&createargs, &createres, conn));
-	}
 	if (err) return err;
 	if (createres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (createres.status);
 
@@ -283,14 +266,54 @@ os_error *ENTRYFUNC(file_createfile) (char *filename, unsigned int load, unsigne
 {
 	char *leafname;
 
-	return createobj(filename, 0, load, exec, buffer, buffer_end, conn, NULL, &leafname);
+	return createfile(filename, load, exec, buffer, buffer_end, conn, NULL, &leafname);
 }
 
 os_error *ENTRYFUNC(file_createdir) (char *filename, unsigned int load, unsigned int exec, struct conn_info *conn)
 {
+	struct objinfo *dinfo;
+	struct objinfo *finfo;
+	os_error *err;
+	struct createres createres;
+	struct mkdirargs mkdirargs;
 	char *leafname;
-	
-	return createobj(filename, 1, load, exec, 0, 0, conn, NULL, &leafname);
+
+	err = ENTRYFUNC(filename_to_finfo) (filename, 1, &dinfo, &finfo, &leafname, NULL, NULL, conn);
+	if (err) return err;
+
+	if (dinfo) {
+		commonfh_to_fh(mkdirargs.where.dir, dinfo->objhandle);
+	} else {
+		commonfh_to_fh(mkdirargs.where.dir, conn->rootfh);
+	}
+
+	mkdirargs.where.name.data = leafname;
+	mkdirargs.where.name.size = strlen(leafname);
+
+#ifdef NFS3
+	mkdirargs.attributes.mode.set_it = TRUE;
+	mkdirargs.attributes.mode.u.mode = 0x00008000 | (0777 & ~(conn->umask));
+	mkdirargs.attributes.uid.set_it = FALSE;
+	mkdirargs.attributes.gid.set_it = FALSE;
+	mkdirargs.attributes.size.set_it = FALSE;
+	mkdirargs.attributes.atime.set_it = SET_TO_SERVER_TIME;
+	mkdirargs.attributes.mtime.set_it = SET_TO_CLIENT_TIME;
+	ENTRYFUNC(loadexec_to_timeval) (load, exec, &(mkdirargs.attributes.mtime.u.mtime));
+#else
+	mkdirargs.attributes.mode = 0x00008000 | (0777 & ~(conn->umask));
+	mkdirargs.attributes.uid = NOVALUE;
+	mkdirargs.attributes.gid = NOVALUE;
+	mkdirargs.attributes.size = NOVALUE;
+	mkdirargs.attributes.atime.seconds = NOVALUE;
+	mkdirargs.attributes.atime.useconds = NOVALUE;
+	ENTRYFUNC(loadexec_to_timeval) (load, exec, &(mkdirargs.attributes.mtime));
+#endif
+
+	err = NFSPROC(MKDIR, (&mkdirargs, &createres, conn));
+	if (err) return err;
+	if (createres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (createres.status);
+
+	return NULL;
 }
 
 /* Save a block of memory as a file */
@@ -299,7 +322,7 @@ os_error *ENTRYFUNC(file_savefile) (char *filename, unsigned int load, unsigned 
 	os_error *err;
 	struct commonfh *fhandle;
 
-	err = createobj(filename, 0, load, exec, buffer, buffer_end, conn, &fhandle, leafname);
+	err = createfile(filename, load, exec, buffer, buffer_end, conn, &fhandle, leafname);
 	if (err) return err;
 
 	return ENTRYFUNC(writebytes) (fhandle, buffer, buffer_end - buffer, 0, conn);
@@ -353,7 +376,7 @@ os_error *ENTRYFUNC(file_delete) (char *filename, struct conn_info *conn, int *o
 		/* Treat all special files as if they were regular files */
 		*objtype = finfo->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
 		ENTRYFUNC(timeval_to_loadexec) (&(finfo->attributes.mtime), filetype, load, exec);
-		*len = finfo->attributes.size;
+		*len = filesize(finfo->attributes.size);
 		*attr = mode_to_attr(finfo->attributes.mode);
 	}
 

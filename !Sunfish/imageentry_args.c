@@ -62,11 +62,7 @@ static os_error *writeextent(struct file_handle *handle, unsigned int extent)
 {
 	os_error *err;
 	struct sattrargs args;
-#ifdef NFS3
 	struct sattrres res;
-#else
-	struct attrstat res;
-#endif
 
 	commonfh_to_fh(args.file, handle->fhandle);
 #ifdef NFS3

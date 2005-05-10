@@ -109,7 +109,7 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 	struct readdirres rdres;
 	struct entry *direntry = NULL;
 	os_error *err;
-	int cookie = 0;
+	uint64_t cookie = 0;
 	int dirpos = 0;
 
 	bufferpos = buffer;
@@ -144,7 +144,11 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 
 	while (dirpos <= start) {
 		rddir.count = conn->maxdatabuffer;
+#ifdef NFS3
 		rddir.cookie = cookie;
+#else
+		rddir.cookie = (int)cookie;
+#endif
 		err = NFSPROC(READDIR, (&rddir, &rdres, conn));
 		if (err) return err;
 		if (rdres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (rdres.status);
@@ -202,7 +206,7 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 						if (err) return err;
 						if (status == NFS_OK && lookupres->attributes.type != NFLNK) {
 							ENTRYFUNC(timeval_to_loadexec) (&(lookupres->attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
-							info_entry->len = lookupres->attributes.size;
+							info_entry->len = filesize(lookupres->attributes.size);
 							info_entry->attr = mode_to_attr(lookupres->attributes.mode);
 							info_entry->type = lookupres->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
 						} else {

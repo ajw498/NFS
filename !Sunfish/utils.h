@@ -90,6 +90,7 @@
 /* Directory not empty error number must match what filecore uses */
 #define ERRDIRNOTEMPTY 67764
 
+#define filesize(size) (size > 0xFFFFFFFF ? 0xFFFFFFFF : (unsigned int)size);
 
 #define MAX_GIDS 16
 #define MAXFHSIZE 64
@@ -149,7 +150,7 @@ struct conn_info {
 	int pipelining;
 	int casesensitive;
 	char lastdir[1024]; /*FIXME*/
-	int lastcookie;
+	uint64_t lastcookie;
 	char lastcookieverf[NFS3_COOKIEVERFSIZE];
 	int laststart;
 	struct commonfh lastdirhandle;

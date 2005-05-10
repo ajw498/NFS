@@ -233,14 +233,21 @@ struct mkdirargs {
         sattr attributes;
 };
 
-diropres NFSPROC_MKDIR(mkdirargs) = 14;
+createres NFSPROC_MKDIR(mkdirargs) = 14;
 
 struct sattrargs {
         nfs_fh file;
         sattr attributes;
 };
 
-attrstat NFSPROC_SETATTR(sattrargs) = 2;
+union sattrres switch (nstat status) {
+case NFS_OK:
+    fattr attributes;
+default:
+    void;
+};
+
+sattrres NFSPROC_SETATTR(sattrargs) = 2;
 
 struct info {
     unsigned tsize;
