@@ -85,6 +85,10 @@ os_error *ENTRYFUNC(func_newimage_mount) (struct conn_info *conn)
 	string dir;
 	struct mountres mountres;
 	os_error *err;
+#ifdef NFS3
+	struct fsinfoargs fsinfoargs;
+	struct fsinfores fsinfores;
+#endif
 
 	/* Get a filehandle for the root directory */
 	dir.size = strlen(conn->export);
@@ -96,6 +100,17 @@ os_error *ENTRYFUNC(func_newimage_mount) (struct conn_info *conn)
 		return ENTRYFUNC(gen_nfsstatus_error) ((enum nstat)mountres.status);
 	}
 	fh_to_commonfh(conn->rootfh, mountres.u.directory);
+#ifdef NFS3
+	commonfh_to_fh(fsinfoargs.fsroot, conn->rootfh);
+	err = NFSPROC(FSINFO, (&fsinfoargs, &fsinfores, conn));
+	if (err) return err;
+	if (fsinfores.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (fsinfores.status);
+
+	if (conn->maxdatabuffer > fsinfores.u.resok.rtmax) conn->maxdatabuffer = fsinfores.u.resok.rtmax;
+	if (conn->maxdatabuffer > fsinfores.u.resok.wtmax) conn->maxdatabuffer = fsinfores.u.resok.wtmax;
+#else
+	if (conn->maxdatabuffer > NFS2MAXDATA) conn->maxdatabuffer = NFS2MAXDATA;
+#endif
 
 	return NULL;
 }
@@ -252,7 +267,7 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 		memcpy(conn->lastcookieverf, rdres.u.readdirok.cookieverf, NFS3_COOKIEVERFSIZE);
 #endif
 		len = strlen(dirname);
-		if (len < MAXNAMLEN) {
+		if (len < MAX_PATHNAME) {
 			memcpy(conn->lastdir, dirname, len + 1);
 			conn->laststart = dirpos;
 		} else {
@@ -276,7 +291,7 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 	struct renameres renameres;
 	os_error *err;
 	char *leafname;
-	static char oldleafname[MAXNAMLEN];
+	static char oldleafname[MAX_PATHNAME];
 	int filetype;
 	int dirnamelen;
 	unsigned int leafnamelen;

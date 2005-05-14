@@ -206,7 +206,7 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 		struct readlinkres linkres;
 		char *segment;
 		unsigned int segmentmaxlen;
-		static char link[MAXNAMLEN/*MAXPATHLEN FIXME*/];
+		static char link[MAX_PATHNAME];
 
 		linkargs.fhandle = lookupres.u.diropok.file;
 		err = NFSPROC(READLINK, (&linkargs, &linkres, conn));
@@ -223,16 +223,17 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 #endif
 
 #ifdef NFS3
-		memcpy(link, linkres.u.resok.data.data, linkres.u.resok.data.size);
-#else
-		memcpy(link, linkres.u.data.data, linkres.u.data.size);
-#endif
-		segment = link;
-#ifdef NFS3
 		segmentmaxlen = linkres.u.resok.data.size;
 #else
 		segmentmaxlen = linkres.u.data.size;
 #endif
+		if (segmentmaxlen > MAX_PATHNAME) segmentmaxlen = MAX_PATHNAME;
+#ifdef NFS3
+		memcpy(link, linkres.u.resok.data.data, segmentmaxlen);
+#else
+		memcpy(link, linkres.u.data.data, segmentmaxlen);
+#endif
+		segment = link;
 		if (segmentmaxlen > 0 && segment[0] == '/') {
 			int exportlen = strlen(conn->export);
 

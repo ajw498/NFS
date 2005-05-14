@@ -221,7 +221,7 @@ while (<>) {
       $typessize{$name} = 0;
       print PROCS "#ifndef process_struct_${name}\n";
       print PROCS "#define process_struct_${name}(input,structbase, maxsize) do {\\\n";
-    } elsif (/^\s*\#((define)|(ifndef)|(if)|(ifdef)|(endif))/) {
+    } elsif (/^\s*\#((define)|(ifndef)|(if)|(ifdef)|(endif)|(pragma))/) {
       print STRUCTS;
     } elsif (/^\s*typedef (.*) (\S+)\[(\w*)\]\;/) {
       #print STRUCTS "typedef char $2\[$3\];" if ($1 eq "opaque");
@@ -229,9 +229,10 @@ while (<>) {
       $types{$2} = "fixed_$1";
       $typessize{$2} = $3;
     } elsif (/^\s*typedef (.*) (\S+)\<(\w*)\>\;/) {
-      #print STRUCTS;
+      my $size = $3;
+      $size = "OPAQUE_MAX" if ($size eq "");
       $types{$2} = $1;
-      $typessize{$2} = $3;
+      $typessize{$2} = $size;
     } elsif (/^\s*typedef (.*) (\S+)\;/) {
       print STRUCTS;
       $types{$2} = $1;

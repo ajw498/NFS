@@ -37,9 +37,6 @@
 
 #include "rpc.h"
 
-#define MAXNAMLEN 1024 
-/*FIXME*/
-
 
 /* Generate a RISC OS error block based on the given number and message */
 os_error *gen_error(int num, char *msg, ...)
@@ -58,13 +55,13 @@ os_error *gen_error(int num, char *msg, ...)
 
 char *filename_unixify(char *name, unsigned int len, unsigned int *newlen)
 {
-	static char namebuffer[MAXNAMLEN + 1];
+	static char namebuffer[MAX_PATHNAME + 1];
 	int i;
 	int j;
 
 	/* Truncate if there is not enough buffer space. This is slightly
 	   pessimistic if the name has escape sequences */
-	if (len > MAXNAMLEN) len = MAXNAMLEN;
+	if (len > MAX_PATHNAME) len = MAX_PATHNAME;
 
 	for (i = 0, j = 0; i < len; i++) {
 		switch (name[i]) {
@@ -222,7 +219,7 @@ unsigned int attr_to_mode(unsigned int attr, unsigned int oldmode, struct conn_i
 
 char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, struct conn_info *conn)
 {
-    static char newleafname[MAXNAMLEN];
+    static char newleafname[MAX_PATHNAME];
 
 	if (conn->xyzext == NEVER) {
 		if (newlen) *newlen = len;

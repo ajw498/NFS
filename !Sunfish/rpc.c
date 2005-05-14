@@ -57,7 +57,7 @@
 #define MAX_HDRLEN 416
 
 /* The size to use for tx and rx buffers */
-#define BUFFERSIZE (MAX_HDRLEN + MAXDATA)
+#define BUFFERSIZE (MAX_HDRLEN + MAX_DATABUFFER)
 
 /* Size of the fifo to use for pipelining. Must be at least 2, to allow
    READDIR to double buffer. Greater than 2 has negligible increase in
@@ -104,7 +104,7 @@ static unsigned int freebufferstart;
 /* Buffer to allocate linked list structures from. Should be significanly
    faster than using the RMA, doesn't require freeing each element of
    the list, and won't fragment */
-static char malloc_buffer[MAXDATA];
+static char malloc_buffer[MAX_DATABUFFER];
 /* The start of the next location to return for linked list malloc */
 static char *nextmalloc;
 

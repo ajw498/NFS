@@ -12,13 +12,7 @@
 #define NFS_RPC_PROGRAM 100003
 #define NFS_RPC_VERSION 3
 
-#define MAXNAMLEN 1024
-/*#define MAXPATHLEN 1024*/
-#define MAXDATA 8192
-/* FIXME */
-
 const NFS3_FHSIZE = 64;
-const FHSIZE = 64;
 /* The maximum size in bytes of the opaque file handle. */
 
 const NFS3_COOKIEVERFSIZE = 8;
@@ -33,13 +27,12 @@ const NFS3_CREATEVERFSIZE = 8;
    asynchronous WRITE. */
 const NFS3_WRITEVERFSIZE = 8;
 
-typedef uint64_t uint64; /* FIXME - for speed */
-/*typedef int uint64;*/
+typedef uint64_t uint64;
 typedef int uint32;
 
-typedef string filename3<MAXNAMLEN>;
+typedef string filename3<>;
 
-typedef string nfspath3<MAXNAMLEN>;
+typedef string nfspath3<>;
 
 typedef uint64 fileid3;
 
@@ -732,14 +725,14 @@ default:
 };
 
 FSSTAT3res NFSPROC3_FSSTAT(FSSTAT3args) = 18;
-
+*/
 
 const FSF3_LINK        = 0x0001;
 const FSF3_SYMLINK     = 0x0002;
 const FSF3_HOMOGENEOUS = 0x0008;
 const FSF3_CANSETTIME  = 0x0010;
 
-struct FSINFO3args {
+struct fsinfoargs {
      nfs_fh   fsroot;
 };
 
@@ -761,15 +754,16 @@ struct FSINFO3resfail {
      post_op_attr obj_attributes;
 };
 
-union FSINFO3res switch (nstat status) {
+union fsinfores switch (nstat status) {
 case NFS_OK:
      FSINFO3resok   resok;
 default:
      FSINFO3resfail resfail;
 };
 
-FSINFO3res NFSPROC3_FSINFO(FSINFO3args) = 19;
+fsinfores NFSPROC3_FSINFO(fsinfoargs) = 19;
 
+/*
 struct PATHCONF3args {
      nfs_fh   object;
 };

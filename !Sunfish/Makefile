@@ -8,7 +8,7 @@ LIBS    = TCPIPLIBS:o.unixlibzm TCPIPLIBS:o.inetlibzm TCPIPLibs:o.socklib5zm C:o
 
 CC = cc
 #CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zpq262144
-CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpq262144
+CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpz0 -zpq262144
 
 LINK = link
 
@@ -54,6 +54,7 @@ rpc-calls.o \
 mount3-calls.o \
 mount1-calls.o \
 nfs2-calls.o \
+nfs3-calls.o \
 portmapper-calls.o \
 pcnfsd-calls.o
 
@@ -82,7 +83,7 @@ imageentry_common3.o
 $(OBJS) $(GENOBJS): $(GENHDRS) utils.h moduledefs.h
 
 Sunfish: $(OBJS) $(GENOBJS)
-	link -m -o Sunfish $(OBJS) $(GENOBJS) nfs3-calls.o $(LIBS)
+	link -m -o Sunfish $(OBJS) $(GENOBJS) $(LIBS)
 
 module.o: moduledefs.h
 

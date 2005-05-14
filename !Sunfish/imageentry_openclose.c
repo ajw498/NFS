@@ -112,13 +112,14 @@ os_error *ENTRYFUNC(open_file) (char *filename, int access, struct conn_info *co
 		}
 	}
 
+	if (finfo->attributes.type != NFREG) return gen_error(OPENCLOSEERRBASE + 0, "Cannot open a non-regular file");
+
 	handle = malloc(sizeof(struct file_handle));
 	if (handle == NULL) return gen_error(NOMEM, NOMEMMESS);
 
 	handle->conn = conn;
 	handle->fhandle = finfo->objhandle;
 	handle->extent = filesize(finfo->attributes.size);
-	/*handle->type = finfo->attributes.type; FIXME */
 	ENTRYFUNC(timeval_to_loadexec) (&(finfo->attributes.mtime), filetype, &(handle->load), &(handle->exec));
 
 	*internal_handle = handle;

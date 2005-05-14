@@ -144,7 +144,7 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		conn->pipelining = (int)strtol(val, NULL, 10);
 	} else if (CHECK("MaxDataBuffer")) {
 		conn->maxdatabuffer = (int)strtol(val, NULL, 10);
-/* FIXME		if (conn->maxdatabuffer > MAXDATA) conn->maxdatabuffer = MAXDATA;*/
+		if (conn->maxdatabuffer > MAX_DATABUFFER) conn->maxdatabuffer = MAX_DATABUFFER;
 	} else if (CHECK("FollowSymlinks")) {
 		conn->followsymlinks = (int)strtol(val, NULL, 10);
 	} else if (CHECK("CaseSensitive")) {

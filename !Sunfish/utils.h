@@ -83,9 +83,12 @@
 /* 1 error */
 #define MODULEERRBASE (ERRBASE + 48)
 
-#define NOATTRS (ERRBASE + 49)
-/*FIXME*/
-#define NOATTRSMESS "Attributes not supplied"
+/* 1 error */
+#define OPENCLOSEERRBASE (ERRBASE + 50)
+
+
+#define NOATTRS (ERRBASE + 52)
+#define NOATTRSMESS "Object attributes not supplied by server"
 
 /* Directory not empty error number must match what filecore uses */
 #define ERRDIRNOTEMPTY 67764
@@ -97,6 +100,13 @@
 #ifndef NFS3_COOKIEVERFSIZE
 #define NFS3_COOKIEVERFSIZE 8
 #endif
+
+/*The maximum size of our data buffers */
+#define MAX_DATABUFFER 32*1024
+
+/* The maximum pathname size that we support */
+#define MAX_PATHNAME 1024
+
 
 struct commonfh {
 	char handle[MAXFHSIZE];
@@ -149,7 +159,7 @@ struct conn_info {
 	int followsymlinks;
 	int pipelining;
 	int casesensitive;
-	char lastdir[1024]; /*FIXME*/
+	char lastdir[MAX_PATHNAME];
 	uint64_t lastcookie;
 	char lastcookieverf[NFS3_COOKIEVERFSIZE];
 	int laststart;
