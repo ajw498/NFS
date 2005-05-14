@@ -274,9 +274,13 @@ struct readlinkargs {
 	nfs_fh fhandle;
 };
 
+struct readlinkresok {
+	path data;
+};
+
 union readlinkres switch (nstat status) {
 case NFS_OK:
-    path data;
+    readlinkresok resok;
 default:
     void;
 };

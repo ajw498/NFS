@@ -234,17 +234,9 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 		}
 #endif
 
-#ifdef NFS3
 		segmentmaxlen = linkres.u.resok.data.size;
-#else
-		segmentmaxlen = linkres.u.data.size;
-#endif
 		if (segmentmaxlen > MAX_PATHNAME) segmentmaxlen = MAX_PATHNAME;
-#ifdef NFS3
 		memcpy(link, linkres.u.resok.data.data, segmentmaxlen);
-#else
-		memcpy(link, linkres.u.data.data, segmentmaxlen);
-#endif
 		segment = link;
 		if (segmentmaxlen > 0 && segment[0] == '/') {
 			int exportlen = strlen(conn->export);
