@@ -66,7 +66,20 @@ os_error *ENTRYFUNC(gen_nfsstatus_error) (enum nstat stat)
 		case NFSERR_NOTEMPTY: str = "Directory not empty"; break;
 		case NFSERR_DQUOT: str = "Disc quota exceeded"; break;
 		case NFSERR_STALE: str = "Stale NFS filehandle"; break;
-		default: str = "Unknown error"; break; /*FIXME*/
+#ifdef NFS3
+		case NFSERR_XDEV: str = "Attempt to do a cross-device hard link"; break;
+		case NFSERR_INVAL: str = "Invalid argument"; break;
+		case NFSERR_MLINK: str = "Too many hard links"; break;
+		case NFSERR_BADHANDLE: str = "Illegal NFS file handle"; break;
+		case NFSERR_NOT_SYNC: str = "Update synchronization mismatch"; break;
+		case NFSERR_BAD_COOKIE: str = "Stale cookie"; break;
+		case NFSERR_NOTSUPP: str = "Operation is not supported"; break;
+		case NFSERR_TOOSMALL: str = "Buffer or request is too small"; break;
+		case NFSERR_SERVERFAULT: str = "Server fault"; break;
+		case NFSERR_BADTYPE: str = "Bad type"; break;
+		case NFSERR_JUKEBOX: str = "Jukebox error"; break;
+#endif
+		default: str = "Unknown error"; break;
 	}
 	return gen_error(NFSSTATBASE, "NFS call failed (%s)", str);
 }
@@ -88,7 +101,6 @@ static os_error *lookup_leafname(struct commonfh *dhandle, char *leafname, int l
 	rddir.cookie = 0;
 #ifdef NFS3
 	memset(rddir.cookieverf, 0, NFS3_COOKIEVERFSIZE);
-	/*FIXME and handle a bad cookie error? */
 #endif
 
 	do {
@@ -183,7 +195,7 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 
 #ifdef NFS3
 	if (lookupres.u.diropok.obj_attributes.attributes_follow == FALSE) {
-		gen_error(NOATTRS, NOATTRSMESS);
+		return gen_error(NOATTRS, NOATTRSMESS);
 	}
 #endif
 
@@ -218,7 +230,7 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 
 #ifdef NFS3
 		if (lookupres.u.diropok.obj_attributes.attributes_follow == FALSE) {
-			gen_error(NOATTRS, NOATTRSMESS);
+			return gen_error(NOATTRS, NOATTRSMESS);
 		}
 #endif
 
@@ -281,7 +293,7 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 			}
 #ifdef NFS3
 			if (lookupres.u.diropok.obj_attributes.attributes_follow == FALSE) {
-				gen_error(NOATTRS, NOATTRSMESS);
+				return gen_error(NOATTRS, NOATTRSMESS);
 			}
 			retinfo.attributes = lookupres.u.diropok.obj_attributes.u.attributes;
 #else
@@ -437,6 +449,18 @@ void ENTRYFUNC(timeval_to_loadexec) (struct ntimeval *unixtime, int filetype, un
 	*exec = (unsigned int)(csecs & 0xFFFFFFFF);
 }
 
+#ifdef NFS3
+void ENTRYFUNC(loadexec_to_setmtime) (unsigned int load, unsigned int exec, struct set_mtime *mtime)
+{
+	if ((load & 0xFFF00000) != 0xFFF00000) {
+		mtime->set_it = DONT_CHANGE;
+	} else {
+		mtime->set_it = SET_TO_CLIENT_TIME;
+		ENTRYFUNC(loadexec_to_timeval) (load, exec, &(mtime->u.mtime));
+	}
+}
+#endif
+
 /* Convert a RISC OS load and execution address into a unix timestamp */
 void ENTRYFUNC(loadexec_to_timeval) (unsigned int load, unsigned int exec, struct ntimeval *unixtime)
 {
@@ -444,7 +468,7 @@ void ENTRYFUNC(loadexec_to_timeval) (unsigned int load, unsigned int exec, struc
 		/* A real load/exec address */
 		unixtime->seconds = -1;
 #ifdef NFS3
-		unixtime->nseconds = -1; /*FIXME*/
+		unixtime->nseconds = -1;
 #else
 		unixtime->useconds = -1;
 #endif

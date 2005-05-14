@@ -124,7 +124,7 @@ os_error *ENTRYFUNC(writebytes) (struct commonfh *fhandle, char *buffer, unsigne
 		if (args.data.size > 0) outstanding++;
 #ifdef NFS3
 		args.count = args.data.size;
-		args.stable = FILE_SYNC; /* FIXME - Use unstable and COMMIT on close? */
+		args.stable = FILE_SYNC;
 #endif
 		reqsizes[reqtail++] = args.data.size;
 

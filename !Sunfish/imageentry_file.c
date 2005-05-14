@@ -117,8 +117,7 @@ os_error *ENTRYFUNC(file_writecatinfo) (char *filename, unsigned int load, unsig
 	sattrargs.attributes.uid.set_it = FALSE;
 	sattrargs.attributes.gid.set_it = FALSE;
 	sattrargs.attributes.atime.set_it = DONT_CHANGE;
-	sattrargs.attributes.mtime.set_it = SET_TO_CLIENT_TIME;
-	ENTRYFUNC(loadexec_to_timeval) (load, exec, &(sattrargs.attributes.mtime.u.mtime));
+	ENTRYFUNC(loadexec_to_setmtime) (load, exec, &(sattrargs.attributes.mtime));
 	sattrargs.attributes.size.set_it = FALSE;
 	sattrargs.guard.check = FALSE;
 #else
@@ -235,8 +234,7 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 	createargs.how.u.obj_attributes.size.set_it = TRUE;
 	createargs.how.u.obj_attributes.size.u.size = buffer_end - buffer;
 	createargs.how.u.obj_attributes.atime.set_it = SET_TO_SERVER_TIME;
-	createargs.how.u.obj_attributes.mtime.set_it = SET_TO_CLIENT_TIME;
-	ENTRYFUNC(loadexec_to_timeval) (load, exec, &(createargs.how.u.obj_attributes.mtime.u.mtime));
+	ENTRYFUNC(loadexec_to_setmtime) (load, exec, &(createargs.how.u.obj_attributes.mtime));
 #else
 	createargs.attributes.mode = 0x00008000 | (0666 & ~(conn->umask));
 	createargs.attributes.uid = NOVALUE;
@@ -252,7 +250,7 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 	if (createres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (createres.status);
 
 #ifdef NFS3
-	/* FIXME - check the handle_follows field */
+	if (createres.u.diropok.obj.handle_follows == 0) return gen_error(NOATTRS, NOATTRSMESS);
 	fh_to_commonfh(fh, createres.u.diropok.obj.u.handle);
 #else
 	fh_to_commonfh(fh, createres.u.diropok.file);
@@ -297,8 +295,7 @@ os_error *ENTRYFUNC(file_createdir) (char *filename, unsigned int load, unsigned
 	mkdirargs.attributes.gid.set_it = FALSE;
 	mkdirargs.attributes.size.set_it = FALSE;
 	mkdirargs.attributes.atime.set_it = SET_TO_SERVER_TIME;
-	mkdirargs.attributes.mtime.set_it = SET_TO_CLIENT_TIME;
-	ENTRYFUNC(loadexec_to_timeval) (load, exec, &(mkdirargs.attributes.mtime.u.mtime));
+	ENTRYFUNC(loadexec_to_setmtime) (load, exec, &(mkdirargs.attributes.mtime));
 #else
 	mkdirargs.attributes.mode = 0x00008000 | (0777 & ~(conn->umask));
 	mkdirargs.attributes.uid = NOVALUE;

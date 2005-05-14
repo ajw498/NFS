@@ -65,6 +65,9 @@ ENTRYFUNCDECL(void, timeval_to_loadexec, (struct ntimeval *unixtime, int filetyp
 /* Convert a RISC OS load and execution address into a unix timestamp */
 ENTRYFUNCDECL(void, loadexec_to_timeval, (unsigned int load, unsigned int exec, struct ntimeval *unixtime));
 
+#ifdef NFS3
+ENTRYFUNCDECL(void, loadexec_to_setmtime, (unsigned int load, unsigned int exec, struct set_mtime *mtime));
+#endif
 
 #endif
 
