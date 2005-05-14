@@ -120,9 +120,15 @@ os_error *ENTRYFUNC(func_newimage_mount) (struct conn_info *conn)
 os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, int numobjs, int start, int buflen, struct conn_info *conn, int *objsread, int *continuepos)
 {
 	char *bufferpos;
+#ifdef NFS3
+	struct readdirplusargs rddir;
+	struct readdirplusres rdres;
+	struct entryplus3 *direntry = NULL;
+#else
 	struct readdirargs rddir;
 	struct readdirres rdres;
 	struct entry *direntry = NULL;
+#endif
 	os_error *err;
 	uint64_t cookie = 0;
 	int dirpos = 0;
@@ -160,11 +166,13 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 	while (dirpos <= start) {
 		rddir.count = conn->maxdatabuffer;
 #ifdef NFS3
+		rddir.maxcount = conn->maxdatabuffer;
 		rddir.cookie = cookie;
+		err = NFSPROC(READDIRPLUS, (&rddir, &rdres, conn));
 #else
 		rddir.cookie = (int)cookie;
-#endif
 		err = NFSPROC(READDIR, (&rddir, &rdres, conn));
+#endif
 		if (err) return err;
 		if (rdres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (rdres.status);
 	
@@ -212,27 +220,37 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 						struct commonfh fh;
 		
 						bufferpos = (char *)(((int)bufferpos + 3) & ~3);
-		
-						fh_to_commonfh(fh, rddir.dir);
 
-						/* Lookup file attributes.
-						   READDIRPLUS in NFS3 would eliminate this call. */
-						err = ENTRYFUNC(leafname_to_finfo) (direntry->name.data, &(direntry->name.size), 1, 1, &fh, &lookupres, &status, conn);
-						if (err) return err;
-						if (status == NFS_OK && lookupres->attributes.type != NFLNK) {
-							ENTRYFUNC(timeval_to_loadexec) (&(lookupres->attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
-							info_entry->len = filesize(lookupres->attributes.size);
-							info_entry->attr = mode_to_attr(lookupres->attributes.mode);
-							info_entry->type = lookupres->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
+#ifdef NFS3
+						if (direntry->name_attributes.attributes_follow && direntry->name_attributes.u.attributes.type != NFLNK) {
+							ENTRYFUNC(timeval_to_loadexec) (&(direntry->name_attributes.u.attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
+							info_entry->len = filesize(direntry->name_attributes.u.attributes.size);
+							info_entry->attr = mode_to_attr(direntry->name_attributes.u.attributes.mode);
+							info_entry->type = direntry->name_attributes.u.attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
 						} else {
-							/* An error occured, either the file no longer exists, or
-							   it is a symlink that doesn't point to a valid object. */
-							info_entry->load = 0xDEADDEAD;
-							info_entry->exec = 0xDEADDEAD;
-							info_entry->len = 0;
-							info_entry->attr = 0;
-							info_entry->type = OBJ_FILE;
+#endif
+							fh_to_commonfh(fh, rddir.dir);
+	
+							/* Lookup file attributes. */
+							err = ENTRYFUNC(leafname_to_finfo) (direntry->name.data, &(direntry->name.size), 1, 1, &fh, &lookupres, &status, conn);
+							if (err) return err;
+							if (status == NFS_OK && lookupres->attributes.type != NFLNK) {
+								ENTRYFUNC(timeval_to_loadexec) (&(lookupres->attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
+								info_entry->len = filesize(lookupres->attributes.size);
+								info_entry->attr = mode_to_attr(lookupres->attributes.mode);
+								info_entry->type = lookupres->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
+							} else {
+								/* An error occured, either the file no longer exists, or
+								   it is a symlink that doesn't point to a valid object. */
+								info_entry->load = 0xDEADDEAD;
+								info_entry->exec = 0xDEADDEAD;
+								info_entry->len = 0;
+								info_entry->attr = 0;
+								info_entry->type = OBJ_FILE;
+							}
+#ifdef NFS3
 						}
+#endif
 					}
 	
 					(*objsread)++;

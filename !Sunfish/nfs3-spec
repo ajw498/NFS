@@ -653,16 +653,16 @@ default:
 
 readdirres NFSPROC3_READDIR(readdirargs) = 16;
 
-/*
-struct READDIRPLUS3args {
+
+struct readdirplusargs {
      nfs_fh      dir;
      cookie3      cookie;
      cookieverf3  cookieverf;
-     count3       dircount;
+     count3       count;
      count3       maxcount;
 };
 
-struct entryplus3 {
+struct *entryplus3 {
      fileid3      fileid;
      filename3    name;
      cookie3      cookie;
@@ -671,15 +671,12 @@ struct entryplus3 {
      entryplus3   *next;
 };
 
-struct dirlistplus3 {
-     entryplus3   *entries;
-     bool         eof;
-};
 
 struct READDIRPLUS3resok {
      post_op_attr dir_attributes;
      cookieverf3  cookieverf;
-     dirlistplus3 reply;
+     entryplus3   *entries;
+     bool         eof;
 };
 
 
@@ -687,17 +684,17 @@ struct READDIRPLUS3resfail {
      post_op_attr dir_attributes;
 };
 
-union READDIRPLUS3res switch (nstat status) {
+union readdirplusres switch (nstat status) {
 case NFS_OK:
-     READDIRPLUS3resok   resok;
+     READDIRPLUS3resok   readdirok;
 default:
      READDIRPLUS3resfail resfail;
 };
 
-READDIRPLUS3res NFSPROC3_READDIRPLUS(READDIRPLUS3args) = 17;
+readdirplusres NFSPROC3_READDIRPLUS(readdirplusargs) = 17;
 
 
-
+/*
 struct FSSTAT3args {
      nfs_fh   fsroot;
 };
