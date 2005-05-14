@@ -42,6 +42,8 @@ os_error *ENTRYFUNC(get_bytes) (struct file_handle *handle, char *buffer, unsign
 	struct readres res;
 	char *bufferend = buffer + len;
 	int outstanding = 0;
+	int reqsizes[FIFOSIZE];
+	int reqtail = 0;
 
 #ifndef NFS3
 	args.totalcount = 0; /* Unused in NFS2 */
@@ -55,6 +57,7 @@ os_error *ENTRYFUNC(get_bytes) (struct file_handle *handle, char *buffer, unsign
 		offset += args.count;
 		len -= args.count;
 		if (args.count > 0) outstanding++;
+		reqsizes[reqtail++] = args.count;
 
 		err = NFSPROC(READ, (&args, &res, handle->conn, handle->conn->pipelining ? (args.count > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING));
 		if (err != ERR_WOULDBLOCK) {
@@ -72,7 +75,15 @@ os_error *ENTRYFUNC(get_bytes) (struct file_handle *handle, char *buffer, unsign
 			if (buffer + data->size > bufferend) {
 				return gen_error(BYTESERRBASE + 0,"Read returned more data than expected");
 			}
-			/* FIXME - check data size == count, and check EOF */
+
+#ifdef NFS3
+			if (data->size < reqsizes[0] && res.u.resok.eof == 0) {
+				return gen_error(BYTESERRBASE + 1,"Read returned less data than expected");
+			}
+#endif
+			for (int i = 0; i < FIFOSIZE - 1; i++) reqsizes[i] = reqsizes[i+1];
+			reqtail--;
+
 			memcpy(buffer, data->data, data->size);
 			buffer += data->size;
 		}
@@ -93,6 +104,8 @@ os_error *ENTRYFUNC(writebytes) (struct commonfh *fhandle, char *buffer, unsigne
 	struct attrstat res;
 #endif
 	int outstanding = 0;
+	int reqsizes[FIFOSIZE];
+	int reqtail = 0;
 
 #ifndef NFS3
 	args.beginoffset = 0; /* Unused in NFS2 */
@@ -103,24 +116,30 @@ os_error *ENTRYFUNC(writebytes) (struct commonfh *fhandle, char *buffer, unsigne
 	while (len > 0 || outstanding > 0) {
 		args.offset = offset;
 		args.data.size = len;
-#ifdef NFS3
-		args.count = len;
-		args.stable = FILE_SYNC; /* FIXME - Use unstable and COMMIT on close? */
-#endif
 		if (args.data.size > conn->maxdatabuffer) args.data.size = conn->maxdatabuffer;
-		/* FIXME should also truncate to wtmax from FSINFO */
 		offset += args.data.size;
 		len -= args.data.size;
 		args.data.data = buffer;
 		buffer += args.data.size;
 		if (args.data.size > 0) outstanding++;
+#ifdef NFS3
+		args.count = args.data.size;
+		args.stable = FILE_SYNC; /* FIXME - Use unstable and COMMIT on close? */
+#endif
+		reqsizes[reqtail++] = args.data.size;
 
 		err = NFSPROC(WRITE, (&args, &res, conn, conn->pipelining ? (args.data.size > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING));
-		/*FIXME - cope with count being less than requested */
 		if (err != ERR_WOULDBLOCK) {
 			if (err) return err;
 			if (res.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (res.status);
 			outstanding--;
+#ifdef NFS3
+			if (res.u.resok.count < reqsizes[0]) {
+				return gen_error(BYTESERRBASE + 1,"Write wrote less data than expected");
+			}
+#endif
+			for (int i = 0; i < FIFOSIZE - 1; i++) reqsizes[i] = reqsizes[i+1];
+			reqtail--;
 		}
 	}
 

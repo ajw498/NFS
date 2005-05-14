@@ -107,6 +107,10 @@
 /* The maximum pathname size that we support */
 #define MAX_PATHNAME 1024
 
+/* Size of the fifo to use for pipelining. Must be at least 2, to allow
+   READDIR to double buffer. Greater than 2 has negligible increase in
+   performance. */
+#define FIFOSIZE 2
 
 struct commonfh {
 	char handle[MAXFHSIZE];

@@ -59,11 +59,6 @@
 /* The size to use for tx and rx buffers */
 #define BUFFERSIZE (MAX_HDRLEN + MAX_DATABUFFER)
 
-/* Size of the fifo to use for pipelining. Must be at least 2, to allow
-   READDIR to double buffer. Greater than 2 has negligible increase in
-   performance. */
-#define FIFOSIZE 2
-
 /* An xid indicating the buffer entry is unused */
 #define UNALLOCATED 0
 
