@@ -137,7 +137,7 @@ os_error *ENTRYFUNC(file_writecatinfo) (char *filename, unsigned int load, unsig
 	return NULL;
 }
 
-/* Create a new file or directory */
+/* Create a new file */
 static os_error *createfile(char *filename, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn, struct commonfh **fhandle, char **leafname)
 {
 	struct objinfo *dinfo;
