@@ -113,15 +113,24 @@ char *bufend;
 /* The current rx buffer we are in the middle of recieving into */
 static int currentbuffer = INVALIDBUFFER;
 
-/* Execute a send or read, repeating until the data is sent/read or a
-   timeout occurs */
-#define blocking_timeout(ret,call) do { \
-	time_t t = clock(); \
-	do { \
-		trigger_callback(); \
-		ret = call; \
-	} while (ret == -1 && (errno == EWOULDBLOCK || errno == ENOTCONN) && clock() < (t + (conn->timeout * CLOCKS_PER_SEC))); \
-} while (0)
+/* Execute a send, repeating until the data is sent or a timeout occurs */
+static int blocking_send(int sock, char *buf, int len, long timeout)
+{
+	time_t t = clock();
+	int ret;
+
+	do {
+		trigger_callback();
+		ret = send(sock, buf, len, 0);
+		if (ret > 0 && ret < len) {
+			buf += ret;
+			len -= ret;
+			ret = -1;
+			errno = EWOULDBLOCK;
+		}
+	} while (ret == -1 && (errno == EWOULDBLOCK || errno == ENOTCONN) && clock() < (t + (timeout * CLOCKS_PER_SEC)));
+	return ret;
+}
 
 /* Reset all fifo entries and rx buffers to an unallocated state */
 void rpc_resetfifo(void)
@@ -501,7 +510,7 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 		}
 
 		if (enablelog) logdata(0, fifo[head].tx.buffer, fifo[head].tx.len);
-		blocking_timeout(ret, send(conn->sock, fifo[head].tx.buffer, fifo[head].tx.len, 0));
+		ret = blocking_send(conn->sock, fifo[head].tx.buffer, fifo[head].tx.len, conn->timeout);
 		if (ret == -1) {
 			if (errno == ENOTCONN) {
 				return gen_rpc_error(conn, RPCERRBASE + 4, "Connect on socket failed (connection timed out)");
@@ -569,7 +578,7 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 				}
 
 				if (enablelog) logdata(0, fifo[tail].tx.buffer, fifo[tail].tx.len);
-				blocking_timeout(ret, send(conn->sock, fifo[tail].tx.buffer, fifo[tail].tx.len, 0));
+				ret = blocking_send(conn->sock, fifo[tail].tx.buffer, fifo[tail].tx.len, conn->timeout);
 				if (ret == -1) {
 					return gen_rpc_error(conn, RPCERRBASE + 5, "Sending data failed (%s)", xstrerror(errno));
 				}
