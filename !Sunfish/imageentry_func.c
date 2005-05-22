@@ -316,6 +316,13 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 	int dirnamelen;
 	unsigned int leafnamelen;
 
+	leafname = strrchr(oldfilename, '.');
+	if (leafname) {
+		dirnamelen = leafname - oldfilename - 1;
+	} else {
+		dirnamelen = 0;
+	}
+
 	err = ENTRYFUNC(filename_to_finfo) (oldfilename, 1, &dinfo, &finfo, &leafname, &filetype, NULL, conn);
 	if (err) return err;
 	if (finfo == NULL) return ENTRYFUNC(gen_nfsstatus_error) (NFSERR_NOENT);
@@ -328,8 +335,6 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 	strcpy(oldleafname, leafname);
 	renameargs.from.name.data = oldleafname;
 	renameargs.from.name.size = strlen(oldleafname);
-
-	dirnamelen = strlen(oldfilename) - renameargs.from.name.size;
 
 	if (strncmp(oldfilename, newfilename, dirnamelen) == 0 &&
 	    newfilename[dirnamelen] &&
