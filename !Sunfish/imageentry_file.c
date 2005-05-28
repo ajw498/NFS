@@ -226,20 +226,19 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 	}
 
 #ifdef NFS3
-	createargs.how.mode = GUARDED;
+	createargs.how.mode = UNCHECKED;
 	createargs.how.u.obj_attributes.mode.set_it = TRUE;
 	createargs.how.u.obj_attributes.mode.u.mode = 0x00008000 | (0666 & ~(conn->umask));
 	createargs.how.u.obj_attributes.uid.set_it = FALSE;
 	createargs.how.u.obj_attributes.gid.set_it = FALSE;
-	createargs.how.u.obj_attributes.size.set_it = TRUE;
-	createargs.how.u.obj_attributes.size.u.size = buffer_end - buffer;
-	createargs.how.u.obj_attributes.atime.set_it = SET_TO_SERVER_TIME;
+	createargs.how.u.obj_attributes.size.set_it = FALSE;
+	createargs.how.u.obj_attributes.atime.set_it = DONT_CHANGE;
 	ENTRYFUNC(loadexec_to_setmtime) (load, exec, &(createargs.how.u.obj_attributes.mtime));
 #else
 	createargs.attributes.mode = 0x00008000 | (0666 & ~(conn->umask));
 	createargs.attributes.uid = NOVALUE;
 	createargs.attributes.gid = NOVALUE;
-	createargs.attributes.size = buffer_end - buffer;
+	createargs.attributes.size = NOVALUE;
 	createargs.attributes.atime.seconds = NOVALUE;
 	createargs.attributes.atime.useconds = NOVALUE;
 	ENTRYFUNC(loadexec_to_timeval) (load, exec, &(createargs.attributes.mtime));

@@ -427,8 +427,9 @@ enum createmode3 {
 
 union createhow3 switch (createmode3 mode) {
 case UNCHECKED:
-case GUARDED:
      sattr3       obj_attributes;
+case GUARDED:
+     sattr3       obj_attributes2;
 case EXCLUSIVE:
      createverf3  verf;
 };
