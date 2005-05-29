@@ -7,8 +7,8 @@ INCLUDE = -IC:,TCPIPLibs:,OSLibSupport:,OSLib:
 LIBS    = TCPIPLIBS:o.unixlibzm TCPIPLIBS:o.inetlibzm TCPIPLibs:o.socklib5zm C:o.stubs
 
 CC = cc
-#CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zpq262144
-CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpz0 -zpq262144
+CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zpq262144
+#CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpz0 -zpq262144
 
 LINK = link
 
