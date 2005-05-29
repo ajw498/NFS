@@ -70,8 +70,9 @@
 #define event_filenames_SHOW 0x300
 #define event_filenames_SET  0x301
 
-#define event_connection_SHOW 0x400
-#define event_connection_SET  0x401
+#define event_connection_SHOW     0x400
+#define event_connection_SET      0x401
+#define event_connection_PROTOCOL 0x402
 
 #define gadget_ports_PORTMAPPER  0x2
 #define gadget_ports_NFS         0x5
@@ -99,6 +100,9 @@
 #define gadget_connection_RETRIES         0xd
 #define gadget_connection_LOGGING         0x5
 #define gadget_connection_TCP             0x12
+#define gadget_connection_UDP             0x11
+#define gadget_connection_NFS3            0x13
+#define gadget_connection_NFS2            0x14
 
 #define gadget_main_SERVER                0x0
 #define gadget_main_EXPORT                0x1
@@ -153,6 +157,7 @@ struct mount {
 	int umask;
 	osbool usepcnfsd;
 	osbool tcp;
+	osbool nfs3;
 	char leafname[STRMAX];
 };
 
@@ -186,7 +191,7 @@ static void mount_save(char *filename)
 		return;
 	}
 
-	fprintf(file,"Protocol: NFS2\n");
+	fprintf(file,"Protocol: NFS%s\n", mount.nfs3 ? "3" : "2");
 	fprintf(file,"Server: %s\n",mount.server);
 	fprintf(file,"Export: %s\n",mount.export);
 	if (mount.usepcnfsd) {
@@ -271,6 +276,7 @@ static void mount_load(char *filename)
 		if (CHECK("#")) {
 			/* A comment */
 		} else if (CHECK("Protocol")) {
+			mount.nfs3 = strcasecmp(val, "NFS3") == 0;
 		} else if (CHECK("Server")) {
 			strcpy(mount.server, val);
 		} else if (CHECK("MachineName")) {
@@ -324,6 +330,10 @@ static void mount_load(char *filename)
 			mount.pipelining = (int)strtol(val, NULL, 10);
 		} else if (CHECK("MaxDataBuffer")) {
 			mount.maxdatabuffer = (int)strtol(val, NULL, 10);
+			if (mount.maxdatabuffer > MAXDATABUFFER_TCP_MAX) {
+				mount.maxdatabuffer = MAXDATABUFFER_TCP_MAX;
+			}
+			mount.maxdatabuffer = (mount.maxdatabuffer + (MAXDATABUFFER_INCR - 1)) & ~(MAXDATABUFFER_INCR - 1);
 		} else if (CHECK("FollowSymlinks")) {
 			mount.followsymlinks = (int)strtol(val, NULL, 10);
 		} else if (CHECK("CaseSensitive")) {
@@ -573,6 +583,41 @@ static osbool ports_set(bits event_code, toolbox_action *event, toolbox_block *i
 	return 1;
 }
 
+static osbool protocol_toggle(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
+{
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(id_block);
+	UNUSED(handle);
+
+	osbool nfs3;
+	osbool tcp;
+	int maxdatabuffer;
+	int limit;
+	gadget_flags flags;
+
+	E(xradiobutton_get_state(0, id_block->this_obj, gadget_connection_TCP, &tcp, NULL));
+	E(xradiobutton_get_state(0, id_block->this_obj, gadget_connection_NFS3, &nfs3, NULL));
+
+	if (!tcp || !nfs3) {
+		limit = MAXDATABUFFER_UDP_MAX;
+		E(xnumberrange_get_value(0, id_block->this_obj, gadget_connection_DATABUFFER, &maxdatabuffer));
+		if (maxdatabuffer > limit) {
+			E(xnumberrange_set_value(0, id_block->this_obj, gadget_connection_DATABUFFER, limit));
+		}
+	} else {
+		limit = MAXDATABUFFER_TCP_MAX;
+	}
+	E(xnumberrange_set_bounds(numberrange_BOUND_UPPER, id_block->this_obj, gadget_connection_DATABUFFER, 0, limit, 0, 0));
+
+	E(xgadget_get_flags(0, id_block->this_obj, gadget_connection_RETRIES, &flags));
+	if (tcp) flags |= gadget_FADED; else flags &= ~gadget_FADED;
+	if (tcp) E(xwritablefield_set_value(0, id_block->this_obj, gadget_connection_RETRIES, "0"));
+	E(xgadget_set_flags(0, id_block->this_obj, gadget_connection_RETRIES, flags));
+
+	return 1;
+}
+
 static osbool connection_open(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
 {
 	UNUSED(event_code);
@@ -580,14 +625,17 @@ static osbool connection_open(bits event_code, toolbox_action *event, toolbox_bl
 	UNUSED(handle);
 	char tmp[11];
 
-	E(xnumberrange_set_value(0, id_block->this_obj, gadget_connection_DATABUFFER, ((mount.maxdatabuffer & ~63) - 1 & 0x1FFF) + 1));
+	E(xnumberrange_set_value(0, id_block->this_obj, gadget_connection_DATABUFFER, mount.maxdatabuffer));
 	E(xoptionbutton_set_state(0, id_block->this_obj, gadget_connection_PIPELINING, mount.pipelining));
 	snprintf(tmp, sizeof(tmp), "%d", mount.timeout);
 	E(xwritablefield_set_value(0, id_block->this_obj, gadget_connection_TIMEOUT, tmp));
 	snprintf(tmp, sizeof(tmp), "%d", mount.retries);
 	E(xwritablefield_set_value(0, id_block->this_obj, gadget_connection_RETRIES, tmp));
 	E(xoptionbutton_set_state(0, id_block->this_obj, gadget_connection_LOGGING, mount.logging));
-	E(xradiobutton_set_state(0, id_block->this_obj, gadget_connection_TCP, mount.tcp));
+	E(xradiobutton_set_state(0, id_block->this_obj, mount.tcp ? gadget_connection_TCP : gadget_connection_UDP, TRUE));
+	E(xradiobutton_set_state(0, id_block->this_obj, mount.nfs3 ? gadget_connection_NFS3 : gadget_connection_NFS2, TRUE));
+
+	protocol_toggle(0, 0, id_block, 0);
 
 	return 1;
 }
@@ -607,6 +655,7 @@ static osbool connection_set(bits event_code, toolbox_action *event, toolbox_blo
 	mount.retries = atoi(tmp);
 	E(xoptionbutton_get_state(0, id_block->this_obj, gadget_connection_LOGGING, &mount.logging));
 	E(xradiobutton_get_state(0, id_block->this_obj, gadget_connection_TCP, &mount.tcp, NULL));
+	E(xradiobutton_get_state(0, id_block->this_obj, gadget_connection_NFS3, &mount.nfs3, NULL));
 
 	return 1;
 }
@@ -675,6 +724,7 @@ static void mainwin_setup(char *mountname)
 	mount.umask = 022;
 	mount.usepcnfsd = 0;
 	mount.tcp = 0;
+	mount.nfs3 = 0;
 	mount.leafname[0] = '\0';
 
 	if (mountname) {
@@ -1040,6 +1090,7 @@ int main(void)
 
 	event_register_toolbox_handler(event_ANY, event_connection_SHOW, connection_open, NULL);
 	event_register_toolbox_handler(event_ANY, event_connection_SET,  connection_set, NULL);
+	event_register_toolbox_handler(event_ANY, event_connection_PROTOCOL, protocol_toggle, NULL);
 
 	event_register_toolbox_handler(event_ANY, event_ports_SHOW, ports_open, NULL);
 	event_register_toolbox_handler(event_ANY, event_ports_SET,  ports_set, NULL);
