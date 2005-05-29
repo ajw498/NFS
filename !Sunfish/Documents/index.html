@@ -29,7 +29,7 @@ An NFS client, implemented as an image filing system. Habitat: RISC OS.
 <li><a href="#options">Options</a><br>
 <li><a href="#performance">Improving Performance</a><br>
 <li><a href="#reportingbugs">Reporting Bugs</a><br>
-<li><a href="#knownbugs">Known Bugs</a><br>
+<li><a href="#knownbugs">Known Issues</a><br>
 <li><a href="#recompiling">Recompiling</a><br>
 </ul>
 
@@ -60,7 +60,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 <h2><font color="#ffffff"><a name="requirements">Requirements</a></font></h2>
 </td></tr></table>
 <p>
-Sunfish requires a working network connection and an NFS server to connect to. The server should be running version 2 of the NFS protocol, version 1 of the Mount protocol, version 2 of the portmapper protocol, and optionally version 2 of the pcnfsd protocol. It has currently only been tested with the Linux kernel server present in Debian Woody, but it should work with other servers. Both UDP and TCP connections are supported.
+Sunfish requires a working network connection and an NFS server to connect to. The server should be running version 2 or version 3 of the NFS protocol, version 1 or 3 of the Mount protocol, version 2 of the portmapper protocol, and optionally version 2 of the pcnfsd protocol. It has currently only been tested with the Linux kernel server present in Debian Woody, but it should work with other servers. Both UDP and TCP connections are supported.
 <p>
 Sunfish should run on any version of RISC OS from 3.11 onwards. It has been reported to work on RISC OS 3.7, RISC OS 4 (including under Virtual RPC), Select, and RISC OS 5. It is 26/32bit neutral.
 <p>
@@ -120,7 +120,7 @@ GID: 50
 <p>
 A more complex example.
 <pre>
-Protocol: NFS2
+Protocol: NFS3
 Server: mint.cp15.org
 Transport: tcp
 Export: /tmp
@@ -133,7 +133,7 @@ ShowHidden: 0
 Timeout: 5
 DefaultFiletype: FFF
 AddExt: 2
-MaxDataBuffer: 8192
+MaxDataBuffer: 32768
 Pipelining: 1
 </pre>
 
@@ -152,7 +152,7 @@ Any line beginning with a # is treated as a comment.
 These options must appear in the file for a working connection to be established. Either a uid and gid must be specified <em>or</em> a username and password.
 <p>
 <h4>Protocol</h4>
-Specifies the protocol to use. An error will be generated in the current version if this is not NFS2.
+Specifies the protocol to use. This should be either NFS2 or NFS3.
 <p>
 <h4>Server</h4>
 The domain name or ip address of the NFS server.
@@ -182,7 +182,7 @@ The type of connection to use as transport. Can be either tcp or udp. If omitted
 The name of the machine the client is running on. Some servers may use it to allow or deny access. If omitted, it defaults to the value of <code>&lt;Inet$Hostname&gt;</code> which should be sufficient in most cases.
 <p>
 <h4>MaxDataBuffer</h4>
-The maximum number of bytes to use for the data buffer of a read or write request. A bigger buffer will generally be faster than a smaller one, but some network cards (In particular, the Castle 100BaseT podule) cannot handle larger packets when using UDP. The maximum value is 8192 bytes, and it is recommeded that you set it to this if your network card can handle it (You will probably get timeout errors when reading a large file if it is too big). If omitted, it defaults to 4096 bytes for UDP connections and 8192 for TCP connections.
+The maximum number of bytes to use for the data buffer of a read or write request. A bigger buffer will generally be faster than a smaller one, but some network cards (In particular, the Castle 100BaseT podule) cannot handle larger packets when using UDP. The maximum value is 8192 bytes for NFS2 or UDP connections, or 32768 for NFS3 with TCP, and it is recommeded that you set it to this if your network card can handle it (You will probably get timeout errors when reading a large file if it is too big). If omitted, it defaults to 4096 bytes for UDP connections and 8192 for TCP connections.
 <p>
 <h4>Pipelining</h4>
 If set to 0, then all operations wait for a reply before sending the next request. If set to 1, then for file reads and writes new requests are sent before the reply from the previous request is recieved. This can give an increase in speed in some circumstances. If ommitted, it defaults to 0.  
@@ -245,27 +245,40 @@ Controls adding of a ,xyz extension. When 0, no ,xyz extensions are added, and a
 <h2><font color="#ffffff"><a name="performance">Improving Performance</a></font></h2>
 </td></tr></table>
 <p>
-There are three options that are likely to have an effect on performance: the transport, the MaxDataBuffer option and the Pipelining option.
+There are four options that are likely to have an effect on performance: the protocol, the transport, the MaxDataBuffer option and the Pipelining option.
 <p>
-Using TCP as the transport may give better results than UDP in some circumstances.
+NFS3 should be faster than NFS2, because it is more efficient when listing directory contents, and allows larger data buffers.
 <p>
-Normally, the bigger the data buffer the better (the maximum size is 8192), however some network cards (notably the Castle 100bT podule) cannot cope with large packet sizes when using UDP. I suggest you try setting it to 8192, and if you start getting timeout errors when transferring files then reduce it.
+Using TCP as the transport may give better results than UDP in most circumstances.
+<p>
+Normally, the bigger the data buffer the better, however some network cards (notably the Castle 100bT podule) cannot cope with large packet sizes when using UDP. I suggest you try setting it to the maximum, and if you start getting timeout errors when transferring files then reduce it.
 <p>
 The pipelining option (which is disabled by default) allows file read and write requests to be pipelined which can give around a 20% increase in speed. However, with some servers or network setups it could make things slower. If, for example, your server is running on a 100bT segment while the client is the other side of a switch on a 10bT segment then it is likely to make things worse on a UDP connection, but if the server and client are of comparable speeds on the same segment then it may make things faster.
 <p>
-The server can also have a large influence on the speed. For example, if I read a 30MB file from the server it may take 14 seconds, but if I then read it a second time it take less than half that time because of the filesystem caching on the server.
+The server can also have a influence on the speed.
 <p>
-The following table shows the maximum speeds I have obtained with various settings, and a comparison with LanManFS. If you are seeing significantly slower results then it may be worth experimenting with the above options. All the tests were copying a 68MB file using the filer with the faster option set. I think the server writing the file to disc is the limiting factor in the 100bT write tests.
+I have found the fastest settings on an Iyonix with a 1000bT connection to be NFS3 over TCP, with a data buffer of 32768 and pipelining turned on.
+<p>
+The following table shows the maximum speeds I have obtained with various settings, and a comparison with LanMan98 and LanManFS. If you are seeing significantly slower results then it may be worth experimenting with the above options. All the tests were copying a 125MB file using the filer with the faster option set.
 <p>
 <table border="1">
 <tr>
-<th></th><th>LanManFS on Iyonix 100bT</th><th>Sunfish on SA RPC, Simtec 100bT</th><th>Sunfish on Iyonix, 100bT</th>
+<th></th><th colspan="2">Iyonix 1000bT</th><th colspan="2">Iyonix 100bT</th><th colspan="2">SA RPC, Simtec 100bT</th>
 </tr>
 <tr>
-<td>Read</td><td>2.4MB/s</td><td>0.98MB/s</td><td>5.6MB/s</td>
+<th></th><th>Read</th><th>Write</th><th>Read</th><th>Write</th><th>Read</th><th>Write</th>
 </tr>
 <tr>
-<td>Write</td><td>1.8MB/s</td><td>0.68MB/s</td><td>1.8MB/s</td>
+<td>Sunfish NFS2 UDP</td><td>9.2MB/s</td><td>10.3MB/s</td><td>7.3MB/s</td><td>8.8MB/s</td><td>1.2MB/s</td><td>1.2MB/s</td>
+</tr>
+<tr>
+<td>Sunfish NFS3 TCP</td><td>9.5MB/s</td><td>11.2MB/s</td><td>5.9MB/s</td><td>7.3MB/s</td><td>1.2MB/s</td><td>1.1MB/s</td>
+</tr>
+<tr>
+<td>LanMan98</td><td>8.8MB/s</td><td>2.0MB/s</td><td>7.3MB/s</td><td>4.3MB/s</td><td>1.3MB/s</td><td>0.78MB/s</td>
+</tr>
+<tr>
+<td>LanManFS</td><td>2.9MB/s</td><td>5.7MB/s</td><td>2.8MB/s</td><td>5.9MB/s</td><td></td><td></td>
 </tr>
 </table>
 <p>
@@ -277,7 +290,7 @@ The following table shows the maximum speeds I have obtained with various settin
 If you discover a bug, please report it to <a href="mailto:alex@alexwaugh.com">me</a>, or better still fix it yourself and send me a patch. When reporting a bug, first load <a href="http://www.compton.nu/syslog.html">SysLog</a>, then set the logging option in your mount file before doing the operation that triggers the bug. A log file should be generated in !SysLog.Logs.Sunfish. If you have access to a machine that can run a packet sniffer such as ethereal then it would be very useful to use that to save a dump of the network traffic along with the syslog file. Also, please provide a description of the problem and exactly what operation you were doing to trigger the bug, and details of what OS and NFS version the server is running would be helpful, and the version of the Sunfish module and RISC OS version.
 <p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
-<h2><font color="#ffffff"><a name="knownbugs">Known Bugs</a></font></h2>
+<h2><font color="#ffffff"><a name="knownbugs">Known Issues</a></font></h2>
 </td></tr></table>
 <p>
 The leafname returned from an OS_File 0 call will be in Unix format and may still have a ,xyz extension. This is only used for printing *opt 1 info so is not crucial. The PRMs state that *opt 1 may not work correctly on RISC OS 3 onwards anyway.
@@ -292,11 +305,13 @@ Sunfish does not support programs accessing files from callbacks, and will give 
 <p>
 Writing to mounts in Sunfish: doesn't work on Select 3i3, this appears to be a select bug and doesn't occur on 3i4
 <p>
+If an NFS3 server returns a jukebox error, Sunfish should retry the operation a short while later. It doesn't, and reports the error to the user. If you manually retry then things should work. 
+<p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="recompiling">Recompiling</a></font></h2>
 </td></tr></table>
 <p>
-Full source code is provided. To recompile the module, you will need Norcroft v5.53 or later, cmhg 5.42 or later, TCPIPLibs, and Perl. Earlier 26bit versions of Norcroft will not work because the code makes use of 64bit integers and some C99 functions.
+Full source code is provided. To recompile the module, you will need Norcroft v5.53 or later, cmhg 5.42 or later, TCPIPLibs, and Perl. Earlier 26bit versions of Norcroft will not work because the code makes use of 64bit integers and some C99 functions. It can take a long time (almost 10 minutes) to compile nfs3-calls.c. This time can be shortened by disabling cse optimisations with the -zpz0 flag. Later versions of Norcroft may have improved this.
 <p>
 For some unknown reason, if you use amu then it will give an error <code>AMU: Don't know how to make 'o.pcnfsd-calls'</code> after generating pcnfsd-calls.c, but if you rerun amu then it will work. GNU make does not give this problem.
 
