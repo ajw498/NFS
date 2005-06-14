@@ -1,7 +1,11 @@
+v1.07 14-Jun-05
+Fixed problem with renamed directories getting ,ffd appended.
+
 v1.06 29-May-05
 Added support for NFS v3.
 Directories now always get a filetype of ffd.
-Fixed bug that truncated filenames with escape sequences when renaming them.Fixed problem that could give a permissions error when creating a file.
+Fixed bug that truncated filenames with escape sequences when renaming them.
+Fixed problem that could give a permissions error when creating a file.
 
 v1.05 9-Apr-05
 Fixed bug in renaming files that was caused by the changes in 1.04.

@@ -356,8 +356,13 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 		}
 	}
 
-	/* Add ,xyz on if necessary to preserve filetype */
-	renameargs.to.name.data = addfiletypeext(leafname, leafnamelen, 0, filetype, &(renameargs.to.name.size), conn);
+	if (finfo->attributes.type == NFDIR) {
+		renameargs.to.name.data = leafname;
+		renameargs.to.name.size = leafnamelen;
+	} else {
+		/* Add ,xyz on if necessary to preserve filetype */
+		renameargs.to.name.data = addfiletypeext(leafname, leafnamelen, 0, filetype, &(renameargs.to.name.size), conn);
+	}
 
 	err = NFSPROC(RENAME, (&renameargs, &renameres, conn));
 	if (err) return err;
