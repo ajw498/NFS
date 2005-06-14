@@ -71,7 +71,7 @@ $typessize{"int"} = 0;
 $typessize{"unsigned"} = 0;
 $typessize{"bool"} = "bool";
 
-$structbase = "##structbase.";
+$structbase = "structbase.";
 
 $line = 0;
 
@@ -89,7 +89,7 @@ while (<>) {
         print PROCS "}\\\n";
         print PROCS "} while (opted);\\\n";
         print PROCS "*ptr = NULL;\\\n";
-        $structbase = "##structbase.";
+        $structbase = "structbase.";
       } else {
         print STRUCTS "};\n";
       }
@@ -206,7 +206,7 @@ while (<>) {
       print STRUCTS "int opted;\n";
       print PROCS "#ifndef process_linklist_${name}\n";
       print PROCS "#define process_linklist_${name}(input, structbase, maxsize) do {\\\n";
-      print PROCS "struct $name **ptr = &##structbase;\\\n";
+      print PROCS "struct $name **ptr = &structbase;\\\n";
       print PROCS "int opted;\\\n";
       print PROCS "do {\\\n";
       print PROCS "process_int(input, opted, 0);\\\n";

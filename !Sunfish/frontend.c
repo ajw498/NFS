@@ -762,6 +762,7 @@ static osbool editmenu_create(bits event_code, toolbox_action *event, toolbox_bl
 	int start = 0;
 	int read;
 	char buffer[256];
+	int i;
 
 	UNUSED(event_code);
 	UNUSED(event);
@@ -772,7 +773,7 @@ static osbool editmenu_create(bits event_code, toolbox_action *event, toolbox_bl
 	if (numentries == -1) {
 		E(xmenu_remove_entry(0, editmenuid, 0));
 	} else {
-		for (int i = 0; i < numentries; i++) {
+		for (i = 0; i < numentries; i++) {
 			E(xmenu_remove_entry(0, editmenuid, i));
 			free(menuentry[i].text);
 		}

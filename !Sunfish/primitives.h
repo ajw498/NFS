@@ -111,17 +111,17 @@ extern char *buf, *bufend;
 } while (0)
 
 #define process_opaque(input, structbase, maxsize) do { \
- process_int(input, ##structbase.size, 0); \
- if (##structbase.size > maxsize) goto buffer_overflow; \
- if (##structbase.size > 0) { \
+ process_int(input, structbase.size, 0); \
+ if (structbase.size > maxsize) goto buffer_overflow; \
+ if (structbase.size > 0) { \
   int i; \
-  check_bufspace((##structbase.size + 3) & ~3); \
+  check_bufspace((structbase.size + 3) & ~3); \
   if (input) { \
-   ##structbase.data = input_bytes(##structbase.size); \
+   structbase.data = input_bytes(structbase.size); \
   } else { \
-   output_bytes(##structbase.data, ##structbase.size); \
+   output_bytes(structbase.data, structbase.size); \
   } \
-  for (i = (##structbase.size & 3); i < 4 && i != 0; i++) { \
+  for (i = (structbase.size & 3); i < 4 && i != 0; i++) { \
    if (input) { \
     (void)input_byte(); \
    } else { \
@@ -149,17 +149,17 @@ extern char *buf, *bufend;
 } while (0)
 
 #define process_opaqueint(input, structbase, maxsize) do { \
- process_int(input, ##structbase.size, 0); \
- if (##structbase.size > maxsize) goto buffer_overflow; \
- if (##structbase.size > 0) { \
+ process_int(input, structbase.size, 0); \
+ if (structbase.size > maxsize) goto buffer_overflow; \
+ if (structbase.size > 0) { \
   int i; \
-  check_bufspace(##structbase.size * 4); \
+  check_bufspace(structbase.size * 4); \
   if (input) { \
-  	##structbase.data = llmalloc(##structbase.size * 4); \
-   if (##structbase.data == NULL) goto buffer_overflow; \
+  	structbase.data = llmalloc(structbase.size * 4); \
+   if (structbase.data == NULL) goto buffer_overflow; \
   } \
-  for (i = 0; i < ##structbase.size; i++) { \
-   process_int(input, ##structbase.data[i], 0); \
+  for (i = 0; i < structbase.size; i++) { \
+   process_int(input, structbase.data[i], 0); \
   } \
  } \
 } while (0)

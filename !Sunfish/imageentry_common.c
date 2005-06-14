@@ -437,7 +437,7 @@ void ENTRYFUNC(timeval_to_loadexec) (struct ntimeval *unixtime, int filetype, un
 #else
 	csecs += ((int64_t)unixtime->useconds / 10000);
 #endif
-	csecs += 0x336e996a00; /* Difference between 1900 and 1970 */
+	csecs += 0x336e996a00LL; /* Difference between 1900 and 1970 */
 	*load = (unsigned int)((csecs >> 32) & 0xFF);
 	*load |= (0xFFF00000 | ((filetype & 0xFFF) << 8));
 	*exec = (unsigned int)(csecs & 0xFFFFFFFF);
@@ -471,7 +471,7 @@ void ENTRYFUNC(loadexec_to_timeval) (unsigned int load, unsigned int exec, struc
 
 		csecs = exec;
 		csecs |= ((uint64_t)load & 0xFF) << 32;
-		csecs -= 0x336e996a00; /* Difference between 1900 and 1970 */
+		csecs -= 0x336e996a00LL; /* Difference between 1900 and 1970 */
 		unixtime->seconds = (unsigned int)((csecs / 100) & 0xFFFFFFFF);
 #ifdef NFS3
 		unixtime->nseconds = (unsigned int)((csecs % 100) * 10000000);

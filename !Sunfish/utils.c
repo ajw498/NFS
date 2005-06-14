@@ -93,7 +93,9 @@ char *filename_unixify(char *name, unsigned int len, unsigned int *newlen)
 	return namebuffer;
 }
 
+#ifndef MimeMap_Translate
 #define MimeMap_Translate 0x50B00
+#endif
 #define MMM_TYPE_RISCOS 0
 #define MMM_TYPE_RISCOS_STRING 1
 #define MMM_TYPE_MIME 2
