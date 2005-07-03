@@ -3,19 +3,39 @@
 #    $URL$
 #
 
-INCLUDE = -IC:,TCPIPLibs:,OSLibSupport:,OSLib:
-LIBS    = TCPIPLIBS:o.unixlibzm TCPIPLIBS:o.inetlibzm TCPIPLibs:o.socklib5zm C:o.stubs
+INCLUDE = -ITCPIPLibs: -IOSLibSupport: -IOSLib:
+MODLIBS = -l TCPIPLIBS:o.unixlibzm -l TCPIPLIBS:o.inetlibzm -l TCPIPLibs:o.socklib5zm
+
+LIBS = -l TCPIPLIBS:o.unixlib -l OSLibSupport:o.OSLibSupport32 -l OSLib:o.OSLib32
+
+ifeq ($(BUILD),gcc)
+
+CC = gcc
+CFLAGS =  $(INCLUDE) -Wall -mthrowback -mlibscl -std=c99 -O3 -pedantic 
+
+MODULE = -mmodule
+
+LINK = gcc -mlibscl -mmodule
+
+else
+
+LIBS := $(LIBS) C:o.stubs
+MODLIBS := $(MODLIBS) C:o.stubs
 
 CC = cc
-CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zpq262144
+CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zpq262144 -IC:
 #CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpz0 -zpq262144
 
-LINK = link
+LINK = cc -zM
+
+MODULE = -zM
+
+endif
 
 all: Sunfish !RunImage
 
 !RunImage: frontend.c moduledefs.h
-	$(CC) $(CFLAGS) frontend.c -o !RunImage  -l TCPIPLIBS:o.unixlib,OSLibSupport:o.OSLibSupport32,OSLib:o.OSLib32,C:o.stubs
+	$(CC) $(CFLAGS) frontend.c -o !RunImage  $(LIBS)
 
 
 rpc-calls.c rpc-calls.h: rpc-spec ProcessSpec
@@ -83,7 +103,7 @@ imageentry_common3.o
 $(OBJS) $(GENOBJS): $(GENHDRS) utils.h moduledefs.h
 
 Sunfish: $(OBJS) $(GENOBJS)
-	link -m -o Sunfish $(OBJS) $(GENOBJS) $(LIBS)
+	$(LINK) -o Sunfish $(OBJS) $(GENOBJS) $(MODLIBS)
 
 module.o: moduledefs.h
 
@@ -91,34 +111,34 @@ moduledefs.h modulehdr.o: @.cmhg.modulehdr
 	cmhg  -throwback modulehdr.cmhg -o modulehdr.o moduledefs.h
 
 imageentry_func2.o: imageentry_func.c
-	$(CC) -c  -zM $(CFLAGS) -o $@ imageentry_func.c
+	$(CC) -c  $(MODULE) $(CFLAGS) -o $@ imageentry_func.c
 imageentry_file2.o: imageentry_file.c
-	$(CC) -c  -zM $(CFLAGS) -o $@ imageentry_file.c
+	$(CC) -c  $(MODULE) $(CFLAGS) -o $@ imageentry_file.c
 imageentry_args2.o: imageentry_args.c
-	$(CC) -c  -zM $(CFLAGS) -o $@ imageentry_args.c
+	$(CC) -c  $(MODULE) $(CFLAGS) -o $@ imageentry_args.c
 imageentry_bytes2.o: imageentry_bytes.c
-	$(CC) -c  -zM $(CFLAGS) -o $@ imageentry_bytes.c
+	$(CC) -c  $(MODULE) $(CFLAGS) -o $@ imageentry_bytes.c
 imageentry_openclose2.o: imageentry_openclose.c
-	$(CC) -c  -zM $(CFLAGS) -o $@ imageentry_openclose.c
+	$(CC) -c  $(MODULE) $(CFLAGS) -o $@ imageentry_openclose.c
 imageentry_common2.o: imageentry_common.c
-	$(CC) -c  -zM $(CFLAGS) -o $@ imageentry_common.c
+	$(CC) -c  $(MODULE) $(CFLAGS) -o $@ imageentry_common.c
 imageentry_func3.o: imageentry_func.c
-	$(CC) -c  -zM $(CFLAGS) -DNFS3 -o $@ imageentry_func.c
+	$(CC) -c  $(MODULE) $(CFLAGS) -DNFS3 -o $@ imageentry_func.c
 imageentry_file3.o: imageentry_file.c
-	$(CC) -c  -zM $(CFLAGS) -DNFS3 -o $@ imageentry_file.c
+	$(CC) -c  $(MODULE) $(CFLAGS) -DNFS3 -o $@ imageentry_file.c
 imageentry_args3.o: imageentry_args.c
-	$(CC) -c  -zM $(CFLAGS) -DNFS3 -o $@ imageentry_args.c
+	$(CC) -c  $(MODULE) $(CFLAGS) -DNFS3 -o $@ imageentry_args.c
 imageentry_bytes3.o: imageentry_bytes.c
-	$(CC) -c  -zM $(CFLAGS) -DNFS3 -o $@ imageentry_bytes.c
+	$(CC) -c  $(MODULE) $(CFLAGS) -DNFS3 -o $@ imageentry_bytes.c
 imageentry_openclose3.o: imageentry_openclose.c
-	$(CC) -c  -zM $(CFLAGS) -DNFS3 -o $@ imageentry_openclose.c
+	$(CC) -c  $(MODULE) $(CFLAGS) -DNFS3 -o $@ imageentry_openclose.c
 imageentry_common3.o: imageentry_common.c
-	$(CC) -c  -zM $(CFLAGS) -DNFS3 -o $@ imageentry_common.c
+	$(CC) -c  $(MODULE) $(CFLAGS) -DNFS3 -o $@ imageentry_common.c
 
 .SUFFIXES: .o .s .c
 
 .c.o:
-	$(CC) -c  -zM $(CFLAGS) $(DEF) -o $@ $<
+	$(CC) -c  $(MODULE) $(CFLAGS) $(DEF) -o $@ $<
 
 .s.o:
 	$(CC) -c  $(CFLAGS) -o $@ $<
