@@ -612,7 +612,7 @@ static osbool protocol_toggle(bits event_code, toolbox_action *event, toolbox_bl
 
 	E(xgadget_get_flags(0, id_block->this_obj, gadget_connection_RETRIES, &flags));
 	if (tcp) flags |= gadget_FADED; else flags &= ~gadget_FADED;
-	if (tcp) E(xwritablefield_set_value(0, id_block->this_obj, gadget_connection_RETRIES, "0"));
+	if (tcp) E(xwritablefield_set_value(0, id_block->this_obj, gadget_connection_RETRIES, "1"));
 	E(xgadget_set_flags(0, id_block->this_obj, gadget_connection_RETRIES, flags));
 
 	return 1;
