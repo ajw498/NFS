@@ -313,12 +313,14 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 	char *leafname;
 	static char oldleafname[MAX_PATHNAME];
 	int filetype;
-	int dirnamelen;
+	int dirnamelen; /* The length of the directory name including the last dot */
 	unsigned int leafnamelen;
+	int sourcetype;
+	struct commonfh sourcedir;
 
 	leafname = strrchr(oldfilename, '.');
 	if (leafname) {
-		dirnamelen = leafname - oldfilename - 1;
+		dirnamelen = (leafname - oldfilename) + 1;
 	} else {
 		dirnamelen = 0;
 	}
@@ -327,8 +329,11 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 	if (err) return err;
 	if (finfo == NULL) return ENTRYFUNC(gen_nfsstatus_error) (NFSERR_NOENT);
 
+	sourcetype = finfo->attributes.type;
+
 	if (dinfo) {
-		commonfh_to_fh(renameargs.from.dir, dinfo->objhandle);
+		sourcedir = dinfo->objhandle;
+		commonfh_to_fh(renameargs.from.dir, sourcedir);
 	} else {
 		commonfh_to_fh(renameargs.from.dir, conn->rootfh);
 	}
@@ -356,7 +361,7 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 		}
 	}
 
-	if (finfo->attributes.type == NFDIR) {
+	if (sourcetype == NFDIR) {
 		renameargs.to.name.data = leafname;
 		renameargs.to.name.size = leafnamelen;
 	} else {
