@@ -24,9 +24,9 @@ MODLIBS := $(MODLIBS) C:o.stubs
 
 CC = cc
 CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zpq262144 -IC:
-#CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpz0 -zpq262144
+#CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpz0 -zpq262144 -IC:
 
-LINK = cc -zM
+LINK = link -m 
 
 MODULE = -zM
 
