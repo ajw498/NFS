@@ -343,7 +343,7 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 
 	if (strncmp(oldfilename, newfilename, dirnamelen) == 0 &&
 	    newfilename[dirnamelen] &&
-	    strchr(newfilename + dirnamelen + 1, '.') == NULL) {
+	    strchr(newfilename + dirnamelen, '.') == NULL) {
 		/* Both files are in the same directory */
 		renameargs.to.dir = renameargs.from.dir;
 		leafname = newfilename + dirnamelen;
