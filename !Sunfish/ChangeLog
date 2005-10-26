@@ -1,3 +1,6 @@
+v1.08 26-Oct-05
+Fixed bug where sometimes filetypes would get changed when a file was renamed.
+
 v1.07 14-Jun-05
 Fixed problem with renamed directories getting ,ffd appended.
 
