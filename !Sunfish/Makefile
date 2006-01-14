@@ -6,7 +6,7 @@
 INCLUDE = -ITCPIPLibs: -IOSLibSupport: -IOSLib:
 MODLIBS = -l TCPIPLIBS:o.unixlibzm -l TCPIPLIBS:o.inetlibzm -l TCPIPLibs:o.socklib5zm
 
-LIBS = -l TCPIPLIBS:o.unixlib -l OSLibSupport:o.OSLibSupport32 -l OSLib:o.OSLib32
+LIBS = -l TCPIPLIBS:o.unixlib TCPIPLIBS:o.inetlib -l TCPIPLibs:o.socklib5 -l OSLibSupport:o.OSLibSupport32 -l OSLib:o.OSLib32
 
 ifeq ($(BUILD),gcc)
 
@@ -23,8 +23,8 @@ LIBS := $(LIBS) C:o.stubs
 MODLIBS := $(MODLIBS) C:o.stubs
 
 CC = cc
-CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zpq262144 -IC:
-#CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpz0 -zpq262144 -IC:
+#CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zpq262144 -IC:
+CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpz0 -zpq262144 -IC:
 
 LINK = link -m 
 
@@ -32,11 +32,27 @@ MODULE = -zM
 
 endif
 
+
+
+
 all: Sunfish !RunImage
 
 !RunImage: frontend.c moduledefs.h
 	$(CC) $(CFLAGS) frontend.c -o !RunImage  $(LIBS)
 
+DEBUGSERVEROBJ = debug-server.o rpc-decode.o portmapper-procs.o
+
+debug-server: $(DEBUGSERVEROBJ)
+	$(CC) $(CFLAGS) $(DEBUGSERVEROBJ) -o debug-server $(LIBS)
+
+debug-server.o: debug-server.c
+	$(CC) $(CFLAGS) -c debug-server.c -o $@
+
+rpc-decode.o: rpc-decode.c portmapper-recv.c
+	$(CC) $(CFLAGS) -c rpc-decode.c -o $@
+
+portmapper-procs.o: portmapper-procs.c
+	$(CC) $(CFLAGS) -c portmapper-procs.c -o $@
 
 rpc-calls.c rpc-calls.h: rpc-spec ProcessSpec
 	perl ProcessSpec rpc rpc-spec
@@ -53,7 +69,7 @@ nfs3-calls.c nfs3-calls.h: nfs3-spec ProcessSpec
 mount3-calls.c mount3-calls.h: mount3-spec ProcessSpec
 	perl ProcessSpec mount3 mount3-spec
 
-portmapper-calls.c portmapper-calls.h: portmapper-spec ProcessSpec
+portmapper-calls.c portmapper-calls.h portmapper-recv.c portmapper-recv.h: portmapper-spec ProcessSpec
 	perl ProcessSpec portmapper portmapper-spec
 
 pcnfsd-calls.c pcnfsd-calls.h: pcnfsd-spec ProcessSpec

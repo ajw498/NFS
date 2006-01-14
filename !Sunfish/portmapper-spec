@@ -47,4 +47,4 @@ unsigned PMAPPROC_GETPORT(mapping) = 3;
 
 /*pmaplist PMAPPROC_DUMP(void) = 4;*/
 
-call_result PMAPPROC_CALLIT(call_args) = 5;
+/*call_result PMAPPROC_CALLIT(call_args) = 5;*/

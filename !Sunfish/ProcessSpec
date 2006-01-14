@@ -40,6 +40,8 @@ open(UNIONS,">$spectype-process2.h") or die $^E;
 open(STRUCTS,">$spectype-structs.h") or die $^E;
 open(CALLS,">$spectype-calls.c") or die $^E;
 open(CALLSH,">$spectype-calls.h") or die $^E;
+open(RECVH,">$spectype-recv.h") or die $^E;
+open(RECV,">$spectype-recv.c") or die $^E;
 
 my $header = "/* Automatically generated */\n\n";
 
@@ -58,6 +60,13 @@ print CALLSH  "#include \"rpc.h\"\n";
 print CALLSH  "#include \"$spectype-structs.h\"\n";
 print CALLSH  "#include \"$spectype-process1.h\"\n";
 print CALLSH  "#include \"$spectype-process2.h\"\n\n";
+
+print RECV   $header;
+
+print RECVH   $header;
+print RECVH  "#include \"$spectype-structs.h\"\n";
+print RECVH  "#include \"$spectype-process1.h\"\n";
+print RECVH  "#include \"$spectype-process2.h\"\n\n";
 
 $types{"unsigned int"} = "int";
 $types{"uint32"} = "int";
@@ -251,23 +260,27 @@ while (<>) {
       die "type $res not defined\n" if (!defined $types{$res});
       my $proto = "\nos_error *$procname(";
       my $calltype = "TXBLOCKING";
+      my $argtype = "";
       if (!($args =~ /^void$/)) {
         if (($types{$args} =~ /(struct)|(union)|(linklist)/)) {
-          $proto .= "struct $args";
+          $argtype = "struct $args";
+        } elsif (($types{$args} =~ /enum/)) {
+          $argtype .= "enum $args";
         } else {
-          $proto .= "$types{$args}";
+          $argtype = "$types{$args}";
         }
-        $proto .= " *args, ";
+        $proto .= "$argtype *args, ";
       }
+      my $restype = "";
       if (!($res =~ /^void$/)) {
         if (($types{$res} =~ /(struct)|(union)|(linklist)/)) {
-          $proto .= "struct $res";
+          $restype = "struct $res";
         } elsif (($types{$res} =~ /enum/)) {
-          $proto .= "enum $res";
+          $restype = "enum $res";
         } else {
-          $proto .= "$types{$res}";
+          $restype = "$types{$res}";
         }
-        $proto .= " *res, ";
+        $proto .= "$restype *res, ";
       }
       $proto .= "struct conn_info *conn";
       if ($procname =~ m/(WRITE)|(READ)$/) {
@@ -308,6 +321,28 @@ while (<>) {
       print CALLS "\treturn NULL;\n";
       print CALLS "buffer_overflow:\n";
       print CALLS "\treturn rpc_buffer_overflow();\n}\n";
+
+      print RECVH "void $procname(";
+      print RECVH "$argtype *args, " if ($argtype ne "");
+      print RECVH "$restype *res" if ($restype ne "");
+      print RECVH "void" if ("$argtype$restype" eq "");
+      print RECVH ");\n\n";
+
+      print RECV "case $procno: {\n";
+      print RECV "\t$argtype args;\n" if ($argtype ne "");
+      print RECV "\t$restype res;\n" if ($restype ne "");
+      print RECV "\tprocess_$types{$args}";
+      print RECV "_${args}" if (($types{$args} =~ /(struct)|(union)|(linklist)/));
+      print RECV "(INPUT, args, $typessize{$args});\n";
+      print RECV "\t$procname(";
+      print RECV "&args, " if ($argtype ne "");
+      print RECV "&res" if ($restype ne "");
+      print RECV ");\n";
+      print RECV "\tinit_output();\n";
+      print RECV "\tprocess_$types{$res}";
+      print RECV "_$res" if (($types{$res} =~ /(struct)|(union)|(linklist)/));
+      print RECV "(OUTPUT, res, $typessize{$res});\n";
+      print RECV "}\nbreak;\n";
     } elsif (/\/\*.*\*\//) {
       print STRUCTS;
     } elsif (/\/\*/) {
