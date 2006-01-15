@@ -40,7 +40,7 @@ all: Sunfish !RunImage
 !RunImage: frontend.c moduledefs.h
 	$(CC) $(CFLAGS) frontend.c -o !RunImage  $(LIBS)
 
-DEBUGSERVEROBJ = debug-server.o rpc-decode.o portmapper-procs.o
+DEBUGSERVEROBJ = debug-server.o rpc-decode.o portmapper-procs.o mount1-procs.o mount3-procs.o portmapper-recv.o mount1-recv.o mount3-recv.o
 
 debug-server: $(DEBUGSERVEROBJ)
 	$(CC) $(CFLAGS) $(DEBUGSERVEROBJ) -o debug-server $(LIBS)
@@ -48,25 +48,38 @@ debug-server: $(DEBUGSERVEROBJ)
 debug-server.o: debug-server.c
 	$(CC) $(CFLAGS) -c debug-server.c -o $@
 
-rpc-decode.o: rpc-decode.c portmapper-recv.c
+rpc-decode.o: rpc-decode.c
 	$(CC) $(CFLAGS) -c rpc-decode.c -o $@
 
 portmapper-procs.o: portmapper-procs.c
 	$(CC) $(CFLAGS) -c portmapper-procs.c -o $@
 
+mount3-procs.o: mount3-procs.c
+	$(CC) $(CFLAGS) -c mount3-procs.c -o $@
+
+mount1-procs.o: mount1-procs.c
+	$(CC) $(CFLAGS) -c mount1-procs.c -o $@
+
+portmapper-recv.o: portmapper-recv.c
+	$(CC) $(CFLAGS) -c portmapper-recv.c -o $@
+mount1-recv.o: mount1-recv.c
+	$(CC) $(CFLAGS) -c mount1-recv.c -o $@
+mount3-recv.o: mount3-recv.c
+	$(CC) $(CFLAGS) -c mount3-recv.c -o $@
+
 rpc-calls.c rpc-calls.h: rpc-spec ProcessSpec
 	perl ProcessSpec rpc rpc-spec
 
-nfs2-calls.c nfs2-calls.h: nfs2-spec ProcessSpec
+nfs2-calls.c nfs2-calls.h nfs2-recv.c nfs2-recv.h: nfs2-spec ProcessSpec
 	perl ProcessSpec nfs2 nfs2-spec
 
-mount1-calls.c mount1-calls.h: mount1-spec ProcessSpec
+mount1-calls.c mount1-calls.h mount1-recv.c mount1-recv.h: mount1-spec ProcessSpec
 	perl ProcessSpec mount1 mount1-spec
 
-nfs3-calls.c nfs3-calls.h: nfs3-spec ProcessSpec
+nfs3-calls.c nfs3-calls.h nfs3-recv.c nfs3-recv.h: nfs3-spec ProcessSpec
 	perl ProcessSpec nfs3 nfs3-spec
 
-mount3-calls.c mount3-calls.h: mount3-spec ProcessSpec
+mount3-calls.c mount3-calls.h mount3-recv.c mount3-recv.h: mount3-spec ProcessSpec
 	perl ProcessSpec mount3 mount3-spec
 
 portmapper-calls.c portmapper-calls.h portmapper-recv.c portmapper-recv.h: portmapper-spec ProcessSpec

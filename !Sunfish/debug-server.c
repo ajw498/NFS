@@ -75,8 +75,8 @@ static char *nextmalloc;
 char *buf;
 char *bufend;
 
-char output_buf[1024];
-
+char obuf[1024];
+char *output_buf = obuf;
 int sock = -1;
 
 
@@ -160,19 +160,23 @@ int main(void)
 	int len;
 	char tmp_buf[1024];
 	struct sockaddr host;
-	int addrlen = sizeof(struct sockaddr);
+	int addrlen;
 
 	rpc_create_socket(111,0);
 /*	sock = accept(sock, &host, &addrlen);
 	len = read(sock, tmp_buf , 1024);*/
-	len = recvfrom(sock, tmp_buf, 1024, 0, &host, &addrlen);
+	while (1) {
 
-	printf("%d bytes read\n",len);
-	buf = tmp_buf;
-	bufend = buf + 1024;
-	rpc_decode();
-	logdata(0, output_buf, buf - output_buf);
-	sendto(sock, output_buf, buf - output_buf, 0, &host, addrlen);
+		addrlen = sizeof(struct sockaddr);
+		len = recvfrom(sock, tmp_buf, 1024, 0, &host, &addrlen);
+		printf("%d bytes read\n",len);
+		if (len <= 0) break;
+		buf = tmp_buf;
+		bufend = buf + 1024;
+		rpc_decode();
+		logdata(0, output_buf, buf - output_buf);
+		sendto(sock, output_buf, buf - output_buf, 0, &host, addrlen);
+	}
 	if (sock != -1) close(sock);
 	return 0;
 }
