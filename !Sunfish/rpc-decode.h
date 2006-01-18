@@ -22,10 +22,19 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+#ifndef RPC_DECODE_H
+#define RPC_DECODE_H
 
+struct server_conn {
+	char *basedir;
+	int image_as_file;
+};
+
+void *llmalloc(int size);
 
 void init_output(void);
 
 void rpc_decode(void);
 
+#endif
 

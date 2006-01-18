@@ -63,19 +63,20 @@ print CALLSH  "#include \"$spectype-process1.h\"\n";
 print CALLSH  "#include \"$spectype-process2.h\"\n\n";
 
 print RECV   $header;
-print RECV   "#include \"rpc-decode.h\"\n";
 print RECV   "#include \"$spectype-recv.h\"\n";
 print RECV   "#include \"$spectype-procs.h\"\n\n";
-print RECV   "enum accept_stat ${spectype}_decode(int proc)\n{switch (proc) {\n";
+print RECV   "enum accept_stat ${spectype}_decode(int proc, struct server_conn *conn)\n{\nswitch (proc) {\n";
 
 print RECVH   $header;
 print RECVH  "#include \"$spectype-structs.h\"\n";
 print RECVH  "#include \"$spectype-process1.h\"\n";
 print RECVH  "#include \"$spectype-process2.h\"\n\n";
+print RECVH  "#include \"rpc-decode.h\"\n";
 
 print RECV2H   $header;
 print RECV2H  "#include \"rpc-structs.h\"\n\n";
-print RECV2H  "enum accept_stat ${spectype}_decode(int proc);\n\n";
+print RECV2H  "#include \"rpc-decode.h\"\n";
+print RECV2H  "enum accept_stat ${spectype}_decode(int proc, struct server_conn *conn);\n\n";
 
 $types{"unsigned int"} = "int";
 $types{"uint32"} = "int";
@@ -106,7 +107,9 @@ while (<>) {
         print PROCS "ptr = &((*ptr)->next);\\\n";
         print PROCS "}\\\n";
         print PROCS "} while (opted);\\\n";
+        print PROCS "if (input) {\\\n";
         print PROCS "*ptr = NULL;\\\n";
+        print PROCS "}\\\n";
         $structbase = "structbase.";
       } else {
         print STRUCTS "};\n";
@@ -221,16 +224,20 @@ while (<>) {
       $types{$name} = $state = "linklist";
       $typessize{$name} = 0;
       print STRUCTS "struct ${name} {\n";
-      print STRUCTS "int opted;\n";
       print PROCS "#ifndef process_linklist_${name}\n";
       print PROCS "#define process_linklist_${name}(input, structbase, maxsize) do {\\\n";
       print PROCS "struct $name **ptr = &structbase;\\\n";
-      print PROCS "int opted;\\\n";
+      print PROCS "int opted = 0;\\\n";
       print PROCS "do {\\\n";
+      print PROCS "if (!input) {\\\n";
+      print PROCS "opted = (*ptr) != NULL;\\\n";
+      print PROCS "}\\\n";
       print PROCS "process_int(input, opted, 0);\\\n";
       print PROCS "if (opted) {\\\n";
+      print PROCS "if (input) {\\\n";
       print PROCS "*ptr = llmalloc(sizeof(struct $name));\\\n";
       print PROCS "if (*ptr == NULL) goto buffer_overflow;\\\n";
+      print PROCS "}\\\n";
       $structbase = "(*ptr)->";
     } elsif (/^\s*struct *(\w*) /) {
       print STRUCTS;
@@ -332,10 +339,9 @@ while (<>) {
       print CALLS "\treturn rpc_buffer_overflow();\n}\n";
 
       print RECVH "void $procname(";
-      print RECVH "$argtype *args" if ($argtype ne "");
-      print RECVH ", " if (($argtype ne "") and ($restype ne ""));
-      print RECVH "$restype *res" if ($restype ne "");
-      print RECVH "void" if ("$argtype$restype" eq "");
+      print RECVH "$argtype *args, " if ($argtype ne "");
+      print RECVH "$restype *res, " if ($restype ne "");
+      print RECVH "struct server_conn *conn";
       print RECVH ");\n\n";
 
       print RECV "case $procno: {\n";
@@ -345,10 +351,9 @@ while (<>) {
       print RECV "_${args}" if (($types{$args} =~ /(struct)|(union)|(linklist)/));
       print RECV "(INPUT, args, $typessize{$args});\n";
       print RECV "\t$procname(";
-      print RECV "&args" if ($argtype ne "");
-      print RECV ", " if (($argtype ne "") and ($restype ne ""));
-      print RECV "&res" if ($restype ne "");
-      print RECV ");\n";
+      print RECV "&args, " if ($argtype ne "");
+      print RECV "&res, " if ($restype ne "");
+      print RECV "conn);\n";
       print RECV "\tinit_output();\n";
       print RECV "\tprocess_$types{$res}";
       print RECV "_$res" if (($types{$res} =~ /(struct)|(union)|(linklist)/));

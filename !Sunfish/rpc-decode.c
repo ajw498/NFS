@@ -47,6 +47,7 @@
 #include "portmapper-recv.h"
 #include "mount1-recv.h"
 #include "mount3-recv.h"
+#include "nfs2-recv.h"
 
 #include "rpc-decode.h"
 
@@ -77,7 +78,6 @@ extern char *output_buf;
 
 void init_output(void)
 {
-printf("init_output %d\n", reply_header.body.u.rbody.u.areply.reply_data.stat);
 	buf = output_buf;
 	bufend = buf + 1024;
 	process_struct_rpc_msg(OUTPUT, reply_header, 0);
@@ -87,6 +87,8 @@ buffer_overflow:
 
 void rpc_decode(void)
 {
+	struct server_conn conn = {"", 1};
+
 	process_struct_rpc_msg(INPUT, call_header, 0);
 	reply_header.xid = call_header.xid;
 	reply_header.body.mtype = REPLY;
@@ -115,7 +117,7 @@ void rpc_decode(void)
 	case 100000/*PMAP_RPC_PROGRAM*/:
 		switch (call_header.body.u.cbody.vers) {
 		case 2/*PMAP_RPC_VERSION*/:
-			reply_header.body.u.rbody.u.areply.reply_data.stat = portmapper_decode(call_header.body.u.cbody.proc);
+			reply_header.body.u.rbody.u.areply.reply_data.stat = portmapper_decode(call_header.body.u.cbody.proc, &conn);
 			printf("ret %d\n", reply_header.body.u.rbody.u.areply.reply_data.stat);
 			break;
 		default:
@@ -127,15 +129,26 @@ void rpc_decode(void)
 	case 100005/*MOUNT_RPC_PROGRAM*/:
 		switch (call_header.body.u.cbody.vers) {
 		case 1:
-			reply_header.body.u.rbody.u.areply.reply_data.stat = mount1_decode(call_header.body.u.cbody.proc);
+			reply_header.body.u.rbody.u.areply.reply_data.stat = mount1_decode(call_header.body.u.cbody.proc, &conn);
 			break;
 		case 3:
-			reply_header.body.u.rbody.u.areply.reply_data.stat = mount3_decode(call_header.body.u.cbody.proc);
+			reply_header.body.u.rbody.u.areply.reply_data.stat = mount3_decode(call_header.body.u.cbody.proc, &conn);
 			break;
 		default:
 			reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_MISMATCH;
 			reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.low = 1;
 			reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.high = 3;
+		}
+		break;
+	case 100003/*NFS2_RPC_PROGRAM*/:
+		switch (call_header.body.u.cbody.vers) {
+		case 2/*NFS2_RPC_VERSION*/:
+			reply_header.body.u.rbody.u.areply.reply_data.stat = nfs2_decode(call_header.body.u.cbody.proc, &conn);
+			break;
+		default:
+			reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_MISMATCH;
+			reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.low = 2;
+			reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.high = 2;
 		}
 		break;
 	default:

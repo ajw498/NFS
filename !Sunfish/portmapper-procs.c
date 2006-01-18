@@ -51,6 +51,8 @@ void PMAPPROC_GETPORT(struct mapping *args, int *res)
 		*res = 111;
 	} else if (args->prog == 100005 && args->vers == 1) {
 		*res = 111;
+	} else if (args->prog == 100003 && args->vers == 2) {
+		*res = 111;
 	} else if (args->prog == 100003 && args->vers == 3) {
 		*res = 111;
 	} else {

@@ -139,9 +139,11 @@ static void logdata(int rx, char *buf, int len)
 
 
 /* Allocate a chunk from the linklist buffer */
-void *llmalloc(size_t size)
+void *llmalloc(int size)
 {
 	void *mem;
+
+	abort();
 
 	if (nextmalloc + size > malloc_buffer + sizeof(malloc_buffer)) {
 		mem = NULL;

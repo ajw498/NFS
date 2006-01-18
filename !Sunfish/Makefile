@@ -40,7 +40,7 @@ all: Sunfish !RunImage
 !RunImage: frontend.c moduledefs.h
 	$(CC) $(CFLAGS) frontend.c -o !RunImage  $(LIBS)
 
-DEBUGSERVEROBJ = debug-server.o rpc-decode.o portmapper-procs.o mount1-procs.o mount3-procs.o portmapper-recv.o mount1-recv.o mount3-recv.o
+DEBUGSERVEROBJ = debug-server.o rpc-decode.o portmapper-procs.o mount1-procs.o mount3-procs.o portmapper-recv.o mount1-recv.o mount3-recv.o nfs2-recv.o nfs2-procs.o
 
 debug-server: $(DEBUGSERVEROBJ)
 	$(CC) $(CFLAGS) $(DEBUGSERVEROBJ) -o debug-server $(LIBS)
@@ -60,12 +60,17 @@ mount3-procs.o: mount3-procs.c
 mount1-procs.o: mount1-procs.c
 	$(CC) $(CFLAGS) -c mount1-procs.c -o $@
 
+nfs2-procs.o: nfs2-procs.c
+	$(CC) $(CFLAGS) -c nfs2-procs.c -o $@
+
 portmapper-recv.o: portmapper-recv.c
 	$(CC) $(CFLAGS) -c portmapper-recv.c -o $@
 mount1-recv.o: mount1-recv.c
 	$(CC) $(CFLAGS) -c mount1-recv.c -o $@
 mount3-recv.o: mount3-recv.c
 	$(CC) $(CFLAGS) -c mount3-recv.c -o $@
+nfs2-recv.o: nfs2-recv.c
+	$(CC) $(CFLAGS) -c nfs2-recv.c -o $@
 
 rpc-calls.c rpc-calls.h: rpc-spec ProcessSpec
 	perl ProcessSpec rpc rpc-spec
