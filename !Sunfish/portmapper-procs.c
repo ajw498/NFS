@@ -26,24 +26,24 @@
 
 #include "portmapper-procs.h"
 
-void PMAPPROC_NULL(void)
+void PMAPPROC_NULL(struct server_conn *conn)
 {
 	printf("PMAPPROC_NULL\n");
 }
 
-void PMAPPROC_SET(struct mapping *args, enum bool *res)
+void PMAPPROC_SET(struct mapping *args, enum bool *res, struct server_conn *conn)
 {
 	printf("PMAPPROC_SET\n");
 	*res = FALSE;
 }
 
-void PMAPPROC_UNSET(struct mapping *args, enum bool *res)
+void PMAPPROC_UNSET(struct mapping *args, enum bool *res, struct server_conn *conn)
 {
 	printf("PMAPPROC_UNSET\n");
 	*res = FALSE;
 }
 
-void PMAPPROC_GETPORT(struct mapping *args, int *res)
+void PMAPPROC_GETPORT(struct mapping *args, int *res, struct server_conn *conn)
 {
 	printf("PMAPPROC_GETPORT\n");
 	/* Decode invalid progs */

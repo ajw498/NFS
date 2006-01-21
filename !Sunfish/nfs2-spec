@@ -169,10 +169,14 @@ struct readargs {
         unsigned totalcount;
 };
 
-union readres switch (nstat status) {
-case NFS_OK:
+struct readresok {
         fattr attributes;
         opaque data<>;
+};
+
+union readres switch (nstat status) {
+case NFS_OK:
+        readresok resok;
 default:
         void;
 };

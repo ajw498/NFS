@@ -66,11 +66,7 @@ os_error *ENTRYFUNC(get_bytes) (struct file_handle *handle, char *buffer, unsign
 			if (err) return err;
 			if (res.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (res.status);
 
-#ifdef NFS3
 			data = &(res.u.resok.data);
-#else
-			data = &(res.u.data);
-#endif
 			outstanding--;
 			if (buffer + data->size > bufferend) {
 				return gen_error(BYTESERRBASE + 0,"Read returned more data than expected");

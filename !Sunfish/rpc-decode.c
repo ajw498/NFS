@@ -79,7 +79,7 @@ extern char *output_buf;
 void init_output(void)
 {
 	buf = output_buf;
-	bufend = buf + 1024;
+	bufend = buf + 32*1024;
 	process_struct_rpc_msg(OUTPUT, reply_header, 0);
 buffer_overflow:
 	return;
