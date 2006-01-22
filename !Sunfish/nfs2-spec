@@ -291,3 +291,18 @@ default:
 
 readlinkres NFSPROC_READLINK(readlinkargs) = 5;
 
+struct linkargs {
+	nfs_fh from;
+	diropargs to;
+};
+
+nstat NFSPROC_LINK(linkargs) = 12;
+
+struct symlinkargs {
+	diropargs from;
+	path to;
+	sattr attributes;
+};
+
+nstat NFSPROC_SYMLINK(symlinkargs) = 13;
+

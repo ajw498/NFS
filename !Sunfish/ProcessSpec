@@ -65,9 +65,10 @@ print CALLSH  "#include \"$spectype-process2.h\"\n\n";
 print RECV   $header;
 print RECV   "#include \"$spectype-recv.h\"\n";
 print RECV   "#include \"$spectype-procs.h\"\n\n";
-print RECV   "enum accept_stat ${spectype}_decode(int proc, struct server_conn *conn)\n{\nswitch (proc) {\n";
+print RECV   "enum accept_stat ${spectype}_decode(int proc, struct server_conn *conn)\n{\nenum accept_stat success = SUCCESS;\nswitch (proc) {\n";
 
 print RECVH   $header;
+print RECVH  "#include \"rpc-structs.h\"\n";
 print RECVH  "#include \"$spectype-structs.h\"\n";
 print RECVH  "#include \"$spectype-process1.h\"\n";
 print RECVH  "#include \"$spectype-process2.h\"\n\n";
@@ -338,7 +339,7 @@ while (<>) {
       print CALLS "buffer_overflow:\n";
       print CALLS "\treturn rpc_buffer_overflow();\n}\n";
 
-      print RECVH "void $procname(";
+      print RECVH "enum accept_stat $procname(";
       print RECVH "$argtype *args, " if ($argtype ne "");
       print RECVH "$restype *res, " if ($restype ne "");
       print RECVH "struct server_conn *conn";
@@ -350,14 +351,16 @@ while (<>) {
       print RECV "\tprocess_$types{$args}";
       print RECV "_${args}" if (($types{$args} =~ /(struct)|(union)|(linklist)/));
       print RECV "(INPUT, args, $typessize{$args});\n";
-      print RECV "\t$procname(";
+      print RECV "\tsuccess = $procname(";
       print RECV "&args, " if ($argtype ne "");
       print RECV "&res, " if ($restype ne "");
       print RECV "conn);\n";
-      print RECV "\tinit_output();\n";
-      print RECV "\tprocess_$types{$res}";
+      print RECV "\tif (success == SUCCESS) {\n";
+      print RECV "\t\tinit_output();\n";
+      print RECV "\t\tprocess_$types{$res}";
       print RECV "_$res" if (($types{$res} =~ /(struct)|(union)|(linklist)/));
       print RECV "(OUTPUT, res, $typessize{$res});\n";
+      print RECV "\t}\n";
       print RECV "}\nbreak;\n";
     } elsif (/\/\*.*\*\//) {
       print STRUCTS;
@@ -377,5 +380,5 @@ while (<>) {
 print CALLSH  "#endif\n\n";
 print STRUCTS "#endif\n\n";
 
-print RECV   "default:\n\treturn PROC_UNAVAIL;\n}\nreturn SUCCESS;\nbuffer_overflow:\n\treturn GARBAGE_ARGS;\n}\n";
+print RECV   "default:\n\treturn PROC_UNAVAIL;\n}\nreturn success;\nbuffer_overflow:\n\treturn GARBAGE_ARGS;\n}\n";
 

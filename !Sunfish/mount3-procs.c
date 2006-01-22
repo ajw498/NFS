@@ -26,23 +26,27 @@
 
 #include "mount3-procs.h"
 
-void MOUNTPROC3_NULL(void)
+enum accept_stat MOUNTPROC3_NULL(struct server_conn *conn)
 {
 	printf("MOUNTPROC3_NULL\n");
+	return SUCCESS;
 }
 
-void MOUNTPROC3_MNT(string *args, struct mountres *res)
+enum accept_stat MOUNTPROC3_MNT(string *args, struct mountres *res, struct server_conn *conn)
 {
 	printf("MOUNTPROC3_MNT\n");
+	return SUCCESS;
 }
 
-void MOUNTPROC3_UMNT(string *args)
+enum accept_stat MOUNTPROC3_UMNT(string *args, struct server_conn *conn)
 {
 	printf("MOUNTPROC3_UMNT\n");
+	return SUCCESS;
 }
 
-void MOUNTPROC3_UMNTALL(void)
+enum accept_stat MOUNTPROC3_UMNTALL(struct server_conn *conn)
 {
 	printf("MOUNTPROC3_UMNTALL\n");
+	return SUCCESS;
 }
 

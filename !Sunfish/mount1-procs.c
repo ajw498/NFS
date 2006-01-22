@@ -26,25 +26,29 @@
 
 #include "mount1-procs.h"
 
-void MNTPROC_NULL(void)
+enum accept_stat MNTPROC_NULL(struct server_conn *conn)
 {
 	printf("MNTPROC_NULL\n");
+	return SUCCESS;
 }
 
-void MNTPROC_MNT(string *args, struct mountres *res)
+enum accept_stat MNTPROC_MNT(string *args, struct mountres *res, struct server_conn *conn)
 {
 	printf("MNTPROC_MNT\n");
 	res->status = 0;
 	memset(res->u.directory.data, 0, FHSIZE);
+	return SUCCESS;
 }
 
-void MNTPROC_UMNT(string *args)
+enum accept_stat MNTPROC_UMNT(string *args, struct server_conn *conn)
 {
 	printf("MNTPROC_UMNT\n");
+	return SUCCESS;
 }
 
-void MNTPROC_UMNTALL(void)
+enum accept_stat MNTPROC_UMNTALL(struct server_conn *conn)
 {
 	printf("MNTPROC_UMNTALL\n");
+	return SUCCESS;
 }
 

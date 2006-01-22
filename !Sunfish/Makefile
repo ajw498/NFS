@@ -51,16 +51,16 @@ debug-server.o: debug-server.c
 rpc-decode.o: rpc-decode.c
 	$(CC) $(CFLAGS) -c rpc-decode.c -o $@
 
-portmapper-procs.o: portmapper-procs.c
+portmapper-procs.o: portmapper-procs.c portmapper-procs.h
 	$(CC) $(CFLAGS) -c portmapper-procs.c -o $@
 
-mount3-procs.o: mount3-procs.c
+mount3-procs.o: mount3-procs.c mount3-procs.h
 	$(CC) $(CFLAGS) -c mount3-procs.c -o $@
 
-mount1-procs.o: mount1-procs.c
+mount1-procs.o: mount1-procs.c mount1-procs.h
 	$(CC) $(CFLAGS) -c mount1-procs.c -o $@
 
-nfs2-procs.o: nfs2-procs.c
+nfs2-procs.o: nfs2-procs.c nfs2-procs.h
 	$(CC) $(CFLAGS) -c nfs2-procs.c -o $@
 
 portmapper-recv.o: portmapper-recv.c
