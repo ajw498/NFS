@@ -51,6 +51,8 @@ static enum nstat oserr_to_nfserr(int errnum)
 {
 	switch (errnum) {
 	case 0x117c6: return NFSERR_NOSPC;
+	case 0x117b4: return NFSERR_NOTEMPTY;
+	case 0xb0: return 18; /*NFS3ERR_XDEV */
 	}
 	return NFSERR_IO;
 }
@@ -224,7 +226,8 @@ static enum nstat set_attr(char *path, struct sattr *sattr, struct server_conn *
 
 	OR(_swix(OS_File, _INR(0,3) | _IN(5), 1, path, load, exec, attr));
 
-	if (sattr->size != -1 && sattr->size != size) {
+	if ((type & 1) && sattr->size != -1 && sattr->size != size) {
+		/*FIXME - image files*/
 		/*FIXME - open file if not already open, and set extent */
 	}
 	return NFS_OK;
@@ -373,7 +376,7 @@ static enum nstat diropargs_to_path(struct diropargs *where, char **path, int *f
 	len += where->name.size;
 	(*path)[len] = '\0';
 	/*FIXME - handle ,xyz */
-	*filetype = 0xfff;
+	if (filetype) *filetype = 0xfff;
 
 	return NFS_OK;
 }
@@ -398,17 +401,37 @@ void NFSPROC_CREATE(struct createargs *args, struct createres *res, struct serve
 
 void NFSPROC_RMDIR(struct diropargs *args, struct removeres *res, struct server_conn *conn)
 {
+	char *path;
+
 	printf("NFSPROC_RMDIR\n");
+
+	NE(diropargs_to_path(args, &path, NULL, conn));
+	OE(_swix(OS_File, _INR(0,1), 6, path));
+	/*FIXME will error if locked or open */
 }
 
 void NFSPROC_REMOVE(struct diropargs *args, struct removeres *res, struct server_conn *conn)
 {
+	char *path;
+
 	printf("NFSPROC_REMOVE\n");
+
+	NE(diropargs_to_path(args, &path, NULL, conn));
+	OE(_swix(OS_File, _INR(0,1), 6, path));
+	/*FIXME will error if locked or open */
 }
 
 void NFSPROC_RENAME(struct renameargs *args, struct renameres *res, struct server_conn *conn)
 {
+	char *from;
+	char *to;
+
 	printf("NFSPROC_RENAME\n");
+
+	NE(diropargs_to_path(&(args->from), &from, NULL, conn));
+	NE(diropargs_to_path(&(args->to), &to, NULL, conn));
+	OE(_swix(OS_FSControl, _INR(0,2), 25, from, to));
+	/* FIXME set filetype if changed */
 }
 
 
@@ -424,7 +447,15 @@ void NFSPROC_GETATTR(struct getattrargs *args, struct attrstat *res, struct serv
 
 void NFSPROC_MKDIR(struct mkdirargs *args, struct createres *res, struct server_conn *conn)
 {
+	char *path;
+
 	printf("NFSPROC_MKDIR\n");
+
+	NE(diropargs_to_path(&(args->where), &path, NULL, conn));
+	OE(_swix(OS_File, _INR(0,1) | _IN(4), 8, path, 0));
+	NE(set_attr(path, &(args->attributes), conn));
+	NE(path_to_nfs2fh(path, &(res->u.diropok.file), conn));
+	NE(get_fattr(path, &(res->u.diropok.attributes), conn));
 }
 
 void NFSPROC_SETATTR(struct sattrargs *args, struct sattrres *res, struct server_conn *conn)

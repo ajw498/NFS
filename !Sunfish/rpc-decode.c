@@ -87,7 +87,7 @@ buffer_overflow:
 
 void rpc_decode(void)
 {
-	struct server_conn conn = {"", 1};
+	struct server_conn conn = {"", 0};
 
 	process_struct_rpc_msg(INPUT, call_header, 0);
 	reply_header.xid = call_header.xid;
