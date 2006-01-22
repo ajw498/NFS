@@ -47,15 +47,6 @@ typedef _kernel_oserror os_error;
 	} \
 } while (0)
 
-static enum nstat oserr_to_nfserr(int errnum)
-{
-	switch (errnum) {
-	case 0x117c6: return NFSERR_NOSPC;
-	case 0x117b4: return NFSERR_NOTEMPTY;
-	case 0xb0: return (enum nstat)18; /*NFS3ERR_XDEV */
-	}
-	return NFSERR_IO;
-}
 
 #define OE(x) do { \
 	os_error *err = x; \
@@ -68,6 +59,15 @@ static enum nstat oserr_to_nfserr(int errnum)
 	} \
 } while (0)
 
+#define NR(x) do { \
+	enum nstat status = x; \
+	if (status != NFS_OK) return status; \
+} while (0)
+
+#define UR(x) do { \
+	if ((x) == NULL) return NFSERR_IO; \
+} while (0)
+
 #define OR(x) do { \
 	os_error *err = x; \
 	if (err) { \
@@ -75,6 +75,18 @@ static enum nstat oserr_to_nfserr(int errnum)
 		return oserr_to_nfserr(err->errnum); \
 	} \
 } while (0)
+
+static enum nstat oserr_to_nfserr(int errnum)
+{
+	switch (errnum) {
+	case 0x117b4: return NFSERR_NOTEMPTY;
+	case 0x117c3: return NFSERR_ACCES;
+	case 0x117c6: return NFSERR_NOSPC;
+	case 0x80344a: return NFSERR_ROFS;
+	case 0xb0: return (enum nstat)18; /*NFS3ERR_XDEV */
+	}
+	return NFSERR_IO;
+}
 
 static void *palloc(size_t size, struct server_conn *conn)
 {
@@ -86,6 +98,7 @@ static enum nstat nfs2fh_to_path(struct nfs_fh *fhandle, char **path, struct ser
 	*path = malloc(1024);
 	if (*path == NULL) return NFSERR_IO;
 	sprintf(*path, "RAM::0.$%s", fhandle->data);
+/*	sprintf(*path, "CDFS::1.$%s", fhandle->data);*/
 	return NFS_OK;
 }
 
@@ -148,7 +161,7 @@ static enum nstat get_fattr(char *path, struct fattr *fattr, struct server_conn 
 	} else if (type == 0) {
 		return NFSERR_NOENT;
 	} else {
-		fattr->type = type == 3 ? (conn->image_as_file ? NFREG : NFDIR) :
+		fattr->type = type == 3 ? (/*conn->image_as_file ? NFREG : */NFDIR) :
 		              type == 2 ? NFDIR : NFREG;
 		fattr->mode = fattr->type == NFDIR ? 040000 : 0100000;
 		fattr->mode |= (attr & 0x01) << 8; /* Owner read */
@@ -199,15 +212,6 @@ static void timeval_to_loadexec(struct ntimeval *unixtime, int filetype, unsigne
 	*exec = (unsigned int)(csecs & 0xFFFFFFFF);
 }
 
-/*          struct sattr {
-              unsigned int mode;
-              unsigned int uid;
-              unsigned int gid;
-              unsigned int size;
-              timeval      atime;
-              timeval      mtime;
-          };
-*/
 
 static enum nstat set_attr(char *path, struct sattr *sattr, struct server_conn *conn)
 {
@@ -234,6 +238,27 @@ static enum nstat set_attr(char *path, struct sattr *sattr, struct server_conn *
 }
 
 
+static enum nstat diropargs_to_path(struct diropargs *where, char **path, int *filetype, struct server_conn *conn)
+{
+	int len;
+	char *dirpath;
+
+	NR(nfs2fh_to_path(&(where->dir), &dirpath, conn));
+
+	len = strlen(dirpath);
+	UR(*path = palloc(len + where->name.size + 2, conn));
+
+	memcpy(*path, dirpath, len);
+	(*path)[len++] = '.';
+	memcpy(*path + len, where->name.data, where->name.size);
+	len += where->name.size;
+	(*path)[len] = '\0';
+	/*FIXME - handle ,xyz */
+	if (filetype) *filetype = 0xfff;
+
+	return NFS_OK;
+}
+
 enum accept_stat NFSPROC_NULL(struct server_conn *conn)
 {
 	printf("NFSPROC_NULL\n");
@@ -258,7 +283,7 @@ enum accept_stat NFSPROC_LOOKUP(struct diropargs *args, struct diropres *res, st
 	memcpy(filename + len - args->name.size - 1, args->name.data, args->name.size);
 	filename[len - 1] = '\0';
 	NE(path_to_nfs2fh(filename, &(res->u.diropok.file), conn));
-	res->status = get_fattr(filename, &(res->u.diropok.attributes), conn);
+	NE(get_fattr(filename, &(res->u.diropok.attributes), conn));
 	return SUCCESS;
 }
 
@@ -326,36 +351,11 @@ enum accept_stat NFSPROC_WRITE(struct writeargs *args, struct attrstat *res, str
 
 	NE(nfs2fh_to_path(&(args->file), &path, conn));
 	OE(_swix(OS_Find, _INR(0,1) | _OUT(0), 0xC3, path, &handle));
-	/*FIXME verify count is sensible (and offset?) */
 	/*FIXME close handle on error (done by handle timeout?)*/
 	OE(_swix(OS_GBPB, _INR(0,4), 1, handle, args->data.data, args->data.size, args->offset));
 	OE(_swix(OS_Find, _INR(0,1), 0, handle));
 	NE(get_fattr(path, &(res->u.attributes), conn));
 	return SUCCESS;
-}
-
-static enum nstat diropargs_to_path(struct diropargs *where, char **path, int *filetype, struct server_conn *conn)
-{
-	int len;
-	enum nstat res;
-	char *dirpath;
-
-	res = nfs2fh_to_path(&(where->dir), &dirpath, conn);
-	if (res != NFS_OK) return res;
-
-	len = strlen(dirpath);
-	*path = palloc(len + where->name.size + 2, conn);
-	if (*path == NULL) return NFSERR_IO;
-
-	memcpy(*path, dirpath, len);
-	(*path)[len++] = '.';
-	memcpy(*path + len, where->name.data, where->name.size);
-	len += where->name.size;
-	(*path)[len] = '\0';
-	/*FIXME - handle ,xyz */
-	if (filetype) *filetype = 0xfff;
-
-	return NFS_OK;
 }
 
 enum accept_stat NFSPROC_CREATE(struct createargs *args, struct createres *res, struct server_conn *conn)
@@ -365,6 +365,7 @@ enum accept_stat NFSPROC_CREATE(struct createargs *args, struct createres *res, 
 	int size;
 
 	printf("NFSPROC_CREATE\n");
+
 	NE(diropargs_to_path(&(args->where), &path, &filetype, conn));
 	size = args->attributes.size == -1 ? 0 : args->attributes.size;
 	if (size < 0) NE(NFSERR_FBIG);
@@ -372,10 +373,9 @@ enum accept_stat NFSPROC_CREATE(struct createargs *args, struct createres *res, 
 	NE(set_attr(path, &(args->attributes), conn));
 	NE(path_to_nfs2fh(path, &(res->u.diropok.file), conn));
 	NE(get_fattr(path, &(res->u.diropok.attributes), conn));
+
 	return SUCCESS;
 }
-
-
 
 enum accept_stat NFSPROC_RMDIR(struct diropargs *args, struct removeres *res, struct server_conn *conn)
 {
@@ -385,7 +385,7 @@ enum accept_stat NFSPROC_RMDIR(struct diropargs *args, struct removeres *res, st
 
 	NE(diropargs_to_path(args, &path, NULL, conn));
 	OE(_swix(OS_File, _INR(0,1), 6, path));
-	/*FIXME will error if locked or open */
+
 	return SUCCESS;
 }
 
@@ -397,7 +397,7 @@ enum accept_stat NFSPROC_REMOVE(struct diropargs *args, struct removeres *res, s
 
 	NE(diropargs_to_path(args, &path, NULL, conn));
 	OE(_swix(OS_File, _INR(0,1), 6, path));
-	/*FIXME will error if locked or open */
+
 	return SUCCESS;
 }
 
@@ -424,6 +424,7 @@ enum accept_stat NFSPROC_GETATTR(struct getattrargs *args, struct attrstat *res,
 
 	NE(nfs2fh_to_path(&(args->fhandle), &path, conn));
 	NE(get_fattr(path, &(res->u.attributes), conn));
+
 	return SUCCESS;
 }
 
@@ -438,6 +439,7 @@ enum accept_stat NFSPROC_MKDIR(struct mkdirargs *args, struct createres *res, st
 	NE(set_attr(path, &(args->attributes), conn));
 	NE(path_to_nfs2fh(path, &(res->u.diropok.file), conn));
 	NE(get_fattr(path, &(res->u.diropok.attributes), conn));
+
 	return SUCCESS;
 }
 
@@ -450,19 +452,45 @@ enum accept_stat NFSPROC_SETATTR(struct sattrargs *args, struct sattrres *res, s
 	NE(nfs2fh_to_path(&(args->file), &path, conn));
 	NE(set_attr(path, &(args->attributes), conn));
 	NE(get_fattr(path, &(res->u.attributes), conn));
+
 	return SUCCESS;
 }
 
 enum accept_stat NFSPROC_STATFS(struct statfsargs *args, struct statfsres *res, struct server_conn *conn)
 {
+	char *path;
+	unsigned int freelo;
+	unsigned int freehi;
+	unsigned int sizelo;
+	unsigned int sizehi;
+
 	printf("NFSPROC_STATFS\n");
-	/*FIXME - get proper values*/
-	res->status = NFS_OK;
-	res->u.info.tsize = 4096;
+
+	/* Assume the block size is 4k for simplicity */
 	res->u.info.bsize = 4096;
-	res->u.info.blocks = 4096;
-	res->u.info.bfree = 4096;
-	res->u.info.bavail = 4096;
+
+	NE(nfs2fh_to_path(&(args->fhandle), &path, conn));
+	if (_swix(OS_FSControl, _INR(0,1) | _OUTR(0,1) | _OUTR(3,4), 55, path, &freelo, &freehi, &sizelo, &sizehi)) {
+		OE(_swix(OS_FSControl, _INR(0,1) | _OUT(0) | _OUT(2), 49, path, &freelo, &sizelo));
+		freehi = 0;
+		sizehi = 0;
+	}
+
+	if (freehi & 0xFFFFF000) {
+		res->u.info.bfree = 0xFFFFFFFF;
+	} else {
+		res->u.info.bfree = (freehi << 20) | (freelo >> 12);
+	}
+	res->u.info.bavail = res->u.info.bfree;
+
+	if (sizehi & 0xFFFFF000) {
+		res->u.info.blocks = 0xFFFFFFFF;
+	} else {
+		res->u.info.blocks = (sizehi << 20) | (sizelo >> 12);
+	}
+
+	res->u.info.tsize = conn->transfersize;
+
 	return SUCCESS;
 }
 

@@ -25,16 +25,44 @@
 #ifndef RPC_DECODE_H
 #define RPC_DECODE_H
 
-struct server_conn {
+struct pool {
+	char *mem;
+};
+
+struct export {
 	char *basedir;
+	char *exportname;
+	int rw;
+	int matchuid;
+	int uid;
+	int matchgid;
+	int gid;
+	int host;
+	int mask;
 	int image_as_file;
+	struct export *next;
+};
+
+struct server_conn {
+	struct export *export;
+	struct export *exports;
+	int tcp;
+	int transfersize;
+	int uid;
+	int gid;
+	int host;
+	struct pool *pool;
+	char *request;
+	int requestlen;
+	char *reply;
+	int replylen;
 };
 
 void *llmalloc(int size);
 
-void init_output(void);
+void init_output(struct server_conn *conn);
 
-void rpc_decode(void);
+void rpc_decode(struct server_conn *conn);
 
 #endif
 

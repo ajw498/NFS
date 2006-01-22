@@ -56,39 +56,37 @@
    an optimum size, but nothing bad will happen */
 #define MAX_HDRLEN 416
 
-#define MAX_DATABUFFER 32000 /*FIXME*/
+#define MAX_DATABUFFER (32*1024)
+#define MAX_UDPBUFFER 4096
+
 
 /* The size to use for tx and rx buffers */
 #define BUFFERSIZE (MAX_HDRLEN + MAX_DATABUFFER)
 
 
+/* These point to the current buffer for tx or rx, and are used by
+   the process_* macros to read/write data from/to */
+char *buf;
+char *bufend;
 
 static struct rpc_msg call_header;
 static struct rpc_msg reply_header;
 
+static char tmpoutbuf[32*1024];
 
-/* Buffer to allocate linked list structures from. Should be significanly
-   faster than using the RMA, doesn't require freeing each element of
-   the list, and won't fragment */
-static char malloc_buffer[MAX_DATABUFFER];
-/* The start of the next location to return for linked list malloc */
-static char *nextmalloc;
-
-extern char *output_buf;
-
-void init_output(void)
+void init_output(struct server_conn *conn)
 {
-	buf = output_buf;
+	conn->reply = buf = tmpoutbuf;
 	bufend = buf + 32*1024;
 	process_struct_rpc_msg(OUTPUT, reply_header, 0);
 buffer_overflow:
 	return;
 }
 
-void rpc_decode(void)
+void rpc_decode(struct server_conn *conn)
 {
-	struct server_conn conn = {"", 0};
-
+	buf = conn->request;
+	bufend = buf + conn->requestlen;
 	process_struct_rpc_msg(INPUT, call_header, 0);
 	reply_header.xid = call_header.xid;
 	reply_header.body.mtype = REPLY;
@@ -117,7 +115,7 @@ void rpc_decode(void)
 	case 100000/*PMAP_RPC_PROGRAM*/:
 		switch (call_header.body.u.cbody.vers) {
 		case 2/*PMAP_RPC_VERSION*/:
-			reply_header.body.u.rbody.u.areply.reply_data.stat = portmapper_decode(call_header.body.u.cbody.proc, &conn);
+			reply_header.body.u.rbody.u.areply.reply_data.stat = portmapper_decode(call_header.body.u.cbody.proc, conn);
 			printf("ret %d\n", reply_header.body.u.rbody.u.areply.reply_data.stat);
 			break;
 		default:
@@ -129,10 +127,10 @@ void rpc_decode(void)
 	case 100005/*MOUNT_RPC_PROGRAM*/:
 		switch (call_header.body.u.cbody.vers) {
 		case 1:
-			reply_header.body.u.rbody.u.areply.reply_data.stat = mount1_decode(call_header.body.u.cbody.proc, &conn);
+			reply_header.body.u.rbody.u.areply.reply_data.stat = mount1_decode(call_header.body.u.cbody.proc, conn);
 			break;
 		case 3:
-			reply_header.body.u.rbody.u.areply.reply_data.stat = mount3_decode(call_header.body.u.cbody.proc, &conn);
+			reply_header.body.u.rbody.u.areply.reply_data.stat = mount3_decode(call_header.body.u.cbody.proc, conn);
 			break;
 		default:
 			reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_MISMATCH;
@@ -143,7 +141,7 @@ void rpc_decode(void)
 	case 100003/*NFS2_RPC_PROGRAM*/:
 		switch (call_header.body.u.cbody.vers) {
 		case 2/*NFS2_RPC_VERSION*/:
-			reply_header.body.u.rbody.u.areply.reply_data.stat = nfs2_decode(call_header.body.u.cbody.proc, &conn);
+			reply_header.body.u.rbody.u.areply.reply_data.stat = nfs2_decode(call_header.body.u.cbody.proc, conn);
 			break;
 		default:
 			reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_MISMATCH;
@@ -155,10 +153,12 @@ void rpc_decode(void)
 		reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_UNAVAIL;
 	}
 
+	conn->replylen = buf - conn->reply;
 	if (reply_header.body.u.rbody.u.areply.reply_data.stat == SUCCESS) return;
 
 error:
-	init_output();
+	init_output(conn);
+	conn->replylen = buf - conn->reply;
 	return;
 
 buffer_overflow:

@@ -46,6 +46,8 @@
 
 #include "portmapper-recv.h"
 
+#include "rpc-decode.h"
+
 /* The worstcase size of a header for read/write calls.
    If this value is not big enough, the data part will not be of
    an optimum size, but nothing bad will happen */
@@ -70,18 +72,12 @@ static char malloc_buffer[MAX_DATABUFFER];
 /* The start of the next location to return for linked list malloc */
 static char *nextmalloc;
 
-/* These point to the current buffer for tx or rx, and are used by
-   the process_* macros to read/write data from/to */
-char *buf;
-char *bufend;
 
-char obuf[32*1024];
-char *output_buf = obuf;
-int sock = -1;
+static int sock = -1;
 
 
 /* Generate a RISC OS error block based on the given number and message */
-os_error *gen_error(int num, char *msg, ...)
+static os_error *gen_error(int num, char *msg, ...)
 {
 	static os_error module_err_buf;
 	va_list ap;
@@ -155,7 +151,6 @@ void *llmalloc(int size)
 	return mem;
 }
 
-void rpc_decode(void);
 
 int main(void)
 {
@@ -163,6 +158,9 @@ int main(void)
 	char tmp_buf[32*1024];
 	struct sockaddr host;
 	int addrlen;
+	struct server_conn conn;
+
+	conn.transfersize = 4096;
 
 	rpc_create_socket(111,0);
 /*	sock = accept(sock, &host, &addrlen);
@@ -173,11 +171,13 @@ int main(void)
 		len = recvfrom(sock, tmp_buf, 32*1024, 0, &host, &addrlen);
 		printf("%d bytes read\n",len);
 		if (len <= 0) break;
-		buf = tmp_buf;
-		bufend = buf + 32*1024;
-		rpc_decode();
-/*		logdata(0, output_buf, buf - output_buf); */
-		sendto(sock, output_buf, buf - output_buf, 0, &host, addrlen);
+		conn.request = tmp_buf;
+		conn.requestlen = len;
+		rpc_decode(&conn);
+		if (conn.reply) {
+/*			logdata(0, output_buf, buf - output_buf); */
+			sendto(sock, conn.reply, conn.replylen, 0, &host, addrlen);
+		}
 	}
 	if (sock != -1) close(sock);
 	return 0;

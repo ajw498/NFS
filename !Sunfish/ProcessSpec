@@ -356,7 +356,7 @@ while (<>) {
       print RECV "&res, " if ($restype ne "");
       print RECV "conn);\n";
       print RECV "\tif (success == SUCCESS) {\n";
-      print RECV "\t\tinit_output();\n";
+      print RECV "\t\tinit_output(conn);\n";
       print RECV "\t\tprocess_$types{$res}";
       print RECV "_$res" if (($types{$res} =~ /(struct)|(union)|(linklist)/));
       print RECV "(OUTPUT, res, $typessize{$res});\n";
