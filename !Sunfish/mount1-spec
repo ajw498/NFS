@@ -50,7 +50,11 @@ struct *mountlist {
         mountlist *next;
 };
 
-/*mountlist MNTPROC_DUMP(void) = 2;*/
+struct mountlist2 {
+        mountlist *list;
+};
+
+mountlist2 MNTPROC_DUMP(void) = 2;
 
 void MNTPROC_UMNT(dirpath) = 3;
 
@@ -67,6 +71,10 @@ struct *exportlist {
         exportlist *next;
 };
 
-/*exportlist MNTPROC_EXPORT(void) = 5;*/
+struct exportlist2 {
+	exportlist *list;
+};
+
+exportlist2 MNTPROC_EXPORT(void) = 5;
 
 

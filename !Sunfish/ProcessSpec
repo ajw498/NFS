@@ -34,6 +34,7 @@ my $nextunnamed = 1;
 my @unnamed;
 my $spectype = shift @ARGV;
 my $firstcase;
+my $llcount = 0;
 
 open(PROCS,">$spectype-process1.h") or die $^E;
 open(UNIONS,">$spectype-process2.h") or die $^E;
@@ -105,11 +106,11 @@ while (<>) {
         print UNIONS "}} while (0)\n\n";
       } elsif ($state eq "linklist") {
         print STRUCTS "};\n";
-        print PROCS "ptr = &((*ptr)->next);\\\n";
+        print PROCS "ptr$llcount = &((*ptr$llcount)->next);\\\n";
         print PROCS "}\\\n";
         print PROCS "} while (opted);\\\n";
         print PROCS "if (input) {\\\n";
-        print PROCS "*ptr = NULL;\\\n";
+        print PROCS "*ptr$llcount = NULL;\\\n";
         print PROCS "}\\\n";
         $structbase = "structbase.";
       } else {
@@ -224,22 +225,23 @@ while (<>) {
       $name = $1;
       $types{$name} = $state = "linklist";
       $typessize{$name} = 0;
+      $llcount++;
       print STRUCTS "struct ${name} {\n";
       print PROCS "#ifndef process_linklist_${name}\n";
       print PROCS "#define process_linklist_${name}(input, structbase, maxsize) do {\\\n";
-      print PROCS "struct $name **ptr = &structbase;\\\n";
+      print PROCS "struct $name **ptr$llcount = &structbase;\\\n";
       print PROCS "int opted = 0;\\\n";
       print PROCS "do {\\\n";
       print PROCS "if (!input) {\\\n";
-      print PROCS "opted = (*ptr) != NULL;\\\n";
+      print PROCS "opted = (*ptr$llcount) != NULL;\\\n";
       print PROCS "}\\\n";
       print PROCS "process_int(input, opted, 0);\\\n";
       print PROCS "if (opted) {\\\n";
       print PROCS "if (input) {\\\n";
-      print PROCS "*ptr = llmalloc(sizeof(struct $name));\\\n";
-      print PROCS "if (*ptr == NULL) goto buffer_overflow;\\\n";
+      print PROCS "*ptr$llcount = llmalloc(sizeof(struct $name));\\\n";
+      print PROCS "if (*ptr$llcount == NULL) goto buffer_overflow;\\\n";
       print PROCS "}\\\n";
-      $structbase = "(*ptr)->";
+      $structbase = "(*ptr$llcount)->";
     } elsif (/^\s*struct *(\w*) /) {
       print STRUCTS;
       $name = $1;
@@ -348,6 +350,7 @@ while (<>) {
       print RECV "case $procno: {\n";
       print RECV "\t$argtype args;\n" if ($argtype ne "");
       print RECV "\t$restype res;\n" if ($restype ne "");
+      print RECV "\t$restype *res2 = &res;\n" if (($types{$res} =~ /linklist/));
       print RECV "\tprocess_$types{$args}";
       print RECV "_${args}" if (($types{$args} =~ /(struct)|(union)|(linklist)/));
       print RECV "(INPUT, args, $typessize{$args});\n";
@@ -359,7 +362,9 @@ while (<>) {
       print RECV "\t\tinit_output(conn);\n";
       print RECV "\t\tprocess_$types{$res}";
       print RECV "_$res" if (($types{$res} =~ /(struct)|(union)|(linklist)/));
-      print RECV "(OUTPUT, res, $typessize{$res});\n";
+      print RECV "(OUTPUT, res";
+      print RECV "2" if (($types{$res} =~ /linklist/));
+      print RECV ", $typessize{$res});\n";
       print RECV "\t}\n";
       print RECV "}\nbreak;\n";
     } elsif (/\/\*.*\*\//) {

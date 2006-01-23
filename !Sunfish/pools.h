@@ -2,7 +2,7 @@
 	$Id$
 	$URL$
 
-	Functions to implement decoding of recieved RPC calls.
+	Memory pool allocation routines
 
 
 	Copyright (C) 2006 Alex Waugh
@@ -22,48 +22,32 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#ifndef RPC_DECODE_H
-#define RPC_DECODE_H
+#ifndef POOLS_H
+#define POOLS_H
 
-#include "pools.h"
+#include <stdlib.h>
 
-struct export {
-	char *basedir;
-	size_t basedirlen;
-	int basedirhash;
-	int exportnum;
-	char *exportname;
-	int ro;
-	int matchuid;
-	int uid;
-	int matchgid;
-	int gid;
-	unsigned int host;
-	unsigned int mask;
-	int imagefs;
-	struct export *next;
+struct pool {
+	struct pool *next;
+	char *start;
+	size_t free;
+	/* Actual memory follows */
 };
 
-struct server_conn {
-	struct export *export;
-	struct export *exports;
-	int tcp;
-	int transfersize;
-	int uid;
-	int gid;
-	unsigned int host;
-	struct pool *pool;
-	char *request;
-	int requestlen;
-	char *reply;
-	int replylen;
-};
+/* Initialise a new pool. */
+struct pool *pinit(void);
 
-void *llmalloc(int size);
+/* Allocate some memory from a pool. */
+void *palloc(size_t size, struct pool *pool);
 
-void init_output(struct server_conn *conn);
+/* strdup from a pool. */
+char *pstrdup(char *src, struct pool *pool);
 
-void rpc_decode(struct server_conn *conn);
+/* Free the pool and all its contents */
+void pfree(struct pool *pool);
+
+/* Free the pool contents (but not the pool itself). */
+void pclear(struct pool *pool);
 
 #endif
 

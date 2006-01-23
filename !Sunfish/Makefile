@@ -33,6 +33,23 @@ MODULE = -zM
 endif
 
 
+GENHDRS = \
+rpc-calls.h \
+nfs3-calls.h \
+mount3-calls.h \
+nfs2-calls.h \
+mount1-calls.h \
+portmapper-calls.h \
+pcnfsd-calls.h
+
+GENOBJS = \
+rpc-calls.o \
+mount3-calls.o \
+mount1-calls.o \
+nfs2-calls.o \
+nfs3-calls.o \
+portmapper-calls.o \
+pcnfsd-calls.o
 
 
 all: Sunfish !RunImage
@@ -40,16 +57,19 @@ all: Sunfish !RunImage
 !RunImage: frontend.c moduledefs.h
 	$(CC) $(CFLAGS) frontend.c -o !RunImage  $(LIBS)
 
-DEBUGSERVEROBJ = debug-server.o rpc-decode.o portmapper-procs.o mount1-procs.o mount3-procs.o portmapper-recv.o mount1-recv.o mount3-recv.o nfs2-recv.o nfs2-procs.o
+DEBUGSERVEROBJ = debug-server.o rpc-decode.o portmapper-procs.o mount1-procs.o mount3-procs.o portmapper-recv.o mount1-recv.o mount3-recv.o nfs2-recv.o nfs2-procs.o pools.o
 
 debug-server: $(DEBUGSERVEROBJ)
 	$(CC) $(CFLAGS) $(DEBUGSERVEROBJ) -o debug-server $(LIBS)
 
-debug-server.o: debug-server.c
+debug-server.o: debug-server.c $(GENHDRS)
 	$(CC) $(CFLAGS) -c debug-server.c -o $@
 
 rpc-decode.o: rpc-decode.c
 	$(CC) $(CFLAGS) -c rpc-decode.c -o $@
+
+pools.o: pools.c
+	$(CC) $(CFLAGS) -c pools.c -o $@
 
 portmapper-procs.o: portmapper-procs.c portmapper-procs.h
 	$(CC) $(CFLAGS) -c portmapper-procs.c -o $@
@@ -94,23 +114,6 @@ pcnfsd-calls.c pcnfsd-calls.h: pcnfsd-spec ProcessSpec
 	perl ProcessSpec pcnfsd pcnfsd-spec
 
 
-GENHDRS = \
-rpc-calls.h \
-nfs3-calls.h \
-mount3-calls.h \
-nfs2-calls.h \
-mount1-calls.h \
-portmapper-calls.h \
-pcnfsd-calls.h
-
-GENOBJS = \
-rpc-calls.o \
-mount3-calls.o \
-mount1-calls.o \
-nfs2-calls.o \
-nfs3-calls.o \
-portmapper-calls.o \
-pcnfsd-calls.o
 
 
 OBJS = \
@@ -189,3 +192,6 @@ clean:
 	-wipe h.*-calls ~CFR~V
 	-wipe h.*-process* ~CFR~V
 	-wipe h.*-structs ~CFR~V
+	-wipe h.*-procs ~CFR~V
+	-wipe h.*-recv ~CFR~V
+	-wipe c.*-recv ~CFR~V

@@ -39,6 +39,8 @@
 #include <sys/errno.h>
 #include <unixlib.h>
 #include <stdarg.h>
+#include <ctype.h>
+
 
 #include "rpc-structs.h"
 #include "rpc-process1.h"
@@ -61,7 +63,6 @@
 typedef _kernel_oserror os_error;
 
 #define RPCERRBASE 1
-
 
 
 
@@ -151,6 +152,131 @@ void *llmalloc(int size)
 	return mem;
 }
 
+#define CHECK(str) (strncasecmp(opt,str,sizeof(str))==0)
+
+int calc_fileid(char *path, char *leaf);
+
+static struct export *parse_line(char *line)
+{
+	char *basedir;
+	char *exportname;
+	char *host;
+	struct export *export;
+	static int exportnum = 0;
+
+	while (isspace(*line)) line++;
+	if (*line == '#' || *line == '\0') return NULL;
+	basedir = line;
+	while (*line && !isspace(*line)) line++;
+	if (*line) *line++ = '\0';
+	while (isspace(*line)) line++;
+	exportname = line;
+	while (*line && !isspace(*line)) line++;
+	if (*line) *line++ = '\0';
+	while (isspace(*line)) line++;
+	host = line;
+	while (*line && *line != '(') line++;
+	if (*line) *line++ = '\0';
+
+	export = malloc(sizeof(struct export));
+	if (export == NULL) {
+		/*FIXME*/
+		return NULL;
+	}
+
+	/* Set defaults */
+	export->ro = 1;
+	export->matchuid = 1;
+	export->uid = 0;
+	export->matchuid = 1;
+	export->uid = 0;
+	export->host = 0;
+	export->mask = 0xFFFFFFFF;
+	export->imagefs = 0;
+	export->next = NULL;
+
+	export->basedir = strdup(basedir);
+	if (export->basedir == NULL) {
+		/*FIXME*/
+		free(export);
+		return NULL;
+	}
+	export->basedirlen = strlen(basedir);
+	export->basedirhash = calc_fileid(basedir, NULL) & 0xFF;
+	export->exportnum = exportnum++;
+	/*FIXME if exportnum > 128 then error */
+
+	export->exportname = strdup(exportname);
+	if (export->basedir == NULL) {
+		/*FIXME*/
+		free(export->basedir);
+		free(export);
+		return NULL;
+	}
+
+	while (*line) {
+		char *opt;
+		while (isspace(*line)) line++;
+		opt = line;
+		while (*line && *line != ')' && *line != ',') line++;
+		if (*line) *line++ = '\0';
+
+		if (CHECK("wr")) {
+			export->ro = 0;
+		} else if (CHECK("ro")) {
+			export->ro = 1;
+		} else if (CHECK("uid") && opt[3] == '=') {
+			export->matchuid = 1;
+			export->uid = atoi(opt + 4);
+		} else if (CHECK("gid") && opt[3] == '=') {
+			export->matchgid = 1;
+			export->gid = atoi(opt + 4);
+		} else if (CHECK("imagefs")) {
+			export->imagefs = 1;
+		}
+	}
+
+	return export;
+}
+
+static struct export *parse_config_file(void)
+{
+	char line[1024];
+	FILE *file;
+	struct export *exports = NULL;
+
+	file = fopen("Choices:Moonfish.exports","r");
+	if (file == NULL) {
+		printf("Can't open exports file\n");
+		return NULL;
+	}
+
+	while (fgets(line, sizeof(line), file)) {
+		struct export *export;
+
+		export = parse_line(line);
+		if (export) {
+			export->next = exports;
+			exports = export;
+		}
+	}
+	fclose(file);
+
+	return exports;
+}
+
+static void free_exports(struct export *export)
+{
+	while (export) {
+		struct export *next;
+
+		free(export->basedir);
+		free(export->exportname);
+		next = export->next;
+		free(export);
+		export = next;
+	}
+}
 
 int main(void)
 {
@@ -161,6 +287,12 @@ int main(void)
 	struct server_conn conn;
 
 	conn.transfersize = 4096;
+	conn.pool = pinit();
+	conn.exports = parse_config_file();
+	if (conn.exports == NULL) {
+		printf("Couldn't read any exports\n");
+		return 1;
+	}
 
 	rpc_create_socket(111,0);
 /*	sock = accept(sock, &host, &addrlen);
@@ -173,6 +305,7 @@ int main(void)
 		if (len <= 0) break;
 		conn.request = tmp_buf;
 		conn.requestlen = len;
+		conn.export = NULL;
 		rpc_decode(&conn);
 		if (conn.reply) {
 /*			logdata(0, output_buf, buf - output_buf); */
@@ -180,6 +313,7 @@ int main(void)
 		}
 	}
 	if (sock != -1) close(sock);
+	free_exports(conn.exports);
 	return 0;
 }
 
