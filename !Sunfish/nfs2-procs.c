@@ -90,15 +90,33 @@ static enum nstat oserr_to_nfserr(int errnum)
 	return NFSERR_IO;
 }
 
+
+#define MAXPATH 1024
+
+static enum nstat copypath(char *dest, int destlen, char *src, int srclen)
+{
+	while (srclen > 0 && *src) {
+		if (destlen < 1) return NFSERR_NAMETOOLONG;
+		if (!(isalnum(*src) || *src == '.')) return NFSERR_STALE; /*FIXME - allow more */
+		*dest++ = *src++;
+		destlen--;
+		srclen--;
+	}
+	if (destlen < 1) return NFSERR_NAMETOOLONG;
+	*dest = '\0';
+	return NFS_OK;
+}
+
 static enum nstat nfs2fh_to_path(struct nfs_fh *fhandle, char **path, struct server_conn *conn)
 {
 	int extendedfh;
 	int exportnum;
 	int hash;
 
-	extendedfh = ((((unsigned char)(fhandle->data[0])) & 0x10) != 0);
+	extendedfh = ((((unsigned char)(fhandle->data[0])) & 0x80) != 0);
 	exportnum = fhandle->data[0] & 0x7F;
 	hash = fhandle->data[1];
+	/* FIXME - add a hash of full path or a timestamp to weed out and extended handles from an earlier run */
 
 	if (conn->export == NULL) {
 		conn->export = conn->exports;
@@ -110,7 +128,60 @@ static enum nstat nfs2fh_to_path(struct nfs_fh *fhandle, char **path, struct ser
 	if (conn->export->basedirhash != hash) return NFSERR_STALE;
 
 	if (extendedfh) {
+		char *dest;
+		int pathremain;
+		int fhremain;
+		char *fh;
+		struct pathentry *pathentry = conn->export->pathentry;
 		/*FIXME*/
+		UR(*path = palloc(MAXPATH, conn->pool));
+		dest = *path;
+		memcpy(dest, conn->export->basedir, conn->export->basedirlen);
+		dest += conn->export->basedirlen;
+		pathremain = MAXPATH - conn->export->basedirlen;
+		fhremain = FHSIZE - 2;
+		fh = fhandle->data + 2;
+		while (fhremain > 0) {
+			if (*fh == 0xFF) {
+				if (pathremain < 1) return NFSERR_NAMETOOLONG;
+				*dest++ = '\0';
+				return NFS_OK;
+			} else if (*fh == 0xFE) {
+				fh++;
+				fhremain--;
+				*dest++ = '.';
+				pathremain--;
+				NR(copypath(dest, pathremain, fh, fhremain));
+				return NFS_OK;
+			} else {
+				int namelen;
+				int index;
+				if (*fh & 0x80) {
+					index = (*fh++ & 0x7F) << 8;
+					index |= *fh++;
+					fhremain -= 2;
+				} else {
+					index = *fh++;
+					fhremain--;
+				}
+				if (pathentry == NULL) return NFSERR_STALE;
+				while (index >= PATHENTRIES) {
+					pathentry = pathentry[PATHENTRIES].next;
+					if (pathentry == NULL) return NFSERR_STALE;
+					index -= PATHENTRIES;
+				}
+				if (pathentry[index].name == NULL) return NFSERR_STALE;
+				namelen = strlen(pathentry[index].name);
+				if (pathremain < namelen + 2) return NFSERR_NAMETOOLONG;
+				pathremain -= namelen + 1;
+				*dest++ = '.';
+				memcpy(dest, pathentry[index].name, namelen);
+				dest += namelen;
+				pathentry = pathentry[index].next;
+			}
+		}
+		if (pathremain < 1) return NFSERR_NAMETOOLONG;
+		*dest++ = '\0';
 	} else {
 		char *dest;
 		int i;
@@ -133,7 +204,7 @@ static enum nstat nfs2fh_to_path(struct nfs_fh *fhandle, char **path, struct ser
 	return NFS_OK;
 }
 
-static enum nstat path_to_nfs2fh(char *path, struct nfs_fh *fhandle, struct server_conn *conn)
+static enum nstat path_to_nfs2fh(char *path, int filetype, struct nfs_fh *fhandle, struct server_conn *conn)
 {
 	size_t len;
 	memset(fhandle->data, 0, FHSIZE);
@@ -147,7 +218,76 @@ static enum nstat path_to_nfs2fh(char *path, struct nfs_fh *fhandle, struct serv
 	len -= conn->export->basedirlen + 1;
 	if (len > FHSIZE - 2) {
 		/*FIXME extended FH*/
-		abort();
+		char *fh = fhandle->data;
+		int fhremain;
+		struct pathentry **pathentryptr;
+		struct pathentry *pathentry;
+
+		*fh++ = conn->export->exportnum | 0x80;
+		*fh++ = conn->export->basedirhash;
+		fhremain = FHSIZE - 2;
+		path += conn->export->basedirlen + 1;
+		pathentryptr = &(conn->export->pathentry);
+		pathentry = conn->export->pathentry;
+		while (len > 0) {
+			char *ch;
+			int segmentlen;
+			int index;
+			int i;
+
+			if (len < fhremain) {
+				*fh++ = 0xFE;
+				memcpy(fh, path, len);
+				return NFS_OK;
+			}
+			ch = path;
+			while (*ch && *ch != '.') ch++;
+			segmentlen = ch - path;
+			if (*ch == '.') ch++;
+			if (pathentry == NULL) {
+				UR(pathentry = *pathentryptr = palloc(sizeof(struct pathentry) * (PATHENTRIES + 1), conn->export->pool));
+				memset(pathentry, 0, sizeof(struct pathentry) * (PATHENTRIES + 1));
+			}
+			index = 0;
+			i = PATHENTRIES;
+			while (i == PATHENTRIES) {
+				for (i = 0; i < PATHENTRIES && pathentry[i].name; i++) {
+					if (strncmp(pathentry[i].name, path, segmentlen) == 0) break;
+				}
+				index += i;
+				if (i == PATHENTRIES) {
+					if (pathentry[i].next == NULL) {
+						UR(pathentry[i].next = palloc(sizeof(struct pathentry) * (PATHENTRIES + 1), conn->export->pool));
+						memset(pathentry[i].next, 0, sizeof(struct pathentry) * (PATHENTRIES + 1));
+					}
+					pathentry = pathentry[i].next;
+				}
+			}
+			if (pathentry[i].name == NULL) {
+				UR(pathentry[i].name = palloc(segmentlen + 1, conn->export->pool));
+				memcpy(pathentry[i].name, path, segmentlen);
+				pathentry[i].name[segmentlen] = '\0';
+			}
+			pathentryptr = &(pathentry[i].next);
+			pathentry = pathentry[i].next;
+			if (index < 0x80) {
+				if (fhremain < 1) NR(NFSERR_NAMETOOLONG);
+				*fh++ = index;
+				fhremain--;
+				len -= (ch - path);
+				path = ch;
+			} else if (index < 0x7EFF) {
+				if (fhremain < 2) NR(NFSERR_NAMETOOLONG);
+				*fh++ = ((index & 0x7F00) >> 8) | 0x80;
+				*fh++ = (index & 0xFF);
+				fhremain -= 2;
+				len -= (ch - path);
+				path = ch;
+			} else {
+				NR(NFSERR_NAMETOOLONG);
+			}
+		}
+		if (fhremain > 0) *fh++ = 0xFF;
 	} else {
 		fhandle->data[0] = conn->export->exportnum;
 		fhandle->data[1] = conn->export->basedirhash;
@@ -310,8 +450,6 @@ static enum nstat diropargs_to_path(struct diropargs *where, char **path, int *f
 
 enum accept_stat NFSPROC_NULL(struct server_conn *conn)
 {
-	printf("NFSPROC_NULL\n");
-
 	(void)conn;
 
 	return SUCCESS;
@@ -320,19 +458,12 @@ enum accept_stat NFSPROC_NULL(struct server_conn *conn)
 enum accept_stat NFSPROC_LOOKUP(struct diropargs *args, struct diropres *res, struct server_conn *conn)
 {
 	char *path;
-	char *filename;
-	size_t len;
+	int filetype;
 
-	printf("NFSPROC_LOOKUP\n");
-	NE(nfs2fh_to_path(&(args->dir), &path, conn));
-	len = strlen(path) + args->name.size + 2;
-	UE(filename = palloc(len, conn->pool));
-	strcpy(filename, path);
-	strcat(filename, ".");
-	memcpy(filename + len - args->name.size - 1, args->name.data, args->name.size);
-	filename[len - 1] = '\0';
-	NE(path_to_nfs2fh(filename, &(res->u.diropok.file), conn));
-	NE(get_fattr(filename, &(res->u.diropok.attributes), conn));
+	NE(diropargs_to_path(args, &path, &filetype, conn));
+	NE(path_to_nfs2fh(path, filetype, &(res->u.diropok.file), conn));
+	NE(get_fattr(path, &(res->u.diropok.attributes), conn));
+
 	return SUCCESS;
 }
 
@@ -414,15 +545,14 @@ enum accept_stat NFSPROC_CREATE(struct createargs *args, struct createres *res, 
 	int filetype;
 	int size;
 
-	printf("NFSPROC_CREATE\n");
-
 	NE(diropargs_to_path(&(args->where), &path, &filetype, conn));
 	if (conn->export->ro) NE(NFSERR_ROFS);
 	size = args->attributes.size == -1 ? 0 : args->attributes.size;
 	if (size < 0) NE(NFSERR_FBIG);
+	/*FIXME - is file 0 extended?*/
 	OE(_swix(OS_File, _INR(0,5), 11, path, filetype, 0, 0, size));
 	NE(set_attr(path, &(args->attributes), conn));
-	NE(path_to_nfs2fh(path, &(res->u.diropok.file), conn));
+	NE(path_to_nfs2fh(path, filetype, &(res->u.diropok.file), conn));
 	NE(get_fattr(path, &(res->u.diropok.attributes), conn));
 
 	return SUCCESS;
@@ -431,8 +561,6 @@ enum accept_stat NFSPROC_CREATE(struct createargs *args, struct createres *res, 
 enum accept_stat NFSPROC_RMDIR(struct diropargs *args, struct removeres *res, struct server_conn *conn)
 {
 	char *path;
-
-	printf("NFSPROC_RMDIR\n");
 
 	NE(diropargs_to_path(args, &path, NULL, conn));
 	if (conn->export->ro) NE(NFSERR_ROFS);
@@ -444,8 +572,6 @@ enum accept_stat NFSPROC_RMDIR(struct diropargs *args, struct removeres *res, st
 enum accept_stat NFSPROC_REMOVE(struct diropargs *args, struct removeres *res, struct server_conn *conn)
 {
 	char *path;
-
-	printf("NFSPROC_REMOVE\n");
 
 	NE(diropargs_to_path(args, &path, NULL, conn));
 	if (conn->export->ro) NE(NFSERR_ROFS);
@@ -474,10 +600,9 @@ enum accept_stat NFSPROC_GETATTR(struct getattrargs *args, struct attrstat *res,
 {
 	char *path;
 
-	printf("NFSPROC_GETATTR\n");
-
 	NE(nfs2fh_to_path(&(args->fhandle), &path, conn));
 	NE(get_fattr(path, &(res->u.attributes), conn));
+	/*FIXME - fake directory timestamps */
 
 	return SUCCESS;
 }
@@ -485,14 +610,13 @@ enum accept_stat NFSPROC_GETATTR(struct getattrargs *args, struct attrstat *res,
 enum accept_stat NFSPROC_MKDIR(struct mkdirargs *args, struct createres *res, struct server_conn *conn)
 {
 	char *path;
+	int filetype;
 
-	printf("NFSPROC_MKDIR\n");
-
-	NE(diropargs_to_path(&(args->where), &path, NULL, conn));
+	NE(diropargs_to_path(&(args->where), &path, &filetype, conn));
 	if (conn->export->ro) NE(NFSERR_ROFS);
 	OE(_swix(OS_File, _INR(0,1) | _IN(4), 8, path, 0));
 	NE(set_attr(path, &(args->attributes), conn));
-	NE(path_to_nfs2fh(path, &(res->u.diropok.file), conn));
+	NE(path_to_nfs2fh(path, filetype, &(res->u.diropok.file), conn));
 	NE(get_fattr(path, &(res->u.diropok.attributes), conn));
 
 	return SUCCESS;
@@ -501,8 +625,6 @@ enum accept_stat NFSPROC_MKDIR(struct mkdirargs *args, struct createres *res, st
 enum accept_stat NFSPROC_SETATTR(struct sattrargs *args, struct sattrres *res, struct server_conn *conn)
 {
 	char *path;
-
-	printf("NFSPROC_SETATTR\n");
 
 	NE(nfs2fh_to_path(&(args->file), &path, conn));
 	if (conn->export->ro) NE(NFSERR_ROFS);
@@ -519,8 +641,6 @@ enum accept_stat NFSPROC_STATFS(struct statfsargs *args, struct statfsres *res, 
 	unsigned int freehi;
 	unsigned int sizelo;
 	unsigned int sizehi;
-
-	printf("NFSPROC_STATFS\n");
 
 	/* Assume the block size is 4k for simplicity */
 	res->u.info.bsize = 4096;
@@ -552,8 +672,6 @@ enum accept_stat NFSPROC_STATFS(struct statfsargs *args, struct statfsres *res, 
 
 enum accept_stat NFSPROC_READLINK(struct readlinkargs *args, struct readlinkres *res, struct server_conn *conn)
 {
-	printf("NFSPROC_READLINK\n");
-
 	(void)args;
 	(void)res;
 	(void)conn;
@@ -564,8 +682,6 @@ enum accept_stat NFSPROC_READLINK(struct readlinkargs *args, struct readlinkres 
 
 enum accept_stat NFSPROC_LINK(struct linkargs *args, enum nstat *res, struct server_conn *conn)
 {
-	printf("NFSPROC_LINK\n");
-
 	(void)args;
 	(void)res;
 	(void)conn;
@@ -575,8 +691,6 @@ enum accept_stat NFSPROC_LINK(struct linkargs *args, enum nstat *res, struct ser
 
 enum accept_stat NFSPROC_SYMLINK(struct symlinkargs *args, enum nstat *res, struct server_conn *conn)
 {
-	printf("NFSPROC_SYMLINK\n");
-
 	(void)args;
 	(void)res;
 	(void)conn;

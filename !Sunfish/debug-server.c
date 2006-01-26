@@ -194,10 +194,18 @@ static struct export *parse_line(char *line)
 	export->mask = 0xFFFFFFFF;
 	export->imagefs = 0;
 	export->next = NULL;
+	export->pathentry = NULL;
+	export->pool = pinit();
+	if (export->pool == NULL) {
+		/*FIXME*/
+		free(export);
+		return NULL;
+	}
 
 	export->basedir = strdup(basedir);
 	if (export->basedir == NULL) {
 		/*FIXME*/
+		pfree(export->pool);
 		free(export);
 		return NULL;
 	}
@@ -210,6 +218,7 @@ static struct export *parse_line(char *line)
 	if (export->basedir == NULL) {
 		/*FIXME*/
 		free(export->basedir);
+		pfree(export->pool);
 		free(export);
 		return NULL;
 	}
@@ -221,7 +230,7 @@ static struct export *parse_line(char *line)
 		while (*line && *line != ')' && *line != ',') line++;
 		if (*line) *line++ = '\0';
 
-		if (CHECK("wr")) {
+		if (CHECK("rw")) {
 			export->ro = 0;
 		} else if (CHECK("ro")) {
 			export->ro = 1;

@@ -109,7 +109,7 @@ void rpc_decode(struct server_conn *conn)
 		call_header.body.u.cbody.cred.body.data = conn->auth;
 	} */
 
-	printf("xid %x prog %d vers %d\n", call_header.xid,call_header.body.u.cbody.prog,call_header.body.u.cbody.vers);
+	printf("xid %x prog %d vers %d proc %d\n", call_header.xid,call_header.body.u.cbody.prog,call_header.body.u.cbody.vers, call_header.body.u.cbody.proc);
 
 	switch (call_header.body.u.cbody.prog) {
 	case 100000/*PMAP_RPC_PROGRAM*/:

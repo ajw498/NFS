@@ -27,6 +27,13 @@
 
 #include "pools.h"
 
+#define PATHENTRIES 32
+
+struct pathentry {
+	char *name;
+	struct pathentry *next;
+};
+
 struct export {
 	char *basedir;
 	size_t basedirlen;
@@ -41,6 +48,8 @@ struct export {
 	unsigned int host;
 	unsigned int mask;
 	int imagefs;
+	struct pool *pool;
+	struct pathentry *pathentry;
 	struct export *next;
 };
 
