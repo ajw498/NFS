@@ -49,6 +49,8 @@ void *palloc(size_t size, struct pool *pool)
 	struct pool *newpool = pool;
 	size_t incr = POOL_INCR;
 
+	size = (size + 3) & ~3;
+
 	/* Search through the existing memory for space.
 	   Most of the time there should be space in the first place we look. */
 	while (newpool) {
