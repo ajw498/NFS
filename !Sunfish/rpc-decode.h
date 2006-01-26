@@ -34,10 +34,13 @@ struct pathentry {
 	struct pathentry *next;
 };
 
+/* Define the maximum numer of hosts to remember for mount dump */
+#define MAXHOSTS 10
+
+
 struct export {
 	char *basedir;
 	size_t basedirlen;
-	int basedirhash;
 	int exportnum;
 	char *exportname;
 	int ro;
@@ -47,6 +50,7 @@ struct export {
 	int gid;
 	unsigned int host;
 	unsigned int mask;
+	unsigned int hosts[MAXHOSTS];
 	int imagefs;
 	struct pool *pool;
 	struct pathentry *pathentry;

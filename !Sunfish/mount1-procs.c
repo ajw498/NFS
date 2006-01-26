@@ -26,7 +26,6 @@
 
 #include "mount1-procs.h"
 
-static struct mountlist *mounts = NULL;
 
 enum accept_stat MNTPROC_NULL(struct server_conn *conn)
 {
@@ -42,12 +41,15 @@ static char *host_to_str(unsigned int host, struct pool *pool)
 	if (str == NULL) return NULL;
 
 	snprintf(str, 16, "%d.%d.%d.%d",
-	         (host & 0xFF000000) >> 24,
-	         (host & 0x00FF0000) >> 16,
+	         (host & 0x000000FF) >> 0,
 	         (host & 0x0000FF00) >> 8,
-	         (host & 0x000000FF) >> 0);
+	         (host & 0x00FF0000) >> 16,
+	         (host & 0xFF000000) >> 24);
 	return str;
 }
+
+int calc_fileid(char *path, char *leaf);
+
 
 enum accept_stat MNTPROC_MNT(string *args, struct mountres *res, struct server_conn *conn)
 {
@@ -59,20 +61,23 @@ enum accept_stat MNTPROC_MNT(string *args, struct mountres *res, struct server_c
 
 	while (export) {
 		if (strncmp(export->exportname, args->data, args->size) == 0) {
-/*			struct mountlist *mount;*/
+			int i;
 
-			/* FIXME Host checking */
+			if ((conn->host & export->mask) != export->host) {
+				res->status = 13; /* ERR_ACCESS */
+				return SUCCESS;
+			}
 			res->status = 0;
 			memset(res->u.directory.data, 0, FHSIZE);
 			res->u.directory.data[0] = export->exportnum;
-			res->u.directory.data[1] = export->basedirhash;
-/*			UE(mount = palloc(sizeof(struct mountlist), conn->gpool));
-			UE(mount->hostname->data = host_to_str(conn->host, conn->gpool));
-			mount->hostname->size = strlen(mount->hostname->data);
-			mount->dirpath->data = export->basedir;
-			mount->dirpath->size = export->basedirlen;
-			mount->next = mounts;
-			mounts = mount;*/
+			res->u.directory.data[1] = calc_fileid(export->basedir, NULL) & 0xFF;
+
+			for (i = 0; i < MAXHOSTS; i++) {
+				if (export->hosts[i] == 0) {
+					export->hosts[i] = conn->host;
+					break;
+				}
+			}
 			return SUCCESS;
 		}
 		export = export->next;
@@ -83,7 +88,29 @@ enum accept_stat MNTPROC_MNT(string *args, struct mountres *res, struct server_c
 
 enum accept_stat MNTPROC_DUMP(struct mountlist2 *res, struct server_conn *conn)
 {
-	(void)conn;
+	struct mountlist *mounts = NULL;
+	struct export *export = conn->exports;
+
+	while (export) {
+		int i;
+
+		for (i = 0; i < MAXHOSTS; i++) {
+			if (export->hosts[i] != 0) {
+				struct mountlist *mount;
+
+				mount = palloc(sizeof(struct mountlist), conn->pool);
+				if (mount == NULL) break;
+				mount->hostname.data = host_to_str(export->hosts[i], conn->pool);
+				if (mount->hostname.data == NULL) break;
+				mount->hostname.size = strlen(mount->hostname.data);
+				mount->directory.data = export->basedir;
+				mount->directory.size = export->basedirlen;
+				mount->next = mounts;
+				mounts = mount;
+			}
+		}
+		export = export->next;
+	}
 
 	res->list = mounts;
 	return SUCCESS;
@@ -91,14 +118,39 @@ enum accept_stat MNTPROC_DUMP(struct mountlist2 *res, struct server_conn *conn)
 
 enum accept_stat MNTPROC_UMNT(string *args, struct server_conn *conn)
 {
-	printf("MNTPROC_UMNT\n");
-	/*FIXME - remove from mount list (and free the memory, not just release to the pool)*/
+	int i;
+	struct export *export = conn->exports;
+
+	while (export) {
+		if (strncmp(export->exportname, args->data, args->size) == 0) {
+			for (i = 0; i < MAXHOSTS; i++) {
+				if (export->hosts[i] == conn->host) {
+					export->hosts[i] = 0;
+					break;
+				}
+			}
+		}
+		export = export->next;
+	}
+
 	return SUCCESS;
 }
 
 enum accept_stat MNTPROC_UMNTALL(struct server_conn *conn)
 {
-	printf("MNTPROC_UMNTALL\n");
+	int i;
+	struct export *export = conn->exports;
+
+	while (export) {
+		for (i = 0; i < MAXHOSTS; i++) {
+			if (export->hosts[i] == conn->host) {
+				export->hosts[i] = 0;
+				break;
+			}
+		}
+		export = export->next;
+	}
+
 	return SUCCESS;
 }
 

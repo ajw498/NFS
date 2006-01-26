@@ -107,6 +107,29 @@ static enum nstat copypath(char *dest, int destlen, char *src, int srclen)
 	return NFS_OK;
 }
 
+int calc_fileid(char *path, char *leaf)
+{
+	int fileid = 0;
+	char *dot = leaf ? "." : NULL;
+	printf("calc_fileid(%s)",path);
+	do {
+		while (path && *path) {
+			int hash;
+			fileid = (fileid << 4) + *path++;
+			hash = fileid & 0xf0000000;
+			if (hash) {
+				fileid = fileid ^ (hash >> 24);
+				fileid = fileid ^ hash;
+			}
+		}
+		path = dot;
+		dot = leaf;
+		leaf = NULL;
+	} while (path);
+	printf(" %x\n",fileid);
+	return fileid;
+}
+
 static enum nstat nfs2fh_to_path(struct nfs_fh *fhandle, char **path, struct server_conn *conn)
 {
 	int extendedfh;
@@ -116,7 +139,6 @@ static enum nstat nfs2fh_to_path(struct nfs_fh *fhandle, char **path, struct ser
 	extendedfh = ((((unsigned char)(fhandle->data[0])) & 0x80) != 0);
 	exportnum = fhandle->data[0] & 0x7F;
 	hash = fhandle->data[1];
-	/* FIXME - add a hash of full path or a timestamp to weed out and extended handles from an earlier run */
 
 	if (conn->export == NULL) {
 		conn->export = conn->exports;
@@ -125,7 +147,8 @@ static enum nstat nfs2fh_to_path(struct nfs_fh *fhandle, char **path, struct ser
 		}
 		if (conn->export == NULL) return NFSERR_STALE;
 	}
-	if (conn->export->basedirhash != hash) return NFSERR_STALE;
+
+	if ((conn->host & conn->export->mask) != conn->export->host) NR(NFSERR_ACCES);
 
 	if (extendedfh) {
 		char *dest;
@@ -133,7 +156,7 @@ static enum nstat nfs2fh_to_path(struct nfs_fh *fhandle, char **path, struct ser
 		int fhremain;
 		char *fh;
 		struct pathentry *pathentry = conn->export->pathentry;
-		/*FIXME*/
+
 		UR(*path = palloc(MAXPATH, conn->pool));
 		dest = *path;
 		memcpy(dest, conn->export->basedir, conn->export->basedirlen);
@@ -145,14 +168,14 @@ static enum nstat nfs2fh_to_path(struct nfs_fh *fhandle, char **path, struct ser
 			if (*fh == 0xFF) {
 				if (pathremain < 1) return NFSERR_NAMETOOLONG;
 				*dest++ = '\0';
-				return NFS_OK;
+				fhremain = 0;
 			} else if (*fh == 0xFE) {
 				fh++;
 				fhremain--;
 				*dest++ = '.';
 				pathremain--;
 				NR(copypath(dest, pathremain, fh, fhremain));
-				return NFS_OK;
+				fhremain = 0;
 			} else {
 				int namelen;
 				int index;
@@ -177,29 +200,22 @@ static enum nstat nfs2fh_to_path(struct nfs_fh *fhandle, char **path, struct ser
 				*dest++ = '.';
 				memcpy(dest, pathentry[index].name, namelen);
 				dest += namelen;
+				*dest = '\0';
 				pathentry = pathentry[index].next;
 			}
 		}
-		if (pathremain < 1) return NFSERR_NAMETOOLONG;
-		*dest++ = '\0';
 	} else {
 		char *dest;
-		int i;
 
 		UR(*path = palloc(conn->export->basedirlen + FHSIZE, conn->pool));
 		dest = *path;
 		memcpy(dest, conn->export->basedir, conn->export->basedirlen);
 		dest += conn->export->basedirlen;
 		if (fhandle->data[2]) *dest++ = '.';
-		for (i = 2; i < FHSIZE; i++) {
-			char ch = fhandle->data[i];
-
-			if (ch == '\0') break;
-			if (!(isalnum(ch) || ch == '.')) return NFSERR_STALE; /*FIXME - allow more */
-			*dest++ = ch;
-		}
-		*dest = '\0';
+		NR(copypath(dest, MAXPATH - (conn->export->basedirlen + 1), fhandle->data + 2, FHSIZE - 2));
 	}
+
+	if ((calc_fileid(*path, NULL) & 0xFF) != hash) return NFSERR_STALE;
 
 	return NFS_OK;
 }
@@ -217,14 +233,13 @@ static enum nstat path_to_nfs2fh(char *path, int filetype, struct nfs_fh *fhandl
 	}
 	len -= conn->export->basedirlen + 1;
 	if (len > FHSIZE - 2) {
-		/*FIXME extended FH*/
 		char *fh = fhandle->data;
 		int fhremain;
 		struct pathentry **pathentryptr;
 		struct pathentry *pathentry;
 
 		*fh++ = conn->export->exportnum | 0x80;
-		*fh++ = conn->export->basedirhash;
+		*fh++ = calc_fileid(path, NULL) & 0xFF;
 		fhremain = FHSIZE - 2;
 		path += conn->export->basedirlen + 1;
 		pathentryptr = &(conn->export->pathentry);
@@ -290,33 +305,12 @@ static enum nstat path_to_nfs2fh(char *path, int filetype, struct nfs_fh *fhandl
 		if (fhremain > 0) *fh++ = 0xFF;
 	} else {
 		fhandle->data[0] = conn->export->exportnum;
-		fhandle->data[1] = conn->export->basedirhash;
+		fhandle->data[1] = calc_fileid(path, NULL) & 0xFF;
 		memcpy(fhandle->data + 2, path + conn->export->basedirlen + 1, len);
 		/* Terminated by the earlier memset */
 	}
 
 	return NFS_OK;
-}
-
-int calc_fileid(char *path, char *leaf)
-{
-	int fileid = 0;
-	char *dot = leaf ? "." : NULL;
-	do {
-		while (path && *path) {
-			int hash;
-			fileid = (fileid << 4) + *path++;
-			hash = fileid & 0xf0000000;
-			if (hash) {
-				fileid = fileid ^ (hash >> 24);
-				fileid = fileid ^ hash;
-			}
-		}
-		path = dot;
-		dot = leaf;
-		leaf = NULL;
-	} while (path);
-	return fileid;
 }
 
 /* Convert a RISC OS load and execution address into a unix timestamp */
