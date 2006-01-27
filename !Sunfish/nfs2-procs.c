@@ -97,7 +97,16 @@ static enum nstat copypath(char *dest, int destlen, char *src, int srclen)
 {
 	while (srclen > 0 && *src) {
 		if (destlen < 1) return NFSERR_NAMETOOLONG;
-		if (!(isalnum(*src) || *src == '.')) return NFSERR_STALE; /*FIXME - allow more */
+		if (*src < '!' ||
+		    *src == '#' ||
+		    *src == '$' ||
+		    *src == '%' ||
+		    *src == '&' ||
+		    *src == ':' ||
+		    *src == '@' ||
+		    *src == '^' ||
+		    *src == '\\' ||
+		    *src == 127) return NFSERR_STALE;
 		*dest++ = *src++;
 		destlen--;
 		srclen--;
@@ -111,7 +120,7 @@ int calc_fileid(char *path, char *leaf)
 {
 	int fileid = 0;
 	char *dot = leaf ? "." : NULL;
-	printf("calc_fileid(%s)",path);
+
 	do {
 		while (path && *path) {
 			int hash;
@@ -126,7 +135,7 @@ int calc_fileid(char *path, char *leaf)
 		dot = leaf;
 		leaf = NULL;
 	} while (path);
-	printf(" %x\n",fileid);
+
 	return fileid;
 }
 
@@ -220,7 +229,7 @@ static enum nstat nfs2fh_to_path(struct nfs_fh *fhandle, char **path, struct ser
 	return NFS_OK;
 }
 
-static enum nstat path_to_nfs2fh(char *path, int filetype, struct nfs_fh *fhandle, struct server_conn *conn)
+static enum nstat path_to_nfs2fh(char *path, struct nfs_fh *fhandle, struct server_conn *conn)
 {
 	size_t len;
 	memset(fhandle->data, 0, FHSIZE);
@@ -344,7 +353,7 @@ static enum nstat get_fattr(char *path, struct fattr *fattr, struct server_conn 
 	} else if (type == 0) {
 		return NFSERR_NOENT;
 	} else {
-		fattr->type = type == 3 ? (/*conn->image_as_file ? NFREG : */NFDIR) :
+		fattr->type = type == 3 ? (conn->export->imagefs ? NFDIR : NFREG) :
 		              type == 2 ? NFDIR : NFREG;
 		fattr->mode = fattr->type == NFDIR ? 040000 : 0100000;
 		fattr->mode |= (attr & 0x01) << 8; /* Owner read */
@@ -360,7 +369,7 @@ static enum nstat get_fattr(char *path, struct fattr *fattr, struct server_conn 
 		fattr->blocksize = 4096;
 		fattr->rdev = 0;
 		fattr->blocks = fattr->size % fattr->blocksize; /* Is this right? */
-		fattr->fsid = 1;
+		fattr->fsid = 1; /*export num?*/
 		fattr->fileid = calc_fileid(path, NULL); /*FIXME?*/
 		loadexec_to_timeval(load, exec, &(fattr->atime));
 		loadexec_to_timeval(load, exec, &(fattr->ctime));
@@ -408,7 +417,7 @@ static enum nstat set_attr(char *path, struct sattr *sattr, struct server_conn *
 	OR(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, path, &type, &load, &exec, &size, &attr));
 	if (type == 0) return NFSERR_NOENT;
 	if (sattr->mode != -1) attr = mode_to_attr(sattr->mode);
-	filetype = load >> 20;
+	filetype = load >> 20; /**/
 	if (sattr->mtime.seconds != -1) timeval_to_loadexec(&(sattr->mtime), filetype, &load, &exec);
 
 	OR(_swix(OS_File, _INR(0,3) | _IN(5), 1, path, load, exec, attr));
@@ -421,23 +430,224 @@ static enum nstat set_attr(char *path, struct sattr *sattr, struct server_conn *
 }
 
 
+#ifndef MimeMap_Translate
+#define MimeMap_Translate 0x50B00
+#endif
+#define MMM_TYPE_RISCOS 0
+#define MMM_TYPE_RISCOS_STRING 1
+#define MMM_TYPE_MIME 2
+#define MMM_TYPE_DOT_EXTN 3
+
+/* Use MimeMap to lookup a filetype from an extension */
+static int lookup_mimetype(char *ext, int defaultfiletype)
+{
+	os_error *err;
+	int filetype;
+
+	/* Try MimeMap to get a filetype, use the default type if the call fails */
+	err = _swix(MimeMap_Translate,_INR(0,2) | _OUT(3), MMM_TYPE_DOT_EXTN, ext, MMM_TYPE_RISCOS, &filetype);
+	if (err) filetype = defaultfiletype;
+
+	return filetype;
+}
+
+static int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetype, int defaultfiletype, int xyzext)
+{
+	int i;
+	int j;
+	char *dotext = NULL;
+
+	*filetype = -1;
+
+	for (i = 0, j = 0; (i < namelen) && (j + 3 < buflen); i++) {
+		if (name[i] == '.') {
+			buffer[j++] = '/';
+			dotext = buffer + j;
+		} else if (name[i] == ' ') {
+			buffer[j++] = 160; /* spaces to hard spaces */
+		} else if (name[i] == ',') {
+			if (xyzext != NEVER && namelen - i == 4
+			     && isxdigit(name[i+1])
+			     && isxdigit(name[i+2])
+			     && isxdigit(name[i+3])) {
+				char tmp[4];
+
+				tmp[0] = name[i+1];
+				tmp[1] = name[i+2];
+				tmp[2] = name[i+3];
+				tmp[3] = '\0';
+				*filetype = (int)strtol(tmp, NULL, 16);
+				namelen -= sizeof(",xyz") - 1;
+			} else {
+				buffer[j++] = name[i];
+			}
+		} else if (name[i] == '!') {
+			buffer[j++] = name[i];
+		} else if (name[i] < '\''
+				|| name[i] == '/'
+				|| name[i] == ':'
+				|| name[i] == '?'
+				|| name[i] == '@'
+				|| name[i] == '\\'
+				|| name[i] == 127
+				|| name[i] == 160) {
+			int val;
+
+			/* Turn illegal chars into ?XX escape sequences */
+			buffer[j++] = '?';
+			val = ((name[i] & 0xF0) >> 4);
+			buffer[j++] = val < 10 ? val + '0' : (val - 10) + 'A';
+			val = (name[i] & 0x0F);
+			buffer[j++] = val < 10 ? val + '0' : (val - 10) + 'A';
+		} else {
+			/* All other chars translate unchanged */
+			buffer[j++] = name[i];
+		}
+	}
+
+	if (i < namelen) return 0; /* Buffer overflow */
+
+	buffer[j++] = '\0';
+
+	if (xyzext != NEVER) {
+		if (*filetype == -1) {
+			/* No ,xyz found */
+			if (dotext) {
+				*filetype = lookup_mimetype(dotext, defaultfiletype);
+			} else {
+				/* No ,xyz and no extension, so use default */
+				*filetype = defaultfiletype;
+			}
+		}
+	} else {
+		*filetype = defaultfiletype;
+	}
+
+	return j;
+}
+
+char *filename_unixify(char *name, unsigned int len, unsigned int *newlen, struct pool *pool)
+{
+	char *namebuffer;
+	int i;
+	int j;
+
+	namebuffer = palloc(len + 1, pool);
+	if (namebuffer == NULL) return NULL;
+
+	for (i = 0, j = 0; i < len; i++) {
+		switch (name[i]) {
+			case '/':
+				namebuffer[j++] = '.';
+				break;
+			case 160: /*hard space*/
+				namebuffer[j++] = ' ';
+				break;
+			case '?':
+				if (i + 2 < len && isxdigit(name[i+1]) && !islower(name[i+1]) && isxdigit(name[i+2]) && !islower(name[i+2])) {
+					/* An escape sequence */
+					i++;
+					namebuffer[j] = (name[i] > '9' ? name[i] - 'A' + 10 : name[i] - '0') << 4;
+					i++;
+					namebuffer[j++] |= name[i] > '9' ? name[i] - 'A' + 10 : name[i] - '0';
+				} else {
+					namebuffer[j++] = name[i];
+				}
+				break;
+			default:
+				namebuffer[j++] = name[i];
+		}
+	}
+
+	namebuffer[j] = '\0';
+	*newlen = j;
+
+	return namebuffer;
+}
+
+
+char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, int defaultfiletype, int xyzext, struct pool *pool)
+{
+	char *newleafname;
+
+	if (xyzext == NEVER) {
+		if (newlen) *newlen = len;
+		return leafname;
+	} else {
+		/* Check if we need a new extension */
+		int extneeded = 0;
+
+		if (extfound) len -= sizeof(",xyz") - 1;
+
+		newleafname = palloc(len + sizeof(",xyz"), pool);
+		if (newleafname == NULL) return NULL;
+
+		if (xyzext == ALWAYS) {
+			/* Always add ,xyz */
+			extneeded = 1;
+		} else {
+			/* Only add an extension if needed */
+			char *ext;
+
+			ext = strrchr(leafname, '.');
+			if (ext) {
+				int mimefiletype;
+				int extlen = len - (ext - leafname) - 1;
+
+				memcpy(newleafname, ext + 1, extlen);
+				newleafname[extlen] = '\0';
+				mimefiletype = lookup_mimetype(newleafname, defaultfiletype);
+
+				if (mimefiletype == newfiletype) {
+					/* Don't need an extension */
+					extneeded = 0;
+				} else {
+					/* A new ,xyz is needed */
+					extneeded = 1;
+				}
+			} else {
+				if (newfiletype == defaultfiletype) {
+					/* Don't need an extension */
+					extneeded = 0;
+				} else {
+					/* A new ,xyz is needed */
+					extneeded = 1;
+				}
+			}
+		}
+
+		memcpy(newleafname, leafname, len);
+		if (extneeded) {
+			snprintf(newleafname + len, sizeof(",xyz"), ",%.3x", newfiletype);
+			*newlen = len + sizeof(",xyz") - 1;
+		} else {
+			newleafname[len] = '\0';
+			*newlen = len;
+		}
+	}
+
+	return newleafname;
+}
+
 static enum nstat diropargs_to_path(struct diropargs *where, char **path, int *filetype, struct server_conn *conn)
 {
 	int len;
 	char *dirpath;
+	char buffer[MAXPATH];
+	int leaflen;
 
 	NR(nfs2fh_to_path(&(where->dir), &dirpath, conn));
 
+	leaflen = filename_riscosify(where->name.data, where->name.size, buffer, sizeof(buffer), filetype, conn->export->defaultfiletype, conn->export->xyzext);
+
 	len = strlen(dirpath);
-	UR(*path = palloc(len + where->name.size + 2, conn->pool));
+	UR(*path = palloc(len + leaflen + 2, conn->pool));
 
 	memcpy(*path, dirpath, len);
 	(*path)[len++] = '.';
-	memcpy(*path + len, where->name.data, where->name.size);
-	len += where->name.size;
+	memcpy(*path + len, buffer, leaflen);
+	len += leaflen;
 	(*path)[len] = '\0';
-	/*FIXME - handle ,xyz */
-	if (filetype) *filetype = 0xfff;
 
 	return NFS_OK;
 }
@@ -455,7 +665,7 @@ enum accept_stat NFSPROC_LOOKUP(struct diropargs *args, struct diropres *res, st
 	int filetype;
 
 	NE(diropargs_to_path(args, &path, &filetype, conn));
-	NE(path_to_nfs2fh(path, filetype, &(res->u.diropok.file), conn));
+	NE(path_to_nfs2fh(path, &(res->u.diropok.file), conn));
 	NE(get_fattr(path, &(res->u.diropok.attributes), conn));
 
 	return SUCCESS;
@@ -475,15 +685,30 @@ enum accept_stat NFSPROC_READDIR(struct readdirargs *args, struct readdirres *re
 		res->u.readdirok.entries = NULL;
 
 		while (cookie != -1) {
-			OE(_swix(OS_GBPB, _INR(0,6) | _OUTR(3,4),9, path, buffer, 1, cookie, sizeof(buffer), 0, &read, &cookie));
+			OE(_swix(OS_GBPB, _INR(0,6) | _OUTR(3,4),10, path, buffer, 1, cookie, sizeof(buffer), 0, &read, &cookie));
 			if (read > 0) {
 				struct entry *entry;
-				UE(entry = malloc(sizeof(struct entry)));
+				char *leaf = buffer + 20;
+				unsigned int leaflen;
+				int filetype;
+				unsigned int load = ((unsigned int *)buffer)[0];
+				int type;
 
-				entry->fileid = calc_fileid(path, buffer);
-				entry->name.size = strlen(buffer);
-				entry->name.data = malloc(entry->name.size);/**/
-				memcpy(entry->name.data, buffer, entry->name.size);
+				if ((load & 0xFFF00000) == 0xFFF00000) {
+					filetype = (load & 0x000FFF00) >> 8;
+				} else {
+					filetype = conn->export->defaultfiletype;
+				}
+				UE(entry = palloc(sizeof(struct entry), conn->pool));
+
+				entry->fileid = calc_fileid(path, leaf);
+				UE(leaf = filename_unixify(leaf, strlen(leaf), &leaflen, conn->pool));
+				type = ((unsigned int *)buffer)[4];
+				if (type == 1 || (type == 3 && conn->export->imagefs == 0)) {
+					UE(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, conn->pool));
+				}
+				entry->name.data = leaf;
+				entry->name.size = leaflen;
 				entry->cookie = cookie;/**/
 				entry->next = res->u.readdirok.entries;
 				res->u.readdirok.entries = entry;
@@ -546,7 +771,7 @@ enum accept_stat NFSPROC_CREATE(struct createargs *args, struct createres *res, 
 	/*FIXME - is file 0 extended?*/
 	OE(_swix(OS_File, _INR(0,5), 11, path, filetype, 0, 0, size));
 	NE(set_attr(path, &(args->attributes), conn));
-	NE(path_to_nfs2fh(path, filetype, &(res->u.diropok.file), conn));
+	NE(path_to_nfs2fh(path, &(res->u.diropok.file), conn));
 	NE(get_fattr(path, &(res->u.diropok.attributes), conn));
 
 	return SUCCESS;
@@ -578,14 +803,20 @@ enum accept_stat NFSPROC_RENAME(struct renameargs *args, struct renameres *res, 
 {
 	char *from;
 	char *to;
+	int oldfiletype;
+	int newfiletype;
 
 	printf("NFSPROC_RENAME\n");
 
-	NE(diropargs_to_path(&(args->from), &from, NULL, conn));
+	NE(diropargs_to_path(&(args->from), &from, &oldfiletype, conn));
 	if (conn->export->ro) NE(NFSERR_ROFS);
-	NE(diropargs_to_path(&(args->to), &to, NULL, conn));
-	OE(_swix(OS_FSControl, _INR(0,2), 25, from, to));
-	/* FIXME set filetype if changed */
+	NE(diropargs_to_path(&(args->to), &to, &newfiletype, conn));
+	if (strcmp(from, to) != 0) {
+		OE(_swix(OS_FSControl, _INR(0,2), 25, from, to));
+	}
+	if (newfiletype != oldfiletype) {
+		OE(_swix(OS_File, _INR(0,2), 18, to, newfiletype));
+	}
 	return SUCCESS;
 }
 
@@ -610,7 +841,7 @@ enum accept_stat NFSPROC_MKDIR(struct mkdirargs *args, struct createres *res, st
 	if (conn->export->ro) NE(NFSERR_ROFS);
 	OE(_swix(OS_File, _INR(0,1) | _IN(4), 8, path, 0));
 	NE(set_attr(path, &(args->attributes), conn));
-	NE(path_to_nfs2fh(path, filetype, &(res->u.diropok.file), conn));
+	NE(path_to_nfs2fh(path, &(res->u.diropok.file), conn));
 	NE(get_fattr(path, &(res->u.diropok.attributes), conn));
 
 	return SUCCESS;

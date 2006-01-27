@@ -197,7 +197,7 @@ static os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct
 	return gen_error(RPCERRBASE + 1, "Unable to resolve hostname '%s' (%d)", host, errnum);
 }
 
-#define CHECK(str) (strncasecmp(opt,str,sizeof(str))==0)
+#define CHECK(str) (strncasecmp(opt,str,sizeof(str) - 1)==0)
 
 
 static struct export *parse_line(char *line)
@@ -236,6 +236,8 @@ static struct export *parse_line(char *line)
 	export->matchuid = 1;
 	export->uid = 0;
 	export->imagefs = 0;
+	export->defaultfiletype = 0xFFF;
+	export->xyzext = NEEDED;
 	export->next = NULL;
 	export->pathentry = NULL;
 	memset(export->hosts, 0, sizeof(unsigned int) * MAXHOSTS);
@@ -295,7 +297,6 @@ static struct export *parse_line(char *line)
 		opt = line;
 		while (*line && *line != ')' && *line != ',') line++;
 		if (*line) *line++ = '\0';
-
 		if (CHECK("rw")) {
 			export->ro = 0;
 		} else if (CHECK("ro")) {
@@ -308,6 +309,10 @@ static struct export *parse_line(char *line)
 			export->gid = atoi(opt + 4);
 		} else if (CHECK("imagefs")) {
 			export->imagefs = 1;
+		} else if (CHECK("defaultfiletype") && opt[15] == '=') {
+			export->defaultfiletype = (int)strtol(opt + 16, NULL, 16);
+		} else if (CHECK("addext") && opt[6] == '=') {
+			export->xyzext = atoi(opt + 7);
 		}
 	}
 

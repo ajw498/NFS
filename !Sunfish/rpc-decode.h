@@ -26,6 +26,7 @@
 #define RPC_DECODE_H
 
 #include "pools.h"
+#include "sunfish.h"
 
 #define PATHENTRIES 32
 
@@ -52,6 +53,8 @@ struct export {
 	unsigned int mask;
 	unsigned int hosts[MAXHOSTS];
 	int imagefs;
+	int defaultfiletype;
+	int xyzext;
 	struct pool *pool;
 	struct pathentry *pathentry;
 	struct export *next;
