@@ -340,21 +340,19 @@ static void loadexec_to_timeval(unsigned int load, unsigned int exec, struct nti
 	}
 }
 
-static enum nstat get_fattr(char *path, struct fattr *fattr, struct server_conn *conn)
+static enum nstat get_fattr(char *path, int filetype, struct fattr *fattr, struct server_conn *conn)
 {
 	int type, load, exec, len, attr;
-	os_error *err;
-	printf("getfattr %s\n",path);
-	err = _swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, path, &type, &load, &exec, &len, &attr);
-	if (err) {
-		/*log*/
-		printf("error %s\n",err->errmess);
-		return NFSERR_IO;
-	} else if (type == 0) {
+
+	OR(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, path, &type, &load, &exec, &len, &attr));
+
+	if (type == 0) {
 		return NFSERR_NOENT;
 	} else {
+		int ftype = (load & 0x000FFF00) >> 8;
 		fattr->type = type == 3 ? (conn->export->imagefs ? NFDIR : NFREG) :
 		              type == 2 ? NFDIR : NFREG;
+		if ((fattr->type == NFREG) && (filetype != -1) && (filetype != ftype)) return NFSERR_NOENT;
 		fattr->mode = fattr->type == NFDIR ? 040000 : 0100000;
 		fattr->mode |= (attr & 0x01) << 8; /* Owner read */
 		fattr->mode |= (attr & 0x02) << 6; /* Owner write */
@@ -363,14 +361,14 @@ static enum nstat get_fattr(char *path, struct fattr *fattr, struct server_conn 
 		fattr->mode |= (attr & 0x10) >> 2; /* Others read */
 		fattr->mode |= (attr & 0x20) >> 4; /* Others write */
 		fattr->nlink = 1;
-		fattr->uid = 0;/*FIXME*/
-		fattr->gid = 0;
+		fattr->uid = conn->uid;
+		fattr->gid = conn->gid;
 		fattr->size = len;
 		fattr->blocksize = 4096;
+		fattr->blocks = fattr->size >> 12;
 		fattr->rdev = 0;
-		fattr->blocks = fattr->size % fattr->blocksize; /* Is this right? */
-		fattr->fsid = 1; /*export num?*/
-		fattr->fileid = calc_fileid(path, NULL); /*FIXME?*/
+		fattr->fsid = conn->export->exportnum;
+		fattr->fileid = calc_fileid(path, NULL);
 		loadexec_to_timeval(load, exec, &(fattr->atime));
 		loadexec_to_timeval(load, exec, &(fattr->ctime));
 		loadexec_to_timeval(load, exec, &(fattr->mtime));
@@ -417,13 +415,12 @@ static enum nstat set_attr(char *path, struct sattr *sattr, struct server_conn *
 	OR(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, path, &type, &load, &exec, &size, &attr));
 	if (type == 0) return NFSERR_NOENT;
 	if (sattr->mode != -1) attr = mode_to_attr(sattr->mode);
-	filetype = load >> 20; /**/
+	filetype = (load & 0x000FFF00) >> 8;
 	if (sattr->mtime.seconds != -1) timeval_to_loadexec(&(sattr->mtime), filetype, &load, &exec);
 
 	OR(_swix(OS_File, _INR(0,3) | _IN(5), 1, path, load, exec, attr));
 
-	if ((type & 1) && sattr->size != -1 && sattr->size != size) {
-		/*FIXME - image files*/
+	if (((type == 1) || (type == 3 && conn->export->imagefs == 0)) && sattr->size != -1 && sattr->size != size) {
 		/*FIXME - open file if not already open, and set extent */
 	}
 	return NFS_OK;
@@ -666,7 +663,7 @@ enum accept_stat NFSPROC_LOOKUP(struct diropargs *args, struct diropres *res, st
 
 	NE(diropargs_to_path(args, &path, &filetype, conn));
 	NE(path_to_nfs2fh(path, &(res->u.diropok.file), conn));
-	NE(get_fattr(path, &(res->u.diropok.attributes), conn));
+	NE(get_fattr(path, filetype, &(res->u.diropok.attributes), conn));
 
 	return SUCCESS;
 }
@@ -674,49 +671,126 @@ enum accept_stat NFSPROC_LOOKUP(struct diropargs *args, struct diropres *res, st
 enum accept_stat NFSPROC_READDIR(struct readdirargs *args, struct readdirres *res, struct server_conn *conn)
 {
 	char *path;
-	printf("NFSPROC_READDIR\n");
-	/* cookie is an index into the directory. Have to do an osgbpb loop every time to find the index. But we can cache the last used one. */
-	res->status = nfs2fh_to_path(&(args->dir), &path, conn);
-	if (res->status == NFS_OK) {
-		char buffer[1024];
+	int cookie = args->cookie;
+	int bytes = 0;
+
+	NE(nfs2fh_to_path(&(args->dir), &path, conn));
+
+	res->u.readdirok.entries = NULL;
+	res->u.readdirok.eof = FALSE;
+
+	while (cookie != -1) {
 		int read;
-		int cookie = args->cookie;
+		char buffer[1024];
 
-		res->u.readdirok.entries = NULL;
+		/* We have to read one entry at a time, which is less
+		   efficient the reading several, as we need to return
+		   a cookie for every entry. */
+		OE(_swix(OS_GBPB, _INR(0,6) | _OUTR(3,4), 10, path, buffer, 1, cookie, sizeof(buffer), 0, &read, &cookie));
+		if (read > 0) {
+			struct entry *entry;
+			char *leaf = buffer + 20;
+			unsigned int leaflen;
+			int filetype;
+			unsigned int load = ((unsigned int *)buffer)[0];
+			int type;
 
-		while (cookie != -1) {
-			OE(_swix(OS_GBPB, _INR(0,6) | _OUTR(3,4),10, path, buffer, 1, cookie, sizeof(buffer), 0, &read, &cookie));
-			if (read > 0) {
-				struct entry *entry;
-				char *leaf = buffer + 20;
-				unsigned int leaflen;
-				int filetype;
-				unsigned int load = ((unsigned int *)buffer)[0];
-				int type;
-
-				if ((load & 0xFFF00000) == 0xFFF00000) {
-					filetype = (load & 0x000FFF00) >> 8;
-				} else {
-					filetype = conn->export->defaultfiletype;
-				}
-				UE(entry = palloc(sizeof(struct entry), conn->pool));
-
-				entry->fileid = calc_fileid(path, leaf);
-				UE(leaf = filename_unixify(leaf, strlen(leaf), &leaflen, conn->pool));
-				type = ((unsigned int *)buffer)[4];
-				if (type == 1 || (type == 3 && conn->export->imagefs == 0)) {
-					UE(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, conn->pool));
-				}
-				entry->name.data = leaf;
-				entry->name.size = leaflen;
-				entry->cookie = cookie;/**/
-				entry->next = res->u.readdirok.entries;
-				res->u.readdirok.entries = entry;
+			if ((load & 0xFFF00000) == 0xFFF00000) {
+				filetype = (load & 0x000FFF00) >> 8;
+			} else {
+				filetype = conn->export->defaultfiletype;
 			}
+			UE(entry = palloc(sizeof(struct entry), conn->pool));
+
+			entry->fileid = calc_fileid(path, leaf);
+			UE(leaf = filename_unixify(leaf, strlen(leaf), &leaflen, conn->pool));
+			type = ((unsigned int *)buffer)[4];
+			if (type == 1 || (type == 3 && conn->export->imagefs == 0)) {
+				UE(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, conn->pool));
+			}
+			entry->name.data = leaf;
+			entry->name.size = leaflen;
+			entry->cookie = cookie;
+
+			bytes += 16 + (leaflen + 3) & ~3;
+			if (bytes > args->count) {
+				return SUCCESS;
+			}
+			entry->next = res->u.readdirok.entries;
+			res->u.readdirok.entries = entry;
 		}
-		res->u.readdirok.eof = TRUE;
+		if (cookie == -1) res->u.readdirok.eof = TRUE;
 	}
+
 	return SUCCESS;
+}
+
+#define MAXOPENFILES 10
+#define MAX_PATHNAME 1024
+
+static struct openfile {
+	char name[MAX_PATHNAME];
+	int handle;
+	clock_t time;
+} openfiles[MAXOPENFILES];
+
+static int openfileinit = 0;
+
+static os_error *open_file(char *path, int *handle)
+{
+	int i;
+	clock_t now = clock();
+	clock_t lasttime = 0;
+	int earliest = 0;
+	int available = -1;
+	os_error *err;
+
+	if (!openfileinit) {
+		for (i = 0; i < MAXOPENFILES; i++) openfiles[i].handle = 0;
+		openfileinit = 1;
+	}
+
+	for (i = 0; i < MAXOPENFILES; i++) {
+		if (openfiles[i].handle == 0) {
+			available = i;
+		} else if (strcmp(path, openfiles[i].name) == 0) {
+			*handle = openfiles[i].handle;
+			openfiles[i].time = now;
+			return NULL;
+		} else if (now - openfiles[i].time > lasttime) {
+			lasttime = now - openfiles[i].time;
+			earliest = i;
+		}
+	}
+	if (available != -1) earliest = available;
+
+	if (openfiles[earliest].handle) {
+		_swix(OS_Find, _INR(0,1), 0, handle);
+		/*FIXME syslog errors*/
+	}
+	openfiles[earliest].time = now;
+	snprintf(openfiles[earliest].name, MAX_PATHNAME, "%s", path);
+	err = _swix(OS_Find, _INR(0,1) | _OUT(0), 0xC3, path, handle);
+	openfiles[earliest].handle = err ? 0 : *handle;
+	return err;
+
+}
+
+void reap_files(int all)
+{
+	int i;
+	clock_t now = clock();
+
+	if (!openfileinit) return;
+
+	for (i = 0; i < MAXOPENFILES; i++) {
+		/* Close a file if there has been no activity for a second */
+		if (openfiles[i].handle != 0 && (all || (now - openfiles[i].time > 5 * CLOCKS_PER_SEC))) {
+			_swix(OS_Find, _INR(0,1), 0, openfiles[i].handle);
+			/*FIXME syslog errors */
+			openfiles[i].handle = 0;
+		}
+	}
 }
 
 enum accept_stat NFSPROC_READ(struct readargs *args, struct readres *res, struct server_conn *conn)
@@ -729,15 +803,13 @@ enum accept_stat NFSPROC_READ(struct readargs *args, struct readres *res, struct
 	printf("NFSPROC_READ\n");
 
 	NE(nfs2fh_to_path(&(args->file), &path, conn));
-	OE(_swix(OS_Find, _INR(0,1) | _OUT(0), 0x43, path, &handle));
+	OE(open_file(path, &handle));
 	/*FIXME verify count is sensible (and offset?) */
 	UE(data = palloc(args->count, conn->pool));
-	/*FIXME close handle on error (done by handle timeout?)*/
 	OE(_swix(OS_GBPB, _INR(0,4) | _OUT(3), 3, handle, data, args->count, args->offset, &read));
 	res->u.resok.data.data = data;
 	res->u.resok.data.size = args->count - read;
-	OE(_swix(OS_Find, _INR(0,1), 0, handle));
-	NE(get_fattr(path, &(res->u.resok.attributes), conn));
+	NE(get_fattr(path, -1, &(res->u.resok.attributes), conn));
 	return SUCCESS;
 }
 
@@ -746,15 +818,12 @@ enum accept_stat NFSPROC_WRITE(struct writeargs *args, struct attrstat *res, str
 	char *path;
 	int handle;
 
-	printf("NFSPROC_WRITE\n");
-
 	NE(nfs2fh_to_path(&(args->file), &path, conn));
 	if (conn->export->ro) NE(NFSERR_ROFS);
-	OE(_swix(OS_Find, _INR(0,1) | _OUT(0), 0xC3, path, &handle));
-	/*FIXME close handle on error (done by handle timeout?)*/
+	OE(open_file(path, &handle));
 	OE(_swix(OS_GBPB, _INR(0,4), 1, handle, args->data.data, args->data.size, args->offset));
-	OE(_swix(OS_Find, _INR(0,1), 0, handle));
-	NE(get_fattr(path, &(res->u.attributes), conn));
+	NE(get_fattr(path, -1, &(res->u.attributes), conn));
+
 	return SUCCESS;
 }
 
@@ -772,7 +841,7 @@ enum accept_stat NFSPROC_CREATE(struct createargs *args, struct createres *res, 
 	OE(_swix(OS_File, _INR(0,5), 11, path, filetype, 0, 0, size));
 	NE(set_attr(path, &(args->attributes), conn));
 	NE(path_to_nfs2fh(path, &(res->u.diropok.file), conn));
-	NE(get_fattr(path, &(res->u.diropok.attributes), conn));
+	NE(get_fattr(path, -1, &(res->u.diropok.attributes), conn));
 
 	return SUCCESS;
 }
@@ -806,8 +875,6 @@ enum accept_stat NFSPROC_RENAME(struct renameargs *args, struct renameres *res, 
 	int oldfiletype;
 	int newfiletype;
 
-	printf("NFSPROC_RENAME\n");
-
 	NE(diropargs_to_path(&(args->from), &from, &oldfiletype, conn));
 	if (conn->export->ro) NE(NFSERR_ROFS);
 	NE(diropargs_to_path(&(args->to), &to, &newfiletype, conn));
@@ -826,7 +893,7 @@ enum accept_stat NFSPROC_GETATTR(struct getattrargs *args, struct attrstat *res,
 	char *path;
 
 	NE(nfs2fh_to_path(&(args->fhandle), &path, conn));
-	NE(get_fattr(path, &(res->u.attributes), conn));
+	NE(get_fattr(path, -1, &(res->u.attributes), conn));
 	/*FIXME - fake directory timestamps */
 
 	return SUCCESS;
@@ -842,7 +909,7 @@ enum accept_stat NFSPROC_MKDIR(struct mkdirargs *args, struct createres *res, st
 	OE(_swix(OS_File, _INR(0,1) | _IN(4), 8, path, 0));
 	NE(set_attr(path, &(args->attributes), conn));
 	NE(path_to_nfs2fh(path, &(res->u.diropok.file), conn));
-	NE(get_fattr(path, &(res->u.diropok.attributes), conn));
+	NE(get_fattr(path, -1, &(res->u.diropok.attributes), conn));
 
 	return SUCCESS;
 }
@@ -854,7 +921,7 @@ enum accept_stat NFSPROC_SETATTR(struct sattrargs *args, struct sattrres *res, s
 	NE(nfs2fh_to_path(&(args->file), &path, conn));
 	if (conn->export->ro) NE(NFSERR_ROFS);
 	NE(set_attr(path, &(args->attributes), conn));
-	NE(get_fattr(path, &(res->u.attributes), conn));
+	NE(get_fattr(path, -1, &(res->u.attributes), conn));
 
 	return SUCCESS;
 }

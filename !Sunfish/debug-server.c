@@ -358,6 +358,8 @@ static void free_exports(struct export *export)
 	}
 }
 
+void reap_files(int all);
+
 int main(void)
 {
 	int len;
@@ -392,7 +394,9 @@ int main(void)
 /*			logdata(0, output_buf, buf - output_buf); */
 			sendto(sock, conn.reply, conn.replylen, 0, (struct sockaddr *)&host, addrlen);
 		}
+		reap_files(0);
 	}
+	reap_files(1);
 	if (sock != -1) close(sock);
 	free_exports(conn.exports);
 	return 0;
