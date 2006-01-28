@@ -72,12 +72,14 @@ char *bufend;
 static struct rpc_msg call_header;
 static struct rpc_msg reply_header;
 
-static char tmpoutbuf[32*1024];
-
 void init_output(struct server_conn *conn)
 {
-	conn->reply = buf = tmpoutbuf;
-	bufend = buf + 32*1024;
+	buf = conn->reply;
+	bufend = buf + 32*1024;/*FIXME*/
+
+	/* Leave room for the record marker */
+	if (conn->tcp) buf += 4;
+
 	process_struct_rpc_msg(OUTPUT, reply_header, 0);
 buffer_overflow:
 	return;
@@ -96,73 +98,85 @@ void rpc_decode(struct server_conn *conn)
 		reply_header.body.u.rbody.u.rreply.stat = RPC_MISMATCH;
 		reply_header.body.u.rbody.u.rreply.u.mismatch_info.low = RPC_VERSION;
 		reply_header.body.u.rbody.u.rreply.u.mismatch_info.high = RPC_VERSION;
-		goto error;
+		init_output(conn);
+	} else {
+
+		reply_header.body.u.rbody.stat = MSG_ACCEPTED;
+		reply_header.body.u.rbody.u.areply.reply_data.stat = SUCCESS;
+	
+		/* Get uid/gid ? */
+	/*	if (conn->auth) {
+			call_header.body.u.cbody.cred.flavor = AUTH_UNIX;
+			call_header.body.u.cbody.cred.body.size = conn->authsize;
+			call_header.body.u.cbody.cred.body.data = conn->auth;
+		} */
+	
+		printf("xid %x prog %d vers %d proc %d\n", call_header.xid,call_header.body.u.cbody.prog,call_header.body.u.cbody.vers, call_header.body.u.cbody.proc);
+	
+		switch (call_header.body.u.cbody.prog) {
+		case 100000/*PMAP_RPC_PROGRAM*/:
+			switch (call_header.body.u.cbody.vers) {
+			case 2/*PMAP_RPC_VERSION*/:
+				reply_header.body.u.rbody.u.areply.reply_data.stat = portmapper_decode(call_header.body.u.cbody.proc, conn);
+				printf("ret %d\n", reply_header.body.u.rbody.u.areply.reply_data.stat);
+				break;
+			default:
+				reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_MISMATCH;
+				reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.low = 2;
+				reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.high = 2;
+			}
+			break;
+		case 100005/*MOUNT_RPC_PROGRAM*/:
+			switch (call_header.body.u.cbody.vers) {
+			case 1:
+				reply_header.body.u.rbody.u.areply.reply_data.stat = mount1_decode(call_header.body.u.cbody.proc, conn);
+				break;
+			case 3:
+				reply_header.body.u.rbody.u.areply.reply_data.stat = mount3_decode(call_header.body.u.cbody.proc, conn);
+				break;
+			default:
+				reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_MISMATCH;
+				reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.low = 1;
+				reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.high = 3;
+			}
+			break;
+		case 100003/*NFS2_RPC_PROGRAM*/:
+			switch (call_header.body.u.cbody.vers) {
+			case 2/*NFS2_RPC_VERSION*/:
+				reply_header.body.u.rbody.u.areply.reply_data.stat = nfs2_decode(call_header.body.u.cbody.proc, conn);
+				break;
+			default:
+				reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_MISMATCH;
+				reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.low = 2;
+				reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.high = 2;
+			}
+			break;
+		default:
+			reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_UNAVAIL;
+		}
 	}
 
-	reply_header.body.u.rbody.stat = MSG_ACCEPTED;
-	reply_header.body.u.rbody.u.areply.reply_data.stat = SUCCESS;
-
-	/* Get uid/gid ? */
-/*	if (conn->auth) {
-		call_header.body.u.cbody.cred.flavor = AUTH_UNIX;
-		call_header.body.u.cbody.cred.body.size = conn->authsize;
-		call_header.body.u.cbody.cred.body.data = conn->auth;
-	} */
-
-	printf("xid %x prog %d vers %d proc %d\n", call_header.xid,call_header.body.u.cbody.prog,call_header.body.u.cbody.vers, call_header.body.u.cbody.proc);
-
-	switch (call_header.body.u.cbody.prog) {
-	case 100000/*PMAP_RPC_PROGRAM*/:
-		switch (call_header.body.u.cbody.vers) {
-		case 2/*PMAP_RPC_VERSION*/:
-			reply_header.body.u.rbody.u.areply.reply_data.stat = portmapper_decode(call_header.body.u.cbody.proc, conn);
-			printf("ret %d\n", reply_header.body.u.rbody.u.areply.reply_data.stat);
-			break;
-		default:
-			reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_MISMATCH;
-			reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.low = 2;
-			reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.high = 2;
-		}
-		break;
-	case 100005/*MOUNT_RPC_PROGRAM*/:
-		switch (call_header.body.u.cbody.vers) {
-		case 1:
-			reply_header.body.u.rbody.u.areply.reply_data.stat = mount1_decode(call_header.body.u.cbody.proc, conn);
-			break;
-		case 3:
-			reply_header.body.u.rbody.u.areply.reply_data.stat = mount3_decode(call_header.body.u.cbody.proc, conn);
-			break;
-		default:
-			reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_MISMATCH;
-			reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.low = 1;
-			reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.high = 3;
-		}
-		break;
-	case 100003/*NFS2_RPC_PROGRAM*/:
-		switch (call_header.body.u.cbody.vers) {
-		case 2/*NFS2_RPC_VERSION*/:
-			reply_header.body.u.rbody.u.areply.reply_data.stat = nfs2_decode(call_header.body.u.cbody.proc, conn);
-			break;
-		default:
-			reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_MISMATCH;
-			reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.low = 2;
-			reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.high = 2;
-		}
-		break;
-	default:
-		reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_UNAVAIL;
+	if (reply_header.body.u.rbody.u.areply.reply_data.stat != SUCCESS) {
+		/* If the reply is not a success then reparse the header,
+		   overwriting any garbage body */
+		init_output(conn);
 	}
 
 	conn->replylen = buf - conn->reply;
-	if (reply_header.body.u.rbody.u.areply.reply_data.stat == SUCCESS) return;
 
-error:
-	init_output(conn);
-	conn->replylen = buf - conn->reply;
+	if (conn->tcp) {
+		/* Insert the record marker at the start of the buffer */
+		int recordmarker = 0x80000000 | (conn->replylen - 4);
+		buf = conn->reply;
+		bufend = buf + 4;
+		process_int(OUTPUT, recordmarker, 0);
+	}
+
 	return;
 
 buffer_overflow:
-	abort(); /*Should be impossible? FIXME*/
+	/* Should be impossible to reach here */
+	conn->replylen = 0;
 }
 
 

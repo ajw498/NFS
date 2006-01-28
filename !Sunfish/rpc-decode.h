@@ -25,6 +25,11 @@
 #ifndef RPC_DECODE_H
 #define RPC_DECODE_H
 
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <time.h>
+
 #include "pools.h"
 #include "sunfish.h"
 
@@ -37,7 +42,6 @@ struct pathentry {
 
 /* Define the maximum numer of hosts to remember for mount dump */
 #define MAXHOSTS 10
-
 
 struct export {
 	char *basedir;
@@ -60,10 +64,23 @@ struct export {
 	struct export *next;
 };
 
+enum conn_state {
+	IDLE,
+	READLEN,
+	READ,
+	DECODE,
+	WRITE
+};
+
 struct server_conn {
 	struct export *export;
 	struct export *exports;
+	enum conn_state state;
 	int tcp;
+	int socket;
+	struct sockaddr_in hostaddr;
+	int hostaddrlen;
+	clock_t time;
 	int transfersize;
 	int uid;
 	int gid;
@@ -71,8 +88,11 @@ struct server_conn {
 	struct pool *pool;
 	char *request;
 	int requestlen;
+	int requestread;
+	int lastrecord;
 	char *reply;
 	int replylen;
+	int replysent;
 };
 
 void *llmalloc(int size);

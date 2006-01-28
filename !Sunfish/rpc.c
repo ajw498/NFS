@@ -310,7 +310,7 @@ static os_error *rpc_fillbuffer(char *buf, int buflen, int *currentlen, int *ear
 	if (len == -1) {
 		if (errno == EWOULDBLOCK) {
 			len = 0;
-		} else if (errno == ECONNRESET) {
+		} else if (errno == ECONNRESET || errno == ETIMEDOUT) {
 			/* The server has closed the connection (probably due
 			   to a period of inactivity).
 			   Exit early, effectively causing a timeout without
