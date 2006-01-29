@@ -44,10 +44,6 @@
 #include "rpc-process1.h"
 #include "rpc-process2.h"
 
-#include "portmapper-recv.h"
-#include "mount1-recv.h"
-#include "mount3-recv.h"
-#include "nfs2-recv.h"
 
 #include "rpc-decode.h"
 
@@ -66,29 +62,33 @@
 
 /* These point to the current buffer for tx or rx, and are used by
    the process_* macros to read/write data from/to */
-char *buf;
-char *bufend;
+char *ibuf;
+char *ibufend;
+char *obuf;
+char *obufend;
 
 static struct rpc_msg call_header;
 static struct rpc_msg reply_header;
 
-void init_output(struct server_conn *conn)
+static void init_output(struct server_conn *conn)
 {
-	buf = conn->reply;
-	bufend = buf + 32*1024;/*FIXME*/
+	obuf = conn->reply;
+	obufend = obuf + 32*1024;/*FIXME*/
 
 	/* Leave room for the record marker */
-	if (conn->tcp) buf += 4;
+	if (conn->tcp) obuf += 4;
 
 	process_struct_rpc_msg(OUTPUT, reply_header, 0);
 buffer_overflow:
 	return;
 }
 
+enum accept_stat portmapper_decodebody(int prog, int vers, int proc, int *hi, int *lo, struct server_conn *conn);
+
 void rpc_decode(struct server_conn *conn)
 {
-	buf = conn->request;
-	bufend = buf + conn->requestlen;
+	ibuf = conn->request;
+	ibufend = ibuf + conn->requestlen;
 	process_struct_rpc_msg(INPUT, call_header, 0);
 	reply_header.xid = call_header.xid;
 	reply_header.body.mtype = REPLY;
@@ -100,10 +100,14 @@ void rpc_decode(struct server_conn *conn)
 		reply_header.body.u.rbody.u.rreply.u.mismatch_info.high = RPC_VERSION;
 		init_output(conn);
 	} else {
+		int hi;
+		int lo;
 
 		reply_header.body.u.rbody.stat = MSG_ACCEPTED;
 		reply_header.body.u.rbody.u.areply.reply_data.stat = SUCCESS;
-	
+
+		init_output(conn);
+
 		/* Get uid/gid ? */
 	/*	if (conn->auth) {
 			call_header.body.u.cbody.cred.flavor = AUTH_UNIX;
@@ -113,46 +117,11 @@ void rpc_decode(struct server_conn *conn)
 	
 		printf("xid %x prog %d vers %d proc %d\n", call_header.xid,call_header.body.u.cbody.prog,call_header.body.u.cbody.vers, call_header.body.u.cbody.proc);
 	
-		switch (call_header.body.u.cbody.prog) {
-		case 100000/*PMAP_RPC_PROGRAM*/:
-			switch (call_header.body.u.cbody.vers) {
-			case 2/*PMAP_RPC_VERSION*/:
-				reply_header.body.u.rbody.u.areply.reply_data.stat = portmapper_decode(call_header.body.u.cbody.proc, conn);
-				printf("ret %d\n", reply_header.body.u.rbody.u.areply.reply_data.stat);
-				break;
-			default:
-				reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_MISMATCH;
-				reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.low = 2;
-				reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.high = 2;
-			}
-			break;
-		case 100005/*MOUNT_RPC_PROGRAM*/:
-			switch (call_header.body.u.cbody.vers) {
-			case 1:
-				reply_header.body.u.rbody.u.areply.reply_data.stat = mount1_decode(call_header.body.u.cbody.proc, conn);
-				break;
-			case 3:
-				reply_header.body.u.rbody.u.areply.reply_data.stat = mount3_decode(call_header.body.u.cbody.proc, conn);
-				break;
-			default:
-				reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_MISMATCH;
-				reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.low = 1;
-				reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.high = 3;
-			}
-			break;
-		case 100003/*NFS2_RPC_PROGRAM*/:
-			switch (call_header.body.u.cbody.vers) {
-			case 2/*NFS2_RPC_VERSION*/:
-				reply_header.body.u.rbody.u.areply.reply_data.stat = nfs2_decode(call_header.body.u.cbody.proc, conn);
-				break;
-			default:
-				reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_MISMATCH;
-				reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.low = 2;
-				reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.high = 2;
-			}
-			break;
-		default:
-			reply_header.body.u.rbody.u.areply.reply_data.stat = PROG_UNAVAIL;
+		reply_header.body.u.rbody.u.areply.reply_data.stat = portmapper_decodebody(call_header.body.u.cbody.prog, call_header.body.u.cbody.vers, call_header.body.u.cbody.proc, &hi, &lo, conn);
+
+		if (reply_header.body.u.rbody.u.areply.reply_data.stat == PROG_MISMATCH) {
+			reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.low = lo;
+			reply_header.body.u.rbody.u.areply.reply_data.u.mismatch_info.high = hi;
 		}
 	}
 
@@ -162,13 +131,13 @@ void rpc_decode(struct server_conn *conn)
 		init_output(conn);
 	}
 
-	conn->replylen = buf - conn->reply;
+	conn->replylen = obuf - conn->reply;
 
 	if (conn->tcp) {
 		/* Insert the record marker at the start of the buffer */
 		int recordmarker = 0x80000000 | (conn->replylen - 4);
-		buf = conn->reply;
-		bufend = buf + 4;
+		obuf = conn->reply;
+		obufend = obuf + 4;
 		process_int(OUTPUT, recordmarker, 0);
 	}
 

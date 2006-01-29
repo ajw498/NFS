@@ -213,10 +213,10 @@ static os_error *create_auth(struct conn_info *conn)
 	auth_unix.gids.size = conn->numgids;
 	auth_unix.gids.data = conn->gids;
 
-	buf = conn->auth;
-	bufend = conn->auth + conn->authsize;
+	obuf = conn->auth;
+	obufend = conn->auth + conn->authsize;
 	process_struct_auth_unix(0, auth_unix, 0);
-	conn->authsize = buf - conn->auth;
+	conn->authsize = obuf - conn->auth;
 
 buffer_overflow: /* Should never occur */
 	return NULL;

@@ -105,8 +105,10 @@ static char *nextmalloc;
 
 /* These point to the current buffer for tx or rx, and are used by
    the process_* macros to read/write data from/to */
-char *buf;
-char *bufend;
+char *ibuf;
+char *ibufend;
+char *obuf;
+char *obufend;
 
 #define INVALIDBUFFER (-1)
 
@@ -424,11 +426,11 @@ void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, s
 		call_header.body.u.cbody.cred.body.size = 0;
 	}
 
-	buf = fifo[head].tx.buffer;
-	bufend = buf + BUFFERSIZE;
+	obuf = fifo[head].tx.buffer;
+	obufend = obuf + BUFFERSIZE;
 
 	/* Leave room for the record marker */
-	if (conn->tcp) buf += 4;
+	if (conn->tcp) obuf += 4;
 
 	fifo[head].xid = call_header.xid;
 	fifo[head].rx = NULL;
@@ -497,15 +499,15 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 			if (err) return err;
 		}
 
-		fifo[head].tx.len = buf - fifo[head].tx.buffer;
+		fifo[head].tx.len = obuf - fifo[head].tx.buffer;
 		fifo[head].retries = 0;
 		fifo[head].rx = NULL;
 
 		if (conn->tcp) {
 			/* Insert the record marker at the start of the buffer */
 			recordmarker = 0x80000000 | (fifo[head].tx.len - 4);
-			buf = fifo[head].tx.buffer;
-			bufend = buf + 4;
+			obuf = fifo[head].tx.buffer;
+			obufend = obuf + 4;
 			process_int(OUTPUT, recordmarker, 0);
 		}
 
@@ -549,8 +551,8 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 				   fill in the appropriate fifo entry. Ignore any unknown
 				   replies (They could be replies from earlier calls that
 				   we retransmitted because of timeouts) */
-				buf = buffers[readbuffer].buffer;
-				bufend = buf + buffers[readbuffer].len;
+				ibuf = buffers[readbuffer].buffer;
+				ibufend = ibuf + buffers[readbuffer].len;
 				process_int(INPUT, xid, 0);
 
 				for (i = 0; i < FIFOSIZE; i++) {
@@ -591,8 +593,8 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 	if (fifo[tail].rx == NULL) return ERR_WOULDBLOCK;
 
 	/* Setup buffers and parse header */
-	buf = fifo[tail].rx->buffer;
-	bufend = buf + fifo[tail].rx->len;
+	ibuf = fifo[tail].rx->buffer;
+	ibufend = ibuf + fifo[tail].rx->len;
 	process_struct_rpc_msg(INPUT, reply_header, 0);
 
 	/* Check that the RPC completed successfully */

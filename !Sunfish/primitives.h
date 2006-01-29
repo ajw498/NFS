@@ -33,26 +33,31 @@ enum bool {
 	TRUE = 1
 };
 
-extern char *buf, *bufend;
+extern char *ibuf, *ibufend;
+extern char *obuf, *obufend;
 
-/* buf points to next input or outut byte
-   bufend points to byte after the end of buffer */
+/* xbuf points to next input or outut byte
+   xbufend points to byte after the end of buffer */
 
-#define check_bufspace(x) do { \
- if (buf + (x) > bufend) goto buffer_overflow; \
+#define check_bufspace(input, x) do { \
+ if (input) { \
+ if (ibuf + (x) > ibufend) goto buffer_overflow; \
+ } else { \
+ if (obuf + (x) > obufend) goto buffer_overflow; \
+ } \
 } while (0)
 
-#define input_byte() (*(buf++))
+#define input_byte() (*(ibuf++))
 
-#define output_byte(x) (*(buf++) = x)
+#define output_byte(x) (*(obuf++) = x)
 
-#define input_bytes(size) (buf+=size,buf-size)
+#define input_bytes(size) (ibuf+=size,ibuf-size)
 
-#define output_bytes(data, size) (memcpy(buf, data, size),buf+=size)
+#define output_bytes(data, size) (memcpy(obuf, data, size),obuf+=size)
 
 
 #define process_int(input, structbase, maxsize) do { \
- check_bufspace(4); \
+ check_bufspace(input, 4); \
  if (input) { \
   int tmp; \
   tmp  = input_byte() << 24; \
@@ -69,7 +74,7 @@ extern char *buf, *bufend;
 } while (0)
 
 #define process_uint64_t(input, structbase, maxsize) do { \
- check_bufspace(8); \
+ check_bufspace(input, 8); \
  if (input) { \
   uint64_t tmp; \
   tmp  = (uint64_t)(((uint64_t)input_byte()) << 54); \
@@ -94,7 +99,7 @@ extern char *buf, *bufend;
 } while (0)
 
 #define process_enum(input, structbase, name) do { \
- check_bufspace(4); \
+ check_bufspace(input, 4); \
  if (input) { \
   int tmp; \
   tmp  = input_byte() << 24; \
@@ -115,7 +120,7 @@ extern char *buf, *bufend;
  if (structbase.size > maxsize) goto buffer_overflow; \
  if (structbase.size > 0) { \
   int i; \
-  check_bufspace((structbase.size + 3) & ~3); \
+  check_bufspace(input, (structbase.size + 3) & ~3); \
   if (input) { \
    structbase.data = input_bytes(structbase.size); \
   } else { \
@@ -133,7 +138,7 @@ extern char *buf, *bufend;
 
 #define process_fixed_opaque(input,structbase,maxsize) do { \
  int i; \
- check_bufspace(maxsize); \
+ check_bufspace(input, maxsize); \
  if (input) { \
   memcpy(structbase, input_bytes(maxsize), maxsize); \
  } else { \
@@ -153,7 +158,7 @@ extern char *buf, *bufend;
  if (structbase.size > maxsize) goto buffer_overflow; \
  if (structbase.size > 0) { \
   int i; \
-  check_bufspace(structbase.size * 4); \
+  check_bufspace(input, structbase.size * 4); \
   if (input) { \
   	structbase.data = llmalloc(structbase.size * 4); \
    if (structbase.data == NULL) goto buffer_overflow; \

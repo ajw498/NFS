@@ -47,6 +47,9 @@
 #include "rpc-process2.h"
 
 #include "portmapper-recv.h"
+#include "mount1-recv.h"
+#include "mount3-recv.h"
+#include "nfs2-recv.h"
 
 #include "rpc-decode.h"
 
@@ -396,6 +399,7 @@ int udp_read(void)
 		conns[i].tcp = 0;
 		conns[i].time = now;
 		conns[i].transfersize = UDPTRANSFERSIZE;
+		conns[i].suppressreply = 0;
 		conns[i].host = conns[i].hostaddr.sin_addr.s_addr;
 		return 1;
 	} else if (conns[i].requestlen == -1 && errno != EWOULDBLOCK) {
@@ -439,10 +443,11 @@ int tcp_accept(void)
 		conns[i].transfersize = TCPTRANSFERSIZE;
 		conns[i].requestlen = 0;
 		conns[i].requestread = 0;
+		conns[i].suppressreply = 0;
 		conns[i].host = conns[i].hostaddr.sin_addr.s_addr;
 		return 1;
 	} else if (errno != EWOULDBLOCK) {
-		printf("tcpsock accept error %d\n",errno);
+		printf("tcpsock accept error %d %s\n",errno,xstrerror(errno));
 	}
 	return 0;
 }
@@ -474,6 +479,7 @@ void tcp_read(struct server_conn *conn)
 		len = conn->requestlen - conn->requestread;
 		len = read(conn->socket, conn->request + conn->requestread, len);
 		if (len != -1) {
+			conn->time = now;
 			conn->requestread += len;
 			if (conn->requestread == conn->requestlen) {
 				conn->state = conn->lastrecord ? DECODE : READLEN;
@@ -491,6 +497,7 @@ void tcp_write(struct server_conn *conn)
 
 		len = write(conn->socket, conn->reply + conn->replysent, conn->replylen - conn->replysent);
 		if (len != -1) {
+			conn->time = now;
 			conn->replysent += len;
 		} else if (errno != EWOULDBLOCK) {
 			printf("tcpsock write error %d\n",errno);
@@ -498,9 +505,12 @@ void tcp_write(struct server_conn *conn)
 	}
 
 	if (conn->replysent >= conn->replylen) {
-		conn->state = IDLE;
+		conn->time = now;
+		conn->requestlen = 0;
+		conn->requestread = 0;
+		conn->suppressreply = 0;
+		conn->state = READLEN;
 		pclear(conn->pool);
-		close(conn->socket);
 	}
 }
 
@@ -525,8 +535,14 @@ void conn_poll(void)
 		if (conns[i].state == DECODE) {
 			conns[i].export = NULL;
 			rpc_decode(&(conns[i]));
-			conns[i].replysent = 0;
-			conns[i].state = WRITE;
+			if (conns[i].suppressreply) {
+				conns[i].state = IDLE;
+				pclear(conns[i].pool);
+				if (conns[i].tcp) close(conns[i].socket);
+			} else {
+				conns[i].replysent = 0;
+				conns[i].state = WRITE;
+			}
 		}
 	}
 
@@ -546,7 +562,12 @@ void conn_poll(void)
 		if (conns[i].state != IDLE && (now - conns[i].time) > 10*CLOCKS_PER_SEC) {
 			conns[i].state = IDLE;
 			pclear(conns[i].pool);
-			if (conns[i].tcp) close(conns[i].socket);
+			if (conns[i].tcp) {
+			int off[2] = {0, 0};
+				printf("socket timeout\n");
+				shutdown(conns[i].socket, 2);
+				close(conns[i].socket);
+			}
 		}
 	}
 
@@ -555,11 +576,15 @@ void conn_poll(void)
 }
 
 
-struct pool *gpool = NULL;
+static struct pool *gpool = NULL;
+
+typedef enum accept_stat (*decode_proc)(int proc, struct server_conn *conn);
+enum bool portmapper_set(int prog, int vers, int prot, int port, decode_proc decode, struct pool *pool);
 
 int main(void)
 {
 	int i;
+	os_error *err;
 
 	gpool = pinit();
 	if (gpool == NULL) {
@@ -579,14 +604,34 @@ int main(void)
 		conns[i].request = palloc(MAXREQUEST + 4, gpool);
 		conns[i].reply = palloc(MAXREQUEST + 4, gpool);
 		conns[i].pool = pinit();
+		conns[i].gpool = gpool;
 		if (conns[i].pool == NULL || conns[i].request == NULL || conns[i].reply == NULL) {
 			printf("Couldn't allocate memory\n");
 			return 1;
 		}
 	}
 
-	rpc_create_socket(111,0);
-	rpc_create_socket(111,1);
+	portmapper_set(100000, 2, 6,  111, portmapper_decode, gpool);
+	portmapper_set(100000, 2, 17, 111, portmapper_decode, gpool);
+	portmapper_set(100005, 1, 6,  111, mount1_decode, gpool);
+	portmapper_set(100005, 1, 17, 111, mount1_decode, gpool);
+	portmapper_set(100003, 2, 6,  111, nfs2_decode, gpool);
+	portmapper_set(100003, 2, 17, 111, nfs2_decode, gpool);
+
+	err = rpc_create_socket(111,0);
+	if (err) {
+		if (udpsock != -1) close(udpsock);
+		if (tcpsock != -1) close(tcpsock);
+		printf("err udp: %s\n",err->errmess);
+		return 1;
+	}
+	err = rpc_create_socket(111,1);
+	if (err) {
+		if (udpsock != -1) close(udpsock);
+		if (tcpsock != -1) close(tcpsock);
+		printf("err tcp: %s\n",err->errmess);
+		return 1;
+	}
 
 	while (1) {
 		int ch;

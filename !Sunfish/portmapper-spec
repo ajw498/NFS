@@ -25,6 +25,10 @@ struct *pmaplist {
    pmaplist *next;
 };
 
+struct pmaplist2 {
+   pmaplist *list;
+};
+
 struct call_args {
    unsigned int prog;
    unsigned int vers;
@@ -45,6 +49,6 @@ bool PMAPPROC_UNSET(mapping) = 2;
 
 unsigned PMAPPROC_GETPORT(mapping) = 3;
 
-/*pmaplist PMAPPROC_DUMP(void) = 4;*/
+pmaplist2 PMAPPROC_DUMP(void) = 4;
 
-/*call_result PMAPPROC_CALLIT(call_args) = 5;*/
+call_result PMAPPROC_CALLIT(call_args) = 5;

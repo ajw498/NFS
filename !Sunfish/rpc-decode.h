@@ -86,6 +86,7 @@ struct server_conn {
 	int gid;
 	unsigned int host;
 	struct pool *pool;
+	struct pool *gpool;
 	char *request;
 	int requestlen;
 	int requestread;
@@ -93,11 +94,10 @@ struct server_conn {
 	char *reply;
 	int replylen;
 	int replysent;
+	int suppressreply;
 };
 
 void *llmalloc(int size);
-
-void init_output(struct server_conn *conn);
 
 void rpc_decode(struct server_conn *conn);
 
