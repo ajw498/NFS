@@ -2,7 +2,7 @@
 	$Id$
 	$URL$
 
-	Functions to implement decoding of recieved RPC calls.
+	exports file parsing.
 
 
 	Copyright (C) 2006 Alex Waugh
@@ -22,54 +22,54 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#ifndef RPC_DECODE_H
-#define RPC_DECODE_H
-
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <time.h>
-
-#include "exports.h"
-#include "sunfish.h"
+#ifndef EXPORTS_H
+#define EXPORTS_H
 
 
-enum conn_state {
-	IDLE,
-	READLEN,
-	READ,
-	DECODE,
-	WRITE
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <swis.h>
+#include <sys/errno.h>
+#include <unixlib.h>
+#include <stdarg.h>
+#include <ctype.h>
+
+#include "pools.h"
+
+#define PATHENTRIES 32
+
+struct pathentry {
+	char *name;
+	struct pathentry *next;
 };
 
-struct server_conn {
-	struct export *export;
-	struct export *exports;
-	enum conn_state state;
-	int tcp;
-	int socket;
-	struct sockaddr_in hostaddr;
-	int hostaddrlen;
-	clock_t time;
-	int transfersize;
+/* Define the maximum numer of hosts to remember for mount dump */
+#define MAXHOSTS 10
+
+struct export {
+	char *basedir;
+	size_t basedirlen;
+	int exportnum;
+	char *exportname;
+	int ro;
+	int matchuid;
 	int uid;
+	int matchgid;
 	int gid;
 	unsigned int host;
+	unsigned int mask;
+	unsigned int hosts[MAXHOSTS];
+	int imagefs;
+	int defaultfiletype;
+	int xyzext;
 	struct pool *pool;
-	struct pool *gpool;
-	char *request;
-	int requestlen;
-	int requestread;
-	int lastrecord;
-	char *reply;
-	int replylen;
-	int replysent;
-	int suppressreply;
+	struct pathentry *pathentry;
+	struct export *next;
 };
 
-void *llmalloc(int size);
 
-void rpc_decode(struct server_conn *conn);
+struct export *parse_exports_file(struct pool *pool);
 
 #endif
 

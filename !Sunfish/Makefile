@@ -57,7 +57,7 @@ all: Sunfish !RunImage
 !RunImage: frontend.c moduledefs.h
 	$(CC) $(CFLAGS) frontend.c -o !RunImage  $(LIBS)
 
-DEBUGSERVEROBJ = debug-server.o rpc-decode.o portmapper-procs.o mount1-procs.o mount3-procs.o portmapper-recv.o mount1-recv.o mount3-recv.o nfs2-recv.o nfs2-procs.o pools.o
+DEBUGSERVEROBJ = debug-server.o rpc-decode.o portmapper-procs.o mount1-procs.o mount3-procs.o portmapper-recv.o mount1-recv.o mount3-recv.o nfs2-recv.o nfs2-procs.o pools.o serverconn.o exports.o
 
 debug-server: $(DEBUGSERVEROBJ)
 	$(CC) $(CFLAGS) $(DEBUGSERVEROBJ) -o debug-server $(LIBS)
@@ -70,6 +70,12 @@ rpc-decode.o: rpc-decode.c
 
 pools.o: pools.c
 	$(CC) $(CFLAGS) -c pools.c -o $@
+
+serverconn.o: serverconn.c serverconn.h
+	$(CC) $(CFLAGS) -c serverconn.c -o $@
+
+exports.o: exports.c exports.h
+	$(CC) $(CFLAGS) -c exports.c -o $@
 
 portmapper-procs.o: portmapper-procs.c portmapper-procs.h
 	$(CC) $(CFLAGS) -c portmapper-procs.c -o $@
