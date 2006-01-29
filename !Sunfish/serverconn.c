@@ -56,42 +56,28 @@
 #include "serverconn.h"
 
 
-#define RPCERRBASE 1
-
 
 static int udpsock = -1;
 static int tcpsock = -1;
 
 
-/* Generate a RISC OS error block based on the given number and message */
-static os_error *gen_error(int num, char *msg, ...)
-{
-	static os_error module_err_buf;
-	va_list ap;
-
-	
-	va_start(ap, msg);
-	vsnprintf(module_err_buf.errmess, sizeof(module_err_buf.errmess), msg, ap);
-	va_end(ap);
-	module_err_buf.errnum = num;
-	return &module_err_buf;
-}
-
-static os_error *rpc_create_socket(int port, int tcp)
+static int conn_create_socket(int port, int tcp)
 {
 	int on = 1;
 	int sock;
 
 	sock = socket(AF_INET, tcp ? SOCK_STREAM : SOCK_DGRAM, 0);
-	if (sock < 0) return gen_error(RPCERRBASE + 2,"Unable to open socket (%s)", xstrerror(errno));
-
-/*	if (setsockopt(udpsock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) == EOF)  return 0;*/
+	if (sock < 0) {
+		syslogf(LOGNAME, LOG_SERIOUS, "Unable to open socket (%s)", xstrerror(errno));
+		return -1;
+	}
 
 	/* Make the socket non-blocking */
 	if (ioctl(sock, FIONBIO, &on) < 0) {
-		return gen_error(RPCERRBASE + 6,"Unable to ioctl (%s)", xstrerror(errno));
+		syslogf(LOGNAME, LOG_SERIOUS, "Unable to ioctl (%s)", xstrerror(errno));
+		close(sock);
+		return -1;
 	}
-/*	ioctl(udpsock, FIOSLEEPTW, &on);*/
 
 	struct sockaddr_in name;
 
@@ -100,14 +86,19 @@ static os_error *rpc_create_socket(int port, int tcp)
 	name.sin_addr.s_addr = (int)htonl(INADDR_ANY);
 
 	name.sin_port = htons(port);
-	if (bind(sock, (struct sockaddr *)&name, sizeof(name))) return gen_error(RPCERRBASE + 14, "Unable to bind socket to local port (%s)", xstrerror(errno));
+	if (bind(sock, (struct sockaddr *)&name, sizeof(name))) {
+		syslogf(LOGNAME, LOG_SERIOUS, "Unable to bind socket to local port (%s)", xstrerror(errno));
+		close(sock);
+		return -1;
+	}
 
-	/* FIXME is backlog of 8 sufficient? */
-	if (tcp && listen(sock, 8)) return gen_error(RPCERRBASE + 14, "Unable to listen on socket (%s)", xstrerror(errno));
+	if (tcp && listen(sock, 5)) {
+		syslogf(LOGNAME, LOG_SERIOUS, "Unable to listen on socket (%s)", xstrerror(errno));
+		close(sock);
+		return -1;
+	}
 
-	if (tcp) tcpsock = sock; else udpsock = sock;
-
-	return NULL;
+	return sock;
 }
 
 void reap_files(int all);
@@ -149,7 +140,8 @@ static int udp_read(void)
 		conns[i].host = conns[i].hostaddr.sin_addr.s_addr;
 		return 1;
 	} else if (conns[i].requestlen == -1 && errno != EWOULDBLOCK) {
-		printf("udpsock read error %d\n",errno);
+		syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",xstrerror(errno));
+		/* FIXME close connection */
 	}
 	return 0;
 }
@@ -162,6 +154,9 @@ static void udp_write(struct server_conn *conn)
 		len = sendto(udpsock, conn->reply, conn->replylen, 0, (struct sockaddr *)&(conn->hostaddr), conn->hostaddrlen);
 		if (len > 0) {
 			conn->replysent = conn->replylen;
+		} else if (len == -1 && errno != EWOULDBLOCK) {
+			syslogf(LOGNAME, LOG_ERROR, "Error writing to socket (%s)",xstrerror(errno));
+			/* FIXME close connection */
 		}
 	}
 	if (conn->replysent >= conn->replylen) {
@@ -193,7 +188,7 @@ static int tcp_accept(void)
 		conns[i].host = conns[i].hostaddr.sin_addr.s_addr;
 		return 1;
 	} else if (errno != EWOULDBLOCK) {
-		printf("tcpsock accept error %d %s\n",errno,xstrerror(errno));
+		syslogf(LOGNAME, LOG_ERROR, "Error calling accept on socket (%s)",xstrerror(errno));
 	}
 	return 0;
 }
@@ -217,7 +212,8 @@ static void tcp_read(struct server_conn *conn)
 				conn->state = READ;
 			}
 		} else if (errno != EWOULDBLOCK) {
-			printf("tcpsock read error %d\n",errno);
+			syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",xstrerror(errno));
+			/* FIXME close connection */
 		}
 	}
 
@@ -231,7 +227,8 @@ static void tcp_read(struct server_conn *conn)
 				conn->state = conn->lastrecord ? DECODE : READLEN;
 			}
 		} else if (errno != EWOULDBLOCK) {
-			printf("tcpsock read error %d\n",errno);
+			syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",xstrerror(errno));
+			/* FIXME close connection */
 		}
 	}
 }
@@ -246,7 +243,8 @@ static void tcp_write(struct server_conn *conn)
 			conn->time = now;
 			conn->replysent += len;
 		} else if (errno != EWOULDBLOCK) {
-			printf("tcpsock write error %d\n",errno);
+			syslogf(LOGNAME, LOG_ERROR, "Error writing to socket (%s)",xstrerror(errno));
+			/* FIXME close connection */
 		}
 	}
 
@@ -309,7 +307,6 @@ void conn_poll(void)
 			conns[i].state = IDLE;
 			pclear(conns[i].pool);
 			if (conns[i].tcp) {
-				printf("socket timeout\n");
 				shutdown(conns[i].socket, 2);
 				close(conns[i].socket);
 			}
@@ -321,62 +318,56 @@ void conn_poll(void)
 }
 
 
+/* Global memory pool */
 static struct pool *gpool = NULL;
 
 typedef enum accept_stat (*decode_proc)(int proc, struct server_conn *conn);
 enum bool portmapper_set(int prog, int vers, int prot, int port, decode_proc decode, struct pool *pool);
 
+#define UR(x) do { \
+	if ((x) == NULL) { \
+		syslogf(LOGNAME, LOG_MEM, OUTOFMEM); \
+		return 1; \
+	} \
+} while (0)
+
+#define BR(x) do { \
+	if ((x) == FALSE) return 1; \
+} while (0)
+
 int conn_init(void)
 {
 	int i;
-	os_error *err;
 
-	gpool = pinit();
-	if (gpool == NULL) {
-		printf("Couldn't alloc gpool\n");
-		return 1;
-	}
+	UR(gpool = pinit(NULL));
 
-	exports = parse_exports_file(gpool);
-	if (exports == NULL) {
-		printf("Couldn't read any exports\n");
-		return 1;
-	}
+	UR(exports = parse_exports_file(gpool));
 
 	for (i = 0; i < MAXCONNS; i++) {
 		conns[i].state = IDLE;
 		conns[i].exports = exports;
-		conns[i].request = palloc(MAXREQUEST + 4, gpool);
-		conns[i].reply = palloc(MAXREQUEST + 4, gpool);
-		conns[i].pool = pinit();
+		UR(conns[i].request = palloc(MAXREQUEST + 4, gpool));
+		UR(conns[i].reply = palloc(MAXREQUEST + 4, gpool));
+		UR(conns[i].pool = pinit(gpool));
 		conns[i].gpool = gpool;
-		if (conns[i].pool == NULL || conns[i].request == NULL || conns[i].reply == NULL) {
-			printf("Couldn't allocate memory\n");
-			return 1;
-		}
 	}
 
-	portmapper_set(100000, 2, 6,  111, portmapper_decode, gpool);
-	portmapper_set(100000, 2, 17, 111, portmapper_decode, gpool);
-	portmapper_set(100005, 1, 6,  111, mount1_decode, gpool);
-	portmapper_set(100005, 1, 17, 111, mount1_decode, gpool);
-	portmapper_set(100003, 2, 6,  111, nfs2_decode, gpool);
-	portmapper_set(100003, 2, 17, 111, nfs2_decode, gpool);
+	BR(portmapper_set(100000, 2, 6,  111, portmapper_decode, gpool));
+	BR(portmapper_set(100000, 2, 17, 111, portmapper_decode, gpool));
+	BR(portmapper_set(100005, 1, 6,  111, mount1_decode, gpool));
+	BR(portmapper_set(100005, 1, 17, 111, mount1_decode, gpool));
+	BR(portmapper_set(100003, 2, 6,  111, nfs2_decode, gpool));
+	BR(portmapper_set(100003, 2, 17, 111, nfs2_decode, gpool));
 
-	err = rpc_create_socket(111,0);
-	if (err) {
-		if (udpsock != -1) close(udpsock);
-		if (tcpsock != -1) close(tcpsock);
-		printf("err udp: %s\n",err->errmess);
+	udpsock = conn_create_socket(111, 0);
+	if (udpsock == -1) return 1;
+
+	tcpsock = conn_create_socket(111,1);
+	if (tcpsock == -1) {
+		close(udpsock);
 		return 1;
 	}
-	err = rpc_create_socket(111,1);
-	if (err) {
-		if (udpsock != -1) close(udpsock);
-		if (tcpsock != -1) close(tcpsock);
-		printf("err tcp: %s\n",err->errmess);
-		return 1;
-	}
+
 	return 0;
 }
 
@@ -385,7 +376,6 @@ void conn_close(void)
 	reap_files(1);
 	if (udpsock != -1) close(udpsock);
 	if (tcpsock != -1) close(tcpsock);
-	/*free_exports(exports);
-	pfree(gpool);*/
+	if (gpool) pfree(gpool);
 }
 

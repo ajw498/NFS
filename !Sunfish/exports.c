@@ -107,10 +107,24 @@ static os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct
 	return gen_error(RPCERRBASE + 1, "Unable to resolve hostname '%s' (%d)", host, errnum);
 }
 
-
+int logging = 0;
 
 #define CHECK(str) (strncasecmp(opt,str,sizeof(str) - 1)==0)
 
+#define UR(x) do { \
+	if ((x) == NULL) { \
+		syslogf(LOGNAME, LOG_MEM, OUTOFMEM); \
+		return NULL; \
+	} \
+} while (0)
+
+#define ER(x) do { \
+	os_error *err = x; \
+	if (x) { \
+		syslogf(LOGNAME, LOG_SERIOUS, "%s", err->errmess); \
+		return NULL; \
+	} \
+} while (0)
 
 static struct export *parse_line(char *line, struct pool *pool)
 {
@@ -135,11 +149,7 @@ static struct export *parse_line(char *line, struct pool *pool)
 	while (*line && *line != '(') line++;
 	if (*line) *line++ = '\0';
 
-	export = palloc(sizeof(struct export), pool);
-	if (export == NULL) {
-		/*FIXME*/
-		return NULL;
-	}
+	UR(export = palloc(sizeof(struct export), pool));
 
 	/* Set defaults */
 	export->ro = 1;
@@ -153,32 +163,17 @@ static struct export *parse_line(char *line, struct pool *pool)
 	export->next = NULL;
 	export->pathentry = NULL;
 	memset(export->hosts, 0, sizeof(unsigned int) * MAXHOSTS);
-	export->pool = pinit();
-	if (export->pool == NULL) {
-		/*FIXME*/
-		free(export);
-		return NULL;
-	}
+	UR(export->pool = pinit(pool));
 
-	export->basedir = strdup(basedir);
-	if (export->basedir == NULL) {
-		/*FIXME*/
-		pfree(export->pool);
-		free(export);
-		return NULL;
-	}
+	UR(export->basedir = pstrdup(basedir, pool));
 	export->basedirlen = strlen(basedir);
 	export->exportnum = exportnum++;
-	/*FIXME if exportnum > 128 then error */
-
-	export->exportname = strdup(exportname);
-	if (export->basedir == NULL) {
-		/*FIXME*/
-		free(export->basedir);
-		pfree(export->pool);
-		free(export);
+	if (exportnum > 128) {
+		syslogf(LOGNAME, LOG_SERIOUS, "Only 128 export directories are supported");
 		return NULL;
 	}
+
+	UR(export->exportname = pstrdup(exportname, pool));
 
 	maskstart = strchr(host, '/');
 	if (maskstart) {
@@ -196,10 +191,7 @@ static struct export *parse_line(char *line, struct pool *pool)
 		export->mask = 0;
 	} else {
 		struct hostent *hp;
-		if (gethostbyname_timeout(host, 5, &hp)) {
-			printf("couldn't resolve\n");
-			abort();
-		}
+		ER(gethostbyname_timeout(host, 5, &hp));
 		memcpy(&(export->host), hp->h_addr, hp->h_length);
 	}
 
@@ -221,6 +213,8 @@ static struct export *parse_line(char *line, struct pool *pool)
 			export->gid = atoi(opt + 4);
 		} else if (CHECK("imagefs")) {
 			export->imagefs = 1;
+		} else if (CHECK("logging")) {
+			logging = 1;
 		} else if (CHECK("defaultfiletype") && opt[15] == '=') {
 			export->defaultfiletype = (int)strtol(opt + 16, NULL, 16);
 		} else if (CHECK("addext") && opt[6] == '=') {
@@ -231,15 +225,17 @@ static struct export *parse_line(char *line, struct pool *pool)
 	return export;
 }
 
+#define EXPORTSFILE "Choices:Moonfish.exports"
+
 struct export *parse_exports_file(struct pool *pool)
 {
 	char line[1024];
 	FILE *file;
 	struct export *exports = NULL;
 
-	file = fopen("Choices:Moonfish.exports","r");
+	file = fopen(EXPORTSFILE, "r");
 	if (file == NULL) {
-		printf("Can't open exports file\n");
+		syslogf(LOGNAME, LOG_SERIOUS, "Unable to open exports file (%s)", EXPORTSFILE);
 		return NULL;
 	}
 

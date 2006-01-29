@@ -114,9 +114,11 @@ void rpc_decode(struct server_conn *conn)
 			call_header.body.u.cbody.cred.body.size = conn->authsize;
 			call_header.body.u.cbody.cred.body.data = conn->auth;
 		} */
-	
-		printf("xid %x prog %d vers %d proc %d\n", call_header.xid,call_header.body.u.cbody.prog,call_header.body.u.cbody.vers, call_header.body.u.cbody.proc);
-	
+
+		if (logging) syslogf(LOGNAME, LOG_ACCESS, "Access: xid %x prog %d vers %d proc %d",
+		                     call_header.xid, call_header.body.u.cbody.prog,
+		                     call_header.body.u.cbody.vers, call_header.body.u.cbody.proc);
+
 		reply_header.body.u.rbody.u.areply.reply_data.stat = portmapper_decodebody(call_header.body.u.cbody.prog, call_header.body.u.cbody.vers, call_header.body.u.cbody.proc, &hi, &lo, conn);
 
 		if (reply_header.body.u.rbody.u.areply.reply_data.stat == PROG_MISMATCH) {

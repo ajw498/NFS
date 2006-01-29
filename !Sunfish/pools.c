@@ -24,11 +24,13 @@
 
 #include "pools.h"
 
+#include <string.h>
 
-#define POOL_INCR 48*1024
+
+#define POOL_INCR (8*1024)
 
 /* Initialise a new pool. */
-struct pool *pinit(void)
+struct pool *pinit(struct pool *parent)
 {
 	struct pool *pool;
 
@@ -38,6 +40,14 @@ struct pool *pinit(void)
 	pool->next = NULL;
 	pool->start = (char *)(pool + 1);
 	pool->free = POOL_INCR - sizeof(struct pool);
+	pool->children = NULL;
+
+	if (parent) {
+		pool->nextchild = parent->children;
+		parent->children = pool;
+	} else {
+		pool->nextchild = NULL;
+	}
 
 	return pool;
 }
@@ -74,13 +84,15 @@ void *palloc(size_t size, struct pool *pool)
 	newpool->start += size;
 	newpool->free = incr - sizeof(struct pool) - size;
 	newpool->next = pool->next;
+	newpool->children = NULL;
+	newpool->nextchild = NULL;
 	pool->next = newpool;
 
 	return mem;
 }
 
 /* strdup from a pool. */
-/*char *pstrdup(char *src, struct pool *pool)
+char *pstrdup(char *src, struct pool *pool)
 {
 	char *dest;
 	size_t len;
@@ -90,14 +102,23 @@ void *palloc(size_t size, struct pool *pool)
 	if (dest == NULL) return NULL;
 	memcpy(dest, src, len + 1);
 	return dest;
-}*/
+}
 
 /* Free the pool and all its contents */
 void pfree(struct pool *pool)
 {
+	struct pool *thispool;
 	struct pool *nextpool;
 
 	while (pool) {
+		thispool = pool->children;
+
+		while (thispool) {
+			nextpool = thispool->nextchild;
+			pfree(thispool);
+			thispool = nextpool;
+		}
+
 		nextpool = pool->next;
 		free(pool);
 		pool = nextpool;
@@ -108,6 +129,10 @@ void pfree(struct pool *pool)
 void pclear(struct pool *pool)
 {
 	pfree(pool->next);
+	pfree(pool->children);
+	pool->next = NULL;
+	pool->children = NULL;
+
 	pool->start = (char *)(pool + 1);
 	pool->free = POOL_INCR - sizeof(struct pool);
 }

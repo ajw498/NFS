@@ -96,6 +96,22 @@ void *llmalloc(int size)
 	return mem;
 }
 
+#define SYSLOGF_BUFSIZE 1024
+#define Syslog_LogMessage 0x4C880
+
+void syslogf(char *logname, int level, char *fmt, ...)
+{
+	static char syslogbuf[SYSLOGF_BUFSIZE];
+	va_list ap;
+
+	va_start(ap, fmt);
+	vsnprintf(syslogbuf, sizeof(syslogbuf), fmt, ap);
+	va_end(ap);
+
+	/* Ignore any errors, as there's not much we can do with them */
+	_swix(Syslog_LogMessage, _INR(0,2), logname, syslogbuf, level);
+	printf("syslogged: %s\n", syslogbuf);
+}
 
 int main(void)
 {

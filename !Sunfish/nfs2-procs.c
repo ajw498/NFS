@@ -54,7 +54,7 @@ typedef _kernel_oserror os_error;
 	os_error *err = x; \
 	if (err) { \
 		res->status = oserr_to_nfserr(err->errnum); \
-		printf("ERROR: %x %s\n", err->errnum, err->errmess); \
+		syslogf(LOGNAME, LOG_ERROR, "Error: %x %s", err->errnum, err->errmess); \
 		return SUCCESS; \
 	} else { \
 		res->status = NFS_OK; \
@@ -73,7 +73,7 @@ typedef _kernel_oserror os_error;
 #define OR(x) do { \
 	os_error *err = x; \
 	if (err) { \
-		printf("ERROR: %x %s\n", err->errnum, err->errmess); \
+		syslogf(LOGNAME, LOG_ERROR, "Error: %x %s", err->errnum, err->errmess); \
 		return oserr_to_nfserr(err->errnum); \
 	} \
 } while (0)

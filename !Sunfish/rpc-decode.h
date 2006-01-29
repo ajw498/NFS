@@ -69,6 +69,20 @@ struct server_conn {
 
 void *llmalloc(int size);
 
+#define LOGNAME "Moonfish"
+
+#define LOG_SERIOUS 1
+#define LOG_MEM 2
+#define LOG_ERROR 150
+#define LOG_ACCESS 200
+#define LOG_DATA 300
+
+#define OUTOFMEM "Unable to allocate enough memory"
+
+extern int logging;
+
+void syslogf(char *logname, int level, char *fmt, ...);
+
 void rpc_decode(struct server_conn *conn);
 
 #endif

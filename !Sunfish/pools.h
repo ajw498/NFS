@@ -29,13 +29,15 @@
 
 struct pool {
 	struct pool *next;
+	struct pool *children;
+	struct pool *nextchild;
 	char *start;
 	size_t free;
 	/* Actual memory follows */
 };
 
-/* Initialise a new pool. */
-struct pool *pinit(void);
+/* Initialise a new pool, attaching it to parent if non-null. */
+struct pool *pinit(struct pool *parent);
 
 /* Allocate some memory from a pool. */
 void *palloc(size_t size, struct pool *pool);

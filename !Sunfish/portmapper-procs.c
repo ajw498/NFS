@@ -49,7 +49,10 @@ enum bool portmapper_set(int prog, int vers, int prot, int port, decode_proc dec
 		program = program->next;
 	}
 	program = palloc(sizeof(struct program), pool);
-	if (program == NULL) return FALSE;
+	if (program == NULL) {
+		syslogf(LOGNAME, LOG_MEM, OUTOFMEM);
+		return FALSE;
+	}
 	program->map.prog = prog;
 	program->map.vers = vers;
 	program->map.prot = prot;
