@@ -110,7 +110,7 @@ void syslogf(char *logname, int level, char *fmt, ...)
 
 	/* Ignore any errors, as there's not much we can do with them */
 	_swix(Syslog_LogMessage, _INR(0,2), logname, syslogbuf, level);
-	printf("syslogged: %s\n", syslogbuf);
+/*	printf("syslogged: %s\n", syslogbuf);*/
 }
 
 int main(void)

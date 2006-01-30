@@ -42,6 +42,8 @@ typedef _kernel_oserror os_error;
 
 int conn_init(void);
 
-void conn_poll(void);
+int conn_validsocket(int sock);
+
+int conn_poll(void);
 
 void conn_close(void);

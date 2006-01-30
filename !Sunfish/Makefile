@@ -24,7 +24,7 @@ MODLIBS := $(MODLIBS) C:o.stubs
 
 CC = cc
 #CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zpq262144 -IC:
-CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpz0 -zpq262144 -IC:
+CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpz0 -zpq262144 -IC: -zM
 
 LINK = link -m 
 
@@ -57,10 +57,16 @@ all: Sunfish !RunImage
 !RunImage: frontend.c moduledefs.h
 	$(CC) $(CFLAGS) frontend.c -o !RunImage  $(LIBS)
 
-DEBUGSERVEROBJ = debug-server.o rpc-decode.o portmapper-procs.o mount1-procs.o mount3-procs.o portmapper-recv.o mount1-recv.o mount3-recv.o nfs2-recv.o nfs2-procs.o pools.o serverconn.o exports.o
+DEBUGSERVEROBJ = rpc-decode.o portmapper-procs.o mount1-procs.o mount3-procs.o portmapper-recv.o mount1-recv.o mount3-recv.o nfs2-recv.o nfs2-procs.o pools.o serverconn.o exports.o
+
+Moonfish: $(DEBUGSERVEROBJ) moonfishhdr.o moonfish.o
+	$(LINK) -o Moonfish $(DEBUGSERVEROBJ) moonfishhdr.o moonfish.o $(MODLIBS)
+
+moonfishdefs.h moonfishhdr.o: @.cmhg.moonfish
+	cmhg  -throwback moonfish.cmhg -o moonfishhdr.o moonfishdefs.h
 
 debug-server: $(DEBUGSERVEROBJ)
-	$(CC) $(CFLAGS) $(DEBUGSERVEROBJ) -o debug-server $(LIBS)
+	$(CC) $(CFLAGS) $(DEBUGSERVEROBJ) debug-server.o -o debug-server $(LIBS)
 
 debug-server.o: debug-server.c $(GENHDRS)
 	$(CC) $(CFLAGS) -c debug-server.c -o $@

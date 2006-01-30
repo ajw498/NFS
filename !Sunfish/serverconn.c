@@ -79,6 +79,13 @@ static int conn_create_socket(int port, int tcp)
 		return -1;
 	}
 
+	/* Make the socket generate an event */
+	if (ioctl(sock, FIOASYNC, &on) < 0) {
+		syslogf(LOGNAME, LOG_SERIOUS, "Unable to ioctl (%s)", xstrerror(errno));
+		close(sock);
+		return -1;
+	}
+
 	struct sockaddr_in name;
 
 	memset(&name, 0, sizeof(name));
@@ -258,7 +265,22 @@ static void tcp_write(struct server_conn *conn)
 	}
 }
 
-void conn_poll(void)
+int conn_validsocket(int sock)
+{
+	int i;
+
+	if (sock == udpsock || sock == tcpsock) return 1;
+
+	for (i = 0; i < MAXCONNS; i++) {
+		if (conns[i].tcp && (conns[i].state != IDLE)) {
+			if (conns[i].socket == sock) return 1;
+		}
+	}
+
+	return 0;
+}
+
+int conn_poll(void)
 {
 	int i;
 	now = clock();
@@ -315,6 +337,8 @@ void conn_poll(void)
 
 	/* Reap any open filehandles that haven't been accessed recently */
 	reap_files(0);
+
+	return 1; /*FIXME*/
 }
 
 

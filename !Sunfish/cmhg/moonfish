@@ -1,0 +1,18 @@
+;
+;	$Id$
+;	$URL$
+;
+;	Module header description
+;
+
+help-string: Moonfish 0.01 © Alex Waugh 2006
+
+title-string: Moonfish
+
+initialisation-code: initialise
+
+finalisation-code: finalise
+
+event-handler: internet_event 19
+generic-veneers: callevery callback callback2
+
