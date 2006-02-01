@@ -153,14 +153,18 @@ static int udp_read(void)
 	return 0;
 }
 
-static void udp_write(struct server_conn *conn)
+/* Returns non-zero when data was read */
+static int udp_write(struct server_conn *conn)
 {
+	int ret = 0;
+
 	if (conn->replylen > 0) {
 		int len;
 /*		logdata(0, output_buf, buf - output_buf); */
 		len = sendto(udpsock, conn->reply, conn->replylen, 0, (struct sockaddr *)&(conn->hostaddr), conn->hostaddrlen);
 		if (len > 0) {
 			conn->replysent = conn->replylen;
+			ret = 1;
 		} else if (len == -1 && errno != EWOULDBLOCK) {
 			syslogf(LOGNAME, LOG_ERROR, "Error writing to socket (%s)",xstrerror(errno));
 			/* FIXME close connection */
@@ -170,6 +174,7 @@ static void udp_write(struct server_conn *conn)
 		conn->state = IDLE;
 		pclear(conn->pool);
 	}
+	return ret;
 }
 
 /* Returns non-zero when data was read */
@@ -284,10 +289,11 @@ int conn_poll(void)
 {
 	int i;
 	now = clock();
+	int activity;
 
 	/* Accept any new connections */
-	while (udp_read());
-	while (tcp_accept());
+	activity = udp_read();
+	activity |= tcp_accept();
 
 	/* Read any data waiting to be read */
 	for (i = 0; i < MAXCONNS; i++) {
@@ -318,7 +324,7 @@ int conn_poll(void)
 			if (conns[i].tcp) {
 				tcp_write(&(conns[i]));
 			} else {
-				udp_write(&(conns[i]));
+				activity |= udp_write(&(conns[i]));
 			}
 		}
 	}
@@ -338,7 +344,7 @@ int conn_poll(void)
 	/* Reap any open filehandles that haven't been accessed recently */
 	reap_files(0);
 
-	return 1; /*FIXME*/
+	return activity ? 0 : 1; /*FIXME*/
 }
 
 

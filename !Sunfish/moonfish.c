@@ -43,6 +43,8 @@ void syslogf(char *logname, int level, char *fmt, ...)
 	static char syslogbuf[SYSLOGF_BUFSIZE];
 	va_list ap;
 
+	if (level > 10) return;
+
 	level = 1; /**/
 
 	va_start(ap, fmt);
@@ -110,7 +112,10 @@ _kernel_oserror *callback_handler(_kernel_swi_regs *r, void *pw)
 	(void)r;
 	(void)pw;
 
-	delay = conn_poll();
+/*	do { */
+		delay = conn_poll();
+/*	} while (delay == 0);*/
+
 	_swix(OS_CallAfter, _INR(0,2), delay, callevery, pw);
 
 	return NULL;
@@ -123,7 +128,9 @@ _kernel_oserror *callback2_handler(_kernel_swi_regs *r, void *pw)
 	(void)r;
 	(void)pw;
 
-	delay = conn_poll();
+/*	do {*/
+		delay = conn_poll();
+/*	} while (delay == 0);*/
 
 	return NULL;
 }

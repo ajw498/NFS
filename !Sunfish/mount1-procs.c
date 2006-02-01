@@ -55,8 +55,6 @@ enum accept_stat MNTPROC_MNT(string *args, struct mountres *res, struct server_c
 {
 	struct export *export;
 
-	printf("MNTPROC_MNT\n");
-
 	export = conn->exports;
 
 	while (export) {

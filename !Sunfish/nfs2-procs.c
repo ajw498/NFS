@@ -725,18 +725,23 @@ enum accept_stat NFSPROC_READDIR(struct readdirargs *args, struct readdirres *re
 	return SUCCESS;
 }
 
-#define MAXOPENFILES 10
+#define MAXOPENFILES 3
 #define MAX_PATHNAME 1024
+
+#define DATABUFFER 512*1024
 
 static struct openfile {
 	char name[MAX_PATHNAME];
 	int handle;
 	clock_t time;
+	char buffer[DATABUFFER];
+	int bufferoffset;
+	int buffercount;
 } openfiles[MAXOPENFILES];
 
 static int openfileinit = 0;
 
-static os_error *open_file(char *path, int *handle)
+static os_error *open_file(char *path, int *handle, int *index)
 {
 	int i;
 	clock_t now = clock();
@@ -755,6 +760,7 @@ static os_error *open_file(char *path, int *handle)
 			available = i;
 		} else if (strcmp(path, openfiles[i].name) == 0) {
 			*handle = openfiles[i].handle;
+			if (index) *index = i;
 			openfiles[i].time = now;
 			return NULL;
 		} else if (now - openfiles[i].time > lasttime) {
@@ -772,6 +778,9 @@ static os_error *open_file(char *path, int *handle)
 	snprintf(openfiles[earliest].name, MAX_PATHNAME, "%s", path);
 	err = _swix(OS_Find, _INR(0,1) | _OUT(0), 0xC3, path, handle);
 	openfiles[earliest].handle = err ? 0 : *handle;
+	openfiles[earliest].buffercount = 0;
+	openfiles[earliest].bufferoffset = 0;
+	if (index) *index = earliest;
 	return err;
 
 }
@@ -793,6 +802,32 @@ void reap_files(int all)
 	}
 }
 
+static enum nstat read_file(char *path, unsigned int count, unsigned int offset, char **data, unsigned int *read)
+{
+	int handle;
+	int index;
+	unsigned int read2;
+	int bufferoffset;
+
+	OR(open_file(path, &handle, &index));
+
+	if (count > DATABUFFER) count = DATABUFFER;
+
+	if ((offset < openfiles[index].bufferoffset) ||
+	    ((offset + count) > (openfiles[index].bufferoffset + openfiles[index].buffercount))) {
+		openfiles[index].bufferoffset = offset;
+		openfiles[index].buffercount = 0;
+/*		syslogf(LOGNAME, 1, "Reading %d %d", offset, count);*/
+		OR(_swix(OS_GBPB, _INR(0,4) | _OUT(3), 3, handle, openfiles[index].buffer, DATABUFFER, offset, &read2));
+		openfiles[index].buffercount = DATABUFFER - read2;
+	}
+	bufferoffset = (offset - openfiles[index].bufferoffset);
+	*data = openfiles[index].buffer + bufferoffset;
+	*read = openfiles[index].buffercount - bufferoffset;
+	if (*read > count) *read = count;
+	return NFS_OK;
+}
+
 enum accept_stat NFSPROC_READ(struct readargs *args, struct readres *res, struct server_conn *conn)
 {
 	char *path;
@@ -800,15 +835,16 @@ enum accept_stat NFSPROC_READ(struct readargs *args, struct readres *res, struct
 	unsigned int read;
 	char *data;
 
-	printf("NFSPROC_READ\n");
-
 	NE(nfs2fh_to_path(&(args->file), &path, conn));
-	OE(open_file(path, &handle));
+	/*OE(open_file(path, &handle));*/
 	/*FIXME verify count is sensible (and offset?) */
-	UE(data = palloc(args->count, conn->pool));
+/*	UE(data = palloc(args->count, conn->pool));
 	OE(_swix(OS_GBPB, _INR(0,4) | _OUT(3), 3, handle, data, args->count, args->offset, &read));
 	res->u.resok.data.data = data;
-	res->u.resok.data.size = args->count - read;
+	res->u.resok.data.size = args->count - read;*/
+	NE(read_file(path, args->count, args->offset, &data, &read));
+	res->u.resok.data.data = data;
+	res->u.resok.data.size = read;
 	NE(get_fattr(path, -1, &(res->u.resok.attributes), conn));
 	return SUCCESS;
 }
@@ -820,7 +856,7 @@ enum accept_stat NFSPROC_WRITE(struct writeargs *args, struct attrstat *res, str
 
 	NE(nfs2fh_to_path(&(args->file), &path, conn));
 	if (conn->export->ro) NE(NFSERR_ROFS);
-	OE(open_file(path, &handle));
+	OE(open_file(path, &handle, NULL));
 	OE(_swix(OS_GBPB, _INR(0,4), 1, handle, args->data.data, args->data.size, args->offset));
 	NE(get_fattr(path, -1, &(res->u.attributes), conn));
 
