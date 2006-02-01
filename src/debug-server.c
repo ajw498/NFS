@@ -42,17 +42,6 @@
 #include <ctype.h>
 
 
-#include "rpc-structs.h"
-#include "rpc-process1.h"
-#include "rpc-process2.h"
-
-#include "portmapper-recv.h"
-#include "mount1-recv.h"
-#include "mount3-recv.h"
-#include "nfs2-recv.h"
-
-#include "rpc-decode.h"
-
 #include "serverconn.h"
 
 

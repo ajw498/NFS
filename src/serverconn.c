@@ -46,12 +46,12 @@
 #include "rpc-process1.h"
 #include "rpc-process2.h"
 
-#include "portmapper-recv.h"
-#include "mount1-recv.h"
-#include "mount3-recv.h"
-#include "nfs2-recv.h"
+#include "portmapper-decode.h"
+#include "mount1-decode.h"
+#include "mount3-decode.h"
+#include "nfs2-decode.h"
 
-#include "rpc-decode.h"
+#include "request-decode.h"
 #include "exports.h"
 #include "serverconn.h"
 
@@ -306,7 +306,7 @@ int conn_poll(void)
 	for (i = 0; i < MAXCONNS; i++) {
 		if (conns[i].state == DECODE) {
 			conns[i].export = NULL;
-			rpc_decode(&(conns[i]));
+			request_decode(&(conns[i]));
 			if (conns[i].suppressreply) {
 				conns[i].state = IDLE;
 				pclear(conns[i].pool);

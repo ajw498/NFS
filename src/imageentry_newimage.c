@@ -34,7 +34,7 @@
 #include "imageentry_func.h"
 #include "utils.h"
 
-#include "moduledefs.h"
+#include "sunfishdefs.h"
 
 #include "sunfish.h"
 

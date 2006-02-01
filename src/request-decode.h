@@ -22,8 +22,8 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#ifndef RPC_DECODE_H
-#define RPC_DECODE_H
+#ifndef REQUEST_DECODE_H
+#define REQUEST_DECODE_H
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -83,7 +83,7 @@ extern int logging;
 
 void syslogf(char *logname, int level, char *fmt, ...);
 
-void rpc_decode(struct server_conn *conn);
+void request_decode(struct server_conn *conn);
 
 #endif
 

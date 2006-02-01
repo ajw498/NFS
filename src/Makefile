@@ -3,8 +3,8 @@
 #    $URL$
 #
 
-INCLUDE = -ITCPIPLibs: -IOSLibSupport: -IOSLib:
-MODLIBS = -l TCPIPLIBS:o.unixlibzm -l TCPIPLIBS:o.inetlibzm -l TCPIPLibs:o.socklib5zm
+INCLUDE = -ITCPIPLibs: -IOSLibSupport: -IOSLib: -Iauto
+MODLIBS = TCPIPLIBS:o.unixlibzm TCPIPLIBS:o.inetlibzm TCPIPLibs:o.socklib5zm
 
 LIBS = -l TCPIPLIBS:o.unixlib TCPIPLIBS:o.inetlib -l TCPIPLibs:o.socklib5 -l OSLibSupport:o.OSLibSupport32 -l OSLib:o.OSLib32
 
@@ -13,7 +13,7 @@ ifeq ($(BUILD),gcc)
 CC = gcc
 CFLAGS =  $(INCLUDE) -Wall -mthrowback -mlibscl -std=c99 -O3 -pedantic 
 
-MODULE = -mmodule
+MODULEFLAG = -mmodule
 
 LINK = gcc -mlibscl -mmodule
 
@@ -24,117 +24,37 @@ MODLIBS := $(MODLIBS) C:o.stubs
 
 CC = cc
 #CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zpq262144 -IC:
-CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpz0 -zpq262144 -IC: -zM
+CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpz0 -zpq262144 -IC:
 
-LINK = link -m 
+LINK = drlink -m 
 
-MODULE = -zM
+MODULEFLAG = -zM
 
 endif
 
 
-GENHDRS = \
-rpc-calls.h \
-nfs3-calls.h \
-mount3-calls.h \
-nfs2-calls.h \
-mount1-calls.h \
-portmapper-calls.h \
-pcnfsd-calls.h
+SUNFISHGENOBJS = \
+auto/portmapper-calls.o \
+auto/pcnfsd-calls.o \
+auto/mount1-calls.o \
+auto/mount3-calls.o \
+auto/nfs2-calls.o \
+auto/nfs3-calls.o
 
-GENOBJS = \
-rpc-calls.o \
-mount3-calls.o \
-mount1-calls.o \
-nfs2-calls.o \
-nfs3-calls.o \
-portmapper-calls.o \
-pcnfsd-calls.o
+MOONFISHGENOBJS =  \
+portmapper-procs.o \
+mount1-procs.o \
+nfs2-procs.o \
+auto/portmapper-decode.o \
+auto/mount1-decode.o \
+auto/nfs2-decode.o
 
-
-all: Sunfish !RunImage
-
-!RunImage: frontend.c moduledefs.h
-	$(CC) $(CFLAGS) frontend.c -o !RunImage  $(LIBS)
-
-DEBUGSERVEROBJ = rpc-decode.o portmapper-procs.o mount1-procs.o mount3-procs.o portmapper-recv.o mount1-recv.o mount3-recv.o nfs2-recv.o nfs2-procs.o pools.o serverconn.o exports.o
-
-Moonfish: $(DEBUGSERVEROBJ) moonfishhdr.o moonfish.o
-	$(LINK) -o Moonfish $(DEBUGSERVEROBJ) moonfishhdr.o moonfish.o $(MODLIBS)
-
-moonfishdefs.h moonfishhdr.o: @.cmhg.moonfish
-	cmhg  -throwback moonfish.cmhg -o moonfishhdr.o moonfishdefs.h
-
-debug-server: $(DEBUGSERVEROBJ) debug-server.o
-	$(CC) $(CFLAGS) $(DEBUGSERVEROBJ) debug-server.o -o debug-server $(LIBS)
-
-debug-server.o: debug-server.c $(GENHDRS)
-	$(CC) $(CFLAGS) -c debug-server.c -o $@
-
-rpc-decode.o: rpc-decode.c
-	$(CC) $(CFLAGS) -c rpc-decode.c -o $@
-
-pools.o: pools.c
-	$(CC) $(CFLAGS) -c pools.c -o $@
-
-serverconn.o: serverconn.c serverconn.h
-	$(CC) $(CFLAGS) -c serverconn.c -o $@
-
-exports.o: exports.c exports.h
-	$(CC) $(CFLAGS) -c exports.c -o $@
-
-portmapper-procs.o: portmapper-procs.c portmapper-procs.h
-	$(CC) $(CFLAGS) -c portmapper-procs.c -o $@
-
-mount3-procs.o: mount3-procs.c mount3-procs.h
-	$(CC) $(CFLAGS) -c mount3-procs.c -o $@
-
-mount1-procs.o: mount1-procs.c mount1-procs.h
-	$(CC) $(CFLAGS) -c mount1-procs.c -o $@
-
-nfs2-procs.o: nfs2-procs.c nfs2-procs.h
-	$(CC) $(CFLAGS) -c nfs2-procs.c -o $@
-
-portmapper-recv.o: portmapper-recv.c
-	$(CC) $(CFLAGS) -c portmapper-recv.c -o $@
-mount1-recv.o: mount1-recv.c
-	$(CC) $(CFLAGS) -c mount1-recv.c -o $@
-mount3-recv.o: mount3-recv.c
-	$(CC) $(CFLAGS) -c mount3-recv.c -o $@
-nfs2-recv.o: nfs2-recv.c
-	$(CC) $(CFLAGS) -c nfs2-recv.c -o $@
-
-rpc-calls.c rpc-calls.h: rpc-spec ProcessSpec
-	perl ProcessSpec rpc rpc-spec
-
-nfs2-calls.c nfs2-calls.h nfs2-recv.c nfs2-recv.h: nfs2-spec ProcessSpec
-	perl ProcessSpec nfs2 nfs2-spec
-
-mount1-calls.c mount1-calls.h mount1-recv.c mount1-recv.h: mount1-spec ProcessSpec
-	perl ProcessSpec mount1 mount1-spec
-
-nfs3-calls.c nfs3-calls.h nfs3-recv.c nfs3-recv.h: nfs3-spec ProcessSpec
-	perl ProcessSpec nfs3 nfs3-spec
-
-mount3-calls.c mount3-calls.h mount3-recv.c mount3-recv.h: mount3-spec ProcessSpec
-	perl ProcessSpec mount3 mount3-spec
-
-portmapper-calls.c portmapper-calls.h portmapper-recv.c portmapper-recv.h: portmapper-spec ProcessSpec
-	perl ProcessSpec portmapper portmapper-spec
-
-pcnfsd-calls.c pcnfsd-calls.h: pcnfsd-spec ProcessSpec
-	perl ProcessSpec pcnfsd pcnfsd-spec
-
-
-
-
-OBJS = \
+SUNFISHOBJS = \
 rpc.o \
-base.o \
-callback.o \
-module.o \
-modulehdr.o \
-utils.o \
+sunfish.o \
+utils.o
+
+SUNFISHDUALOBJS = \
 imageentry_newimage.o \
 imageentry_func2.o \
 imageentry_file2.o \
@@ -149,61 +69,114 @@ imageentry_bytes3.o \
 imageentry_openclose3.o \
 imageentry_common3.o
 
-$(OBJS) $(GENOBJS): $(GENHDRS) utils.h moduledefs.h
+ASMOBJS = \
+base.o \
+callback.o
 
-Sunfish: $(OBJS) $(GENOBJS)
-	$(LINK) -o Sunfish $(OBJS) $(GENOBJS) $(MODLIBS)
+MOONFISHOBJS = \
+request-decode.o \
+pools.o \
+serverconn.o \
+exports.o
 
-module.o: moduledefs.h
+COMMONOBJ =
 
-moduledefs.h modulehdr.o: @.cmhg.modulehdr
-	cmhg  -throwback modulehdr.cmhg -o modulehdr.o moduledefs.h
+ifeq ($(SERVER),debug)
 
-imageentry_func2.o: imageentry_func.c
+MODULE =
+
+all: debug-server
+
+else
+
+MODULE = $(MODULEFLAG)
+
+all: sunfish Moonfish
+
+endif
+
+sunfish: ../!Sunfish/Sunfish ../!Sunfish/!RunImage
+
+
+auto: ProcessSpec rpc-spec nfs2-spec nfs3-spec mount1-spec mount3-spec portmapper-spec pcnfsd-spec @.cmhg.sunfish @.cmhg.moonfish
+	mkdir -p auto/o
+	mkdir -p o
+	perl ProcessSpec rpc rpc-spec
+	perl ProcessSpec nfs2 nfs2-spec
+	perl ProcessSpec mount1 mount1-spec
+	perl ProcessSpec nfs3 nfs3-spec
+	perl ProcessSpec mount3 mount3-spec
+	perl ProcessSpec portmapper portmapper-spec
+	perl ProcessSpec pcnfsd pcnfsd-spec
+	cmhg  -throwback sunfish.cmhg -o sunfishhdr.o auto/sunfishdefs.h
+	cmhg  -throwback moonfish.cmhg -o moonfishhdr.o auto/moonfishdefs.h
+	touch auto
+
+
+
+
+$(SUNFISHOBJS): auto $(SUNFISHOBJS:.o=.c) $(SUNFISHOBJS:.o=.h)
+$(SUNFISHGENOBJS): auto
+
+$(MOONFISHOBJS): auto $(MOONFISHOBJS:.o=.c) $(MOONFISHOBJS:.o=.h)
+$(MOONFISHGENOBJS): auto
+
+../!Sunfish/!RunImage: frontend.c auto
+	$(CC) $(CFLAGS) frontend.c -o ../!Sunfish/!RunImage $(LIBS)
+
+../!Sunfish/Sunfish: $(SUNFISHOBJS) $(SUNFISHGENOBJS) $(SUNFISHDUALOBJS) $(ASMOBJS)
+	$(LINK) -o ../!Sunfish/Sunfish $(SUNFISHOBJS) $(SUNFISHGENOBJS) $(SUNFISHDUALOBJS) $(ASMOBJS) sunfishhdr.o $(MODLIBS)
+
+Moonfish: $(MOONFISHOBJS) $(MOONFISHGENOBJS) moonfish.o
+	$(LINK) -o Moonfish $(MOONFISHOBJS) $(MOONFISHGENOBJS) moonfish.o moonfishhdr.o $(MODLIBS)
+
+debug-server: $(MOONFISHOBJS) $(MOONFISHGENOBJS) debug-server.o
+	$(CC) $(CFLAGS) $(MOONFISHOBJS) $(MOONFISHGENOBJS) debug-server.o -o debug-server $(LIBS)
+
+
+
+imageentry_func2.o: imageentry_func.c imageentry_func.h
 	$(CC) -c  $(MODULE) $(CFLAGS) -o $@ imageentry_func.c
-imageentry_file2.o: imageentry_file.c
+imageentry_file2.o: imageentry_file.c imageentry_file.h
 	$(CC) -c  $(MODULE) $(CFLAGS) -o $@ imageentry_file.c
-imageentry_args2.o: imageentry_args.c
+imageentry_args2.o: imageentry_args.c imageentry_args.h
 	$(CC) -c  $(MODULE) $(CFLAGS) -o $@ imageentry_args.c
-imageentry_bytes2.o: imageentry_bytes.c
+imageentry_bytes2.o: imageentry_bytes.c imageentry_bytes.h
 	$(CC) -c  $(MODULE) $(CFLAGS) -o $@ imageentry_bytes.c
-imageentry_openclose2.o: imageentry_openclose.c
+imageentry_openclose2.o: imageentry_openclose.c imageentry_openclose.h
 	$(CC) -c  $(MODULE) $(CFLAGS) -o $@ imageentry_openclose.c
-imageentry_common2.o: imageentry_common.c
+imageentry_common2.o: imageentry_common.c imageentry_common.h
 	$(CC) -c  $(MODULE) $(CFLAGS) -o $@ imageentry_common.c
-imageentry_func3.o: imageentry_func.c
+imageentry_func3.o: imageentry_func.c imageentry_func.h
 	$(CC) -c  $(MODULE) $(CFLAGS) -DNFS3 -o $@ imageentry_func.c
-imageentry_file3.o: imageentry_file.c
+imageentry_file3.o: imageentry_file.c imageentry_file.h
 	$(CC) -c  $(MODULE) $(CFLAGS) -DNFS3 -o $@ imageentry_file.c
-imageentry_args3.o: imageentry_args.c
+imageentry_args3.o: imageentry_args.c imageentry_args.h
 	$(CC) -c  $(MODULE) $(CFLAGS) -DNFS3 -o $@ imageentry_args.c
-imageentry_bytes3.o: imageentry_bytes.c
+imageentry_bytes3.o: imageentry_bytes.c imageentry_bytes.h
 	$(CC) -c  $(MODULE) $(CFLAGS) -DNFS3 -o $@ imageentry_bytes.c
-imageentry_openclose3.o: imageentry_openclose.c
+imageentry_openclose3.o: imageentry_openclose.c imageentry_openclose.h
 	$(CC) -c  $(MODULE) $(CFLAGS) -DNFS3 -o $@ imageentry_openclose.c
-imageentry_common3.o: imageentry_common.c
+imageentry_common3.o: imageentry_common.c imageentry_common.h
 	$(CC) -c  $(MODULE) $(CFLAGS) -DNFS3 -o $@ imageentry_common.c
 
 .SUFFIXES: .o .s .c
 
 .c.o:
-	$(CC) -c  $(MODULE) $(CFLAGS) $(DEF) -o $@ $<
+	$(CC) -c  $(MODULE) $(CFLAGS) -o $@ $<
 
 .s.o:
 	$(CC) -c  $(CFLAGS) -o $@ $<
 
-.INIT:
-	cdir o
+.PHONY: sunfish
 
 clean:
-	-remove Sunfish
-	-remove !RunImage
-	-remove h.moduledefs
-	-wipe o.* ~CFR~V
-	-wipe c.*-calls ~CFR~V
-	-wipe h.*-calls ~CFR~V
-	-wipe h.*-process* ~CFR~V
-	-wipe h.*-structs ~CFR~V
-	-wipe h.*-procs ~CFR~V
-	-wipe h.*-recv ~CFR~V
-	-wipe c.*-recv ~CFR~V
+	-rm -f ../!Sunfish/Sunfish
+	-rm -f ../!Sunfish/!RunImage
+	-rm -f $(MOONFISHOBJS) $(MOONFISHGENOBJS)
+	-rm -f debug-server.o moonfish.o moonfishhdr.o
+	-rm -f $(SUNFISHOBJS) $(SUNFISHGENOBJS) $(SUNFISHDUALOBJS)
+	-rm -f $(ASMOBJS) sunfishhdr.o frontend.o
+	-rm -rf auto
+	-rm -f Moonfish
+	-rm -f debug-server

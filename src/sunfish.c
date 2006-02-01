@@ -28,7 +28,7 @@
 #include <stdarg.h>
 #include <swis.h>
 
-#include "moduledefs.h"
+#include "sunfishdefs.h"
 
 #include "imageentry_func.h"
 #include "imageentry_file.h"

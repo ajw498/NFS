@@ -49,7 +49,7 @@
 #include "oslib/wimp.h"
 #include "oslib/filer.h"
 
-#include "moduledefs.h"
+#include "sunfishdefs.h"
 #include "sunfish.h"
 
 #define event_main_SHOW 0x100

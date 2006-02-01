@@ -36,14 +36,14 @@ my $spectype = shift @ARGV;
 my $firstcase;
 my $llcount = 0;
 
-open(PROCS,">$spectype-process1.h") or die $^E;
-open(UNIONS,">$spectype-process2.h") or die $^E;
-open(STRUCTS,">$spectype-structs.h") or die $^E;
-open(CALLS,">$spectype-calls.c") or die $^E;
-open(CALLSH,">$spectype-calls.h") or die $^E;
-open(RECV2H,">$spectype-recv.h") or die $^E;
-open(RECV,">$spectype-recv.c") or die $^E;
-open(RECVH,">$spectype-procs.h") or die $^E;
+open(PROCS,  ">auto/$spectype-process1.h") or die $^E;
+open(UNIONS, ">auto/$spectype-process2.h") or die $^E;
+open(STRUCTS,">auto/$spectype-structs.h") or die $^E;
+open(CALLS,  ">auto/$spectype-calls.c") or die $^E;
+open(CALLSH, ">auto/$spectype-calls.h") or die $^E;
+open(RECV2H, ">auto/$spectype-decode.h") or die $^E;
+open(RECV,   ">auto/$spectype-decode.c") or die $^E;
+open(RECVH,  ">auto/$spectype-procs.h") or die $^E;
 
 my $header = "/* Automatically generated */\n\n";
 
@@ -64,7 +64,7 @@ print CALLSH  "#include \"$spectype-process1.h\"\n";
 print CALLSH  "#include \"$spectype-process2.h\"\n\n";
 
 print RECV   $header;
-print RECV   "#include \"$spectype-recv.h\"\n";
+print RECV   "#include \"$spectype-decode.h\"\n";
 print RECV   "#include \"$spectype-procs.h\"\n\n";
 print RECV   "enum accept_stat ${spectype}_decode(int proc, struct server_conn *conn)\n{\nenum accept_stat success = SUCCESS;\nswitch (proc) {\n";
 
@@ -73,11 +73,11 @@ print RECVH  "#include \"rpc-structs.h\"\n";
 print RECVH  "#include \"$spectype-structs.h\"\n";
 print RECVH  "#include \"$spectype-process1.h\"\n";
 print RECVH  "#include \"$spectype-process2.h\"\n\n";
-print RECVH  "#include \"rpc-decode.h\"\n";
+print RECVH  "#include \"request-decode.h\"\n";
 
 print RECV2H   $header;
 print RECV2H  "#include \"rpc-structs.h\"\n\n";
-print RECV2H  "#include \"rpc-decode.h\"\n";
+print RECV2H  "#include \"request-decode.h\"\n";
 print RECV2H  "enum accept_stat ${spectype}_decode(int proc, struct server_conn *conn);\n\n";
 
 $types{"unsigned int"} = "int";

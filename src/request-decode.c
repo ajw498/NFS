@@ -45,7 +45,7 @@
 #include "rpc-process2.h"
 
 
-#include "rpc-decode.h"
+#include "request-decode.h"
 
 /* The worstcase size of a header for read/write calls.
    If this value is not big enough, the data part will not be of
@@ -85,7 +85,7 @@ buffer_overflow:
 
 enum accept_stat portmapper_decodebody(int prog, int vers, int proc, int *hi, int *lo, struct server_conn *conn);
 
-void rpc_decode(struct server_conn *conn)
+void request_decode(struct server_conn *conn)
 {
 	ibuf = conn->request;
 	ibufend = ibuf + conn->requestlen;
