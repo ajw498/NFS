@@ -65,7 +65,7 @@ Moonfish: $(DEBUGSERVEROBJ) moonfishhdr.o moonfish.o
 moonfishdefs.h moonfishhdr.o: @.cmhg.moonfish
 	cmhg  -throwback moonfish.cmhg -o moonfishhdr.o moonfishdefs.h
 
-debug-server: $(DEBUGSERVEROBJ)
+debug-server: $(DEBUGSERVEROBJ) debug-server.o
 	$(CC) $(CFLAGS) $(DEBUGSERVEROBJ) debug-server.o -o debug-server $(LIBS)
 
 debug-server.o: debug-server.c $(GENHDRS)
