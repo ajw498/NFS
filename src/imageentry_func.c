@@ -207,7 +207,7 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 		
 					/* Copy leafname into output buffer, translating some
 					   chars and stripping any ,xyz */
-					len = filename_riscosify(direntry->name.data, direntry->name.size, bufferpos, buffer + buflen - bufferpos, &filetype, conn);
+					len = filename_riscosify(direntry->name.data, direntry->name.size, bufferpos, buffer + buflen - bufferpos, &filetype, conn->defaultfiletype, conn->xyzext);
 					if (len == 0) break; /* Buffer overflowed */
 		
 					bufferpos += len;
@@ -345,7 +345,7 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 		/* Both files are in the same directory */
 		renameargs.to.dir = renameargs.from.dir;
 		leafname = newfilename + dirnamelen;
-		leafname = filename_unixify(leafname, strlen(leafname), &leafnamelen);
+		leafname = filename_unixify(leafname, strlen(leafname), &leafnamelen, conn->pool);
 	} else {
 		/* Files are in different directories, so find the handle of the new dir */
 		err = ENTRYFUNC(filename_to_finfo) (newfilename, 1, &dinfo, NULL, &leafname, NULL, NULL, conn);
@@ -364,7 +364,7 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 		renameargs.to.name.size = leafnamelen;
 	} else {
 		/* Add ,xyz on if necessary to preserve filetype */
-		renameargs.to.name.data = addfiletypeext(leafname, leafnamelen, 0, filetype, &(renameargs.to.name.size), conn);
+		renameargs.to.name.data = addfiletypeext(leafname, leafnamelen, 0, filetype, &(renameargs.to.name.size), conn->defaultfiletype, conn->xyzext, conn->pool);
 	}
 
 	err = NFSPROC(RENAME, (&renameargs, &renameres, conn));

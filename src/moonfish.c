@@ -31,29 +31,8 @@
 #include "moonfishdefs.h"
 
 #include "serverconn.h"
+#include "utils.h"
 
-
-
-#define SYSLOGF_BUFSIZE 1024
-#define Syslog_LogMessage 0x4C880
-
-
-void syslogf(char *logname, int level, char *fmt, ...)
-{
-	static char syslogbuf[SYSLOGF_BUFSIZE];
-	va_list ap;
-
-	if (level > 10) return;
-
-	level = 1; /**/
-
-	va_start(ap, fmt);
-	vsnprintf(syslogbuf, sizeof(syslogbuf), fmt, ap);
-	va_end(ap);
-
-	/* Ignore any errors, as there's not much we can do with them */
-	_swix(Syslog_LogMessage, _INR(0,2), logname, syslogbuf, level);
-}
 
 #define EventV 16
 #define Internet_Event 19

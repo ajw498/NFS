@@ -51,10 +51,10 @@
 #include "mount3-decode.h"
 #include "nfs2-decode.h"
 
+#include "utils.h"
 #include "request-decode.h"
 #include "exports.h"
 #include "serverconn.h"
-
 
 
 static int udpsock = -1;

@@ -27,6 +27,7 @@
 #include "portmapper-procs.h"
 #include "pools.h"
 #include "request-decode.h" /**/
+#include "utils.h"
 
 
 typedef enum accept_stat (*decode_proc)(int proc, struct server_conn *conn);

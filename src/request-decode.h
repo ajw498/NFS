@@ -31,7 +31,6 @@
 #include <time.h>
 
 #include "exports.h"
-#include "sunfish.h"
 
 
 enum conn_state {
@@ -80,8 +79,6 @@ void *llmalloc(int size);
 #define OUTOFMEM "Unable to allocate enough memory"
 
 extern int logging;
-
-void syslogf(char *logname, int level, char *fmt, ...);
 
 void request_decode(struct server_conn *conn);
 

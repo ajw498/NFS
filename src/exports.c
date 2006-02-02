@@ -41,26 +41,11 @@
 #include <stdarg.h>
 #include <ctype.h>
 
-
+#include "utils.h"
 #include "rpc-decode.h"
 #include "exports.h"
 #include "serverconn.h"
 
-#define RPCERRBASE 1
-
-/* Generate a RISC OS error block based on the given number and message */
-static os_error *gen_error(int num, char *msg, ...)
-{
-	static os_error module_err_buf;
-	va_list ap;
-
-	
-	va_start(ap, msg);
-	vsnprintf(module_err_buf.errmess, sizeof(module_err_buf.errmess), msg, ap);
-	va_end(ap);
-	module_err_buf.errnum = num;
-	return &module_err_buf;
-}
 
 #define Resolver_GetHost 0x46001
 

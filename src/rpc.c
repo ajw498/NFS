@@ -51,6 +51,8 @@
 #include <sys/errno.h>
 #include <unixlib.h>
 
+#include "sunfish.h"
+
 /* The worstcase size of a header for read/write calls.
    If this value is not big enough, the data part will not be of
    an optimum size, but nothing bad will happen */

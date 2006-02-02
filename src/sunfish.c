@@ -29,6 +29,7 @@
 #include <swis.h>
 
 #include "sunfishdefs.h"
+#include "sunfish.h"
 
 #include "imageentry_func.h"
 #include "imageentry_file.h"
@@ -41,12 +42,6 @@
 #if CMHG_VERSION < 542
 #error cmhg out of date
 #endif
-
-#define IMAGE_FILETYPE 0x1B6
-
-
-#define SYSLOGF_BUFSIZE 1024
-#define Syslog_LogMessage 0x4C880
 
 
 extern int module_base_address;
@@ -87,18 +82,6 @@ static int entered = 0;
 	entered--; \
 } while (0)
 
-void syslogf(char *logname, int level, char *fmt, ...)
-{
-	static char syslogbuf[SYSLOGF_BUFSIZE];
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsnprintf(syslogbuf, sizeof(syslogbuf), fmt, ap);
-	va_end(ap);
-
-	/* Ignore any errors, as there's not much we can do with them */
-	_swix(Syslog_LogMessage, _INR(0,2), logname, syslogbuf, level);
-}
 
 void log_error(os_error *err)
 {
@@ -124,7 +107,7 @@ static os_error *declare_fs(void *private_word)
 	struct imagefs_info_block info_block;
 	
 	info_block.information_word = 0;
-	info_block.filetype = IMAGE_FILETYPE;
+	info_block.filetype = SUNFISH_FILETYPE;
 	info_block.imageentry_open =     ((int)imageentry_open) - module_base_address;
 	info_block.imageentry_getbytes = ((int)imageentry_getbytes) - module_base_address;
 	info_block.imageentry_putbytes = ((int)imageentry_putbytes) - module_base_address;
@@ -155,6 +138,8 @@ _kernel_oserror *initialise(const char *cmd_tail, int podule_base, void *private
 
 	err = declare_fs(private_word);
 
+	error_func = rpc_resetfifo;
+
 	rpc_init_header();
 
 	return err;
@@ -171,7 +156,7 @@ _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 
 	if (enablelog) syslogf(LOGNAME, LOGENTRY, "Module finalisation");
 
-	if (!finalised) err = _swix(OS_FSControl, _INR(0,1), 36, IMAGE_FILETYPE);
+	if (!finalised) err = _swix(OS_FSControl, _INR(0,1), 36, SUNFISH_FILETYPE);
 	finalised = 1;
 	/* OS_FSControl 36 can return an error which we want to notify the caller
 	   of, but that prevents the module from dying, and the next time

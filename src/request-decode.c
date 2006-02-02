@@ -44,6 +44,7 @@
 #include "rpc-process1.h"
 #include "rpc-process2.h"
 
+#include "utils.h"
 
 #include "request-decode.h"
 
@@ -52,7 +53,6 @@
    an optimum size, but nothing bad will happen */
 #define MAX_HDRLEN 416
 
-#define MAX_DATABUFFER (32*1024)
 #define MAX_UDPBUFFER 4096
 
 

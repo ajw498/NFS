@@ -14,6 +14,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#include "pools.h"
+
 #define IMAGEENTRY_FUNC_RENAME 8
 #define IMAGEENTRY_FUNC_READDIR 14
 #define IMAGEENTRY_FUNC_READDIRINFO 15
@@ -48,10 +50,17 @@
 /* Value to specify to leave an attribute unchanged */
 #define NOVALUE (-1)
 
-#define OBJ_NONE 0
-#define OBJ_FILE 1
-#define OBJ_DIR  2
+#define OBJ_NONE  0
+#define OBJ_FILE  1
+#define OBJ_DIR   2
+#define OBJ_IMAGE 3
 
+/* Types for adding ,xyz extensions */
+#ifndef NEVER
+#define NEVER  0
+#define NEEDED 1
+#define ALWAYS 2
+#endif
 
 /* Pretend to fileswitch that we have a block/sector size */
 #define FAKE_BLOCKSIZE 1024
@@ -173,6 +182,7 @@ struct conn_info {
 	struct commonfh lastdirhandle;
 	int tcp;
 	int nfs3;
+	struct pool *pool;
 };
 
 extern int enablelog;
@@ -182,13 +192,8 @@ typedef _kernel_oserror os_error;
 /* Generate an os_error block */
 os_error *gen_error(int num, char *msg, ...);
 
+extern void (*error_func)(void);
 
-#define LOGNAME "Sunfish"
-#define LOGENTRY 40
-#define LOGEXIT  60
-#define LOGERROR 20
-#define LOGDATASUMMARY 70
-#define LOGDATA  130
 
 
 void syslogf(char *logname, int level, char *fmt, ...);
@@ -197,13 +202,13 @@ void log_error(os_error *err);
 
 
 /* Convert unix leafname into RISC OS format */
-int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetype, struct conn_info *conn);
+int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetype, int defaultfiletype, int xyzext);
 
 /* Convert a RISC OS leafname into unix format */
-char *filename_unixify(char *name, unsigned int len, unsigned int *newlen);
+char *filename_unixify(char *name, unsigned int len, unsigned int *newlen, struct pool *pool);
 
 /* Use MimeMap to lookup a filetype from an extension */
-int lookup_mimetype(char *ext, struct conn_info *conn);
+int lookup_mimetype(char *ext, int defaultfiletype);
 
 /* Convert a unix mode to RISC OS attributes */
 unsigned int mode_to_attr(unsigned int mode);
@@ -212,7 +217,7 @@ unsigned int mode_to_attr(unsigned int mode);
 unsigned int attr_to_mode(unsigned int attr, unsigned int oldmode, struct conn_info *conn);
 
 /* Add ,xyz onto the leafname if necessary */
-char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, struct conn_info *conn);
+char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, int defaultfiletype, int xyzext, struct pool *pool);
 
 /* Drop to user mode to trigger any pending callbacks */
 void trigger_callback(void);

@@ -341,7 +341,7 @@ os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, stru
 		/* Find end of dirname segment */
 		while (*end && *end != '.') end++;
 
-		segmentname = filename_unixify(start, end - start, &segmentlen);
+		segmentname = filename_unixify(start, end - start, &segmentlen, conn->pool);
 
 		if (leafname) *leafname = segmentname;
 
@@ -413,7 +413,7 @@ os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, stru
 				while (lastdot > 0 && segmentname[lastdot] != '.') lastdot--;
 	
 				if (lastdot) {
-					*filetype = lookup_mimetype(segmentname + lastdot + 1, conn);
+					*filetype = lookup_mimetype(segmentname + lastdot + 1, conn->defaultfiletype);
 				} else {
 					/* No ,xyz and no extension, so use the default */
 					*filetype = conn->defaultfiletype;

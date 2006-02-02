@@ -26,20 +26,6 @@
 
 #include <swis.h>
 
-/* The worstcase size of a header for read/write calls.
-   If this value is not big enough, the data part will not be of
-   an optimum size, but nothing bad will happen */
-#define MAX_HDRLEN 416
-
-#define MAX_DATABUFFER 32000 /*FIXME*/
-
-/* The size to use for tx and rx buffers */
-#define BUFFERSIZE (MAX_HDRLEN + MAX_DATABUFFER)
-
-typedef _kernel_oserror os_error;
-
-
-
 int conn_init(void);
 
 int conn_validsocket(int sock);

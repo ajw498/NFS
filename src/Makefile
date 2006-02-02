@@ -13,7 +13,7 @@ ifeq ($(BUILD),gcc)
 CC = gcc
 CFLAGS =  $(INCLUDE) -Wall -mthrowback -mlibscl -std=c99 -O3 -pedantic 
 
-MODULEFLAG = -mmodule
+MODULE = -mmodule
 
 LINK = gcc -mlibscl -mmodule
 
@@ -26,33 +26,33 @@ CC = cc
 #CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zpq262144 -IC:
 CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpz0 -zpq262144 -IC:
 
-LINK = drlink -m 
+LINK = link -m 
 
-MODULEFLAG = -zM
+MODULE = -zM
 
 endif
 
+VPATH = auto:.
 
 SUNFISHGENOBJS = \
-auto/portmapper-calls.o \
-auto/pcnfsd-calls.o \
-auto/mount1-calls.o \
-auto/mount3-calls.o \
-auto/nfs2-calls.o \
-auto/nfs3-calls.o
+portmapper-calls.o \
+pcnfsd-calls.o \
+mount1-calls.o \
+mount3-calls.o \
+nfs2-calls.o \
+nfs3-calls.o
 
 MOONFISHGENOBJS =  \
 portmapper-procs.o \
 mount1-procs.o \
 nfs2-procs.o \
-auto/portmapper-decode.o \
-auto/mount1-decode.o \
-auto/nfs2-decode.o
+portmapper-decode.o \
+mount1-decode.o \
+nfs2-decode.o
 
 SUNFISHOBJS = \
 rpc.o \
-sunfish.o \
-utils.o
+sunfish.o
 
 SUNFISHDUALOBJS = \
 imageentry_newimage.o \
@@ -75,31 +75,30 @@ callback.o
 
 MOONFISHOBJS = \
 request-decode.o \
-pools.o \
 serverconn.o \
 exports.o
 
-COMMONOBJ =
+COMMONOBJS = \
+pools.o \
+utils.o
 
-ifeq ($(SERVER),debug)
+ifneq (,$(findstring debug-server,$(MAKECMDGOALS)))
 
 MODULE =
 
-all: debug-server
-
-else
-
-MODULE = $(MODULEFLAG)
+endif
 
 all: sunfish Moonfish
 
-endif
 
 sunfish: ../!Sunfish/Sunfish ../!Sunfish/!RunImage
 
+.PHONY: auto
 
-auto: ProcessSpec rpc-spec nfs2-spec nfs3-spec mount1-spec mount3-spec portmapper-spec pcnfsd-spec @.cmhg.sunfish @.cmhg.moonfish
-	mkdir -p auto/o
+auto: auto/stamp
+
+auto/stamp: ProcessSpec rpc-spec nfs2-spec nfs3-spec mount1-spec mount3-spec portmapper-spec pcnfsd-spec @.cmhg.sunfish @.cmhg.moonfish
+	mkdir -p auto
 	mkdir -p o
 	perl ProcessSpec rpc rpc-spec
 	perl ProcessSpec nfs2 nfs2-spec
@@ -110,28 +109,31 @@ auto: ProcessSpec rpc-spec nfs2-spec nfs3-spec mount1-spec mount3-spec portmappe
 	perl ProcessSpec pcnfsd pcnfsd-spec
 	cmhg  -throwback sunfish.cmhg -o sunfishhdr.o auto/sunfishdefs.h
 	cmhg  -throwback moonfish.cmhg -o moonfishhdr.o auto/moonfishdefs.h
-	touch auto
+	touch auto/stamp
 
 
 
-
-$(SUNFISHOBJS): auto $(SUNFISHOBJS:.o=.c) $(SUNFISHOBJS:.o=.h)
+$(SUNFISHOBJS): auto $(SUNFISHOBJS:.o=.h)
 $(SUNFISHGENOBJS): auto
 
-$(MOONFISHOBJS): auto $(MOONFISHOBJS:.o=.c) $(MOONFISHOBJS:.o=.h)
-$(MOONFISHGENOBJS): auto
+$(MOONFISHOBJS): auto $(MOONFISHOBJS:.o=.h)
+$(MOONFISHGENOBJS): auto 
+
 
 ../!Sunfish/!RunImage: frontend.c auto
 	$(CC) $(CFLAGS) frontend.c -o ../!Sunfish/!RunImage $(LIBS)
 
-../!Sunfish/Sunfish: $(SUNFISHOBJS) $(SUNFISHGENOBJS) $(SUNFISHDUALOBJS) $(ASMOBJS)
-	$(LINK) -o ../!Sunfish/Sunfish $(SUNFISHOBJS) $(SUNFISHGENOBJS) $(SUNFISHDUALOBJS) $(ASMOBJS) sunfishhdr.o $(MODLIBS)
+../!Sunfish/Sunfish: $(SUNFISHOBJS) $(SUNFISHGENOBJS) $(SUNFISHDUALOBJS) $(ASMOBJS) $(COMMONOBJS)
+	$(LINK) -o Sunfish $(SUNFISHOBJS) $(SUNFISHGENOBJS) $(SUNFISHDUALOBJS) $(ASMOBJS) $(COMMONOBJS) sunfishhdr.o $(MODLIBS)
+	mv Sunfish ../!Sunfish/Sunfish
 
-Moonfish: $(MOONFISHOBJS) $(MOONFISHGENOBJS) moonfish.o
-	$(LINK) -o Moonfish $(MOONFISHOBJS) $(MOONFISHGENOBJS) moonfish.o moonfishhdr.o $(MODLIBS)
+
+
+Moonfish: $(MOONFISHOBJS) $(MOONFISHGENOBJS) $(COMMONOBJS) moonfish.o
+	$(LINK) -o Moonfish $(MOONFISHOBJS) $(MOONFISHGENOBJS) $(COMMONOBJS) moonfish.o moonfishhdr.o $(MODLIBS)
 
 debug-server: $(MOONFISHOBJS) $(MOONFISHGENOBJS) debug-server.o
-	$(CC) $(CFLAGS) $(MOONFISHOBJS) $(MOONFISHGENOBJS) debug-server.o -o debug-server $(LIBS)
+	$(CC) $(CFLAGS) $(MOONFISHOBJS) $(MOONFISHGENOBJS) $(COMMONOBJS) debug-server.o -o debug-server $(LIBS)
 
 
 
@@ -168,7 +170,7 @@ imageentry_common3.o: imageentry_common.c imageentry_common.h
 .s.o:
 	$(CC) -c  $(CFLAGS) -o $@ $<
 
-.PHONY: sunfish
+.PHONY: sunfish clean all
 
 clean:
 	-rm -f ../!Sunfish/Sunfish

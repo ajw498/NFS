@@ -49,6 +49,7 @@ void free_conn_info(struct conn_info *conn)
 	if (conn == NULL) return;
 	if (conn->config) free(conn->config);
 	if (conn->auth) free(conn->auth);
+	if (conn->pool) pfree(conn->pool);
 	free(conn);
 }
 
@@ -286,6 +287,10 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->casesensitive = 0;
 	conn->laststart = 0;
 	conn->nfs3 = 0;
+	if ((conn->pool = pinit(NULL)) == NULL) {
+		free_conn_info(conn);
+		return gen_error(NOMEM,NOMEMMESS);
+	}
 
 	/* Read details from file */
 	err = parse_file(fileswitchhandle, conn);

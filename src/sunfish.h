@@ -11,9 +11,19 @@
 #define SUNFISH_FILETYPE 0x1b6
 
 /* Types for adding ,xyz extensions */
+#ifndef NEVER
 #define NEVER  0
 #define NEEDED 1
 #define ALWAYS 2
+#endif
+
+/* Syslog */
+#define LOGNAME "Sunfish"
+#define LOGENTRY 40
+#define LOGEXIT  60
+#define LOGERROR 20
+#define LOGDATASUMMARY 70
+#define LOGDATA  130
 
 
 /* The default port range to bind to. */

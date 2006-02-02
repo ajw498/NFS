@@ -102,7 +102,7 @@ os_error *ENTRYFUNC(file_writecatinfo) (char *filename, unsigned int load, unsig
 		renameargs.from.name.size = strlen(leafname);
 
 		renameargs.to.dir = renameargs.from.dir;
-		renameargs.to.name.data = addfiletypeext(leafname, renameargs.from.name.size, extfound, newfiletype, &(renameargs.to.name.size), conn);
+		renameargs.to.name.data = addfiletypeext(leafname, renameargs.from.name.size, extfound, newfiletype, &(renameargs.to.name.size), conn->defaultfiletype, conn->xyzext, conn->pool);
 
 		err = NFSPROC(RENAME, (&renameargs, &renameres, conn));
 		if (err) return err;
@@ -166,7 +166,7 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 	}
 
 	/* We may need to add a ,xyz extension */
-	createargs.where.name.data = addfiletypeext(*leafname, strlen(*leafname), extfound, newfiletype, &(createargs.where.name.size), conn);
+	createargs.where.name.data = addfiletypeext(*leafname, strlen(*leafname), extfound, newfiletype, &(createargs.where.name.size), conn->defaultfiletype, conn->xyzext, conn->pool);
 
 	/* If a file already exists then we must overwrite it */
 	if (finfo && finfo->attributes.type == NFREG) {
