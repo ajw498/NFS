@@ -76,6 +76,7 @@ callback.o
 MOONFISHOBJS = \
 request-decode.o \
 serverconn.o \
+filecache.o \
 exports.o
 
 COMMONOBJS = \
