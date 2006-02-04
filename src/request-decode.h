@@ -33,39 +33,6 @@
 #include "exports.h"
 
 
-enum conn_state {
-	IDLE,
-	READLEN,
-	READ,
-	DECODE,
-	WRITE
-};
-
-struct server_conn {
-	struct export *export;
-	struct export *exports;
-	enum conn_state state;
-	int tcp;
-	int socket;
-	struct sockaddr_in hostaddr;
-	int hostaddrlen;
-	clock_t time;
-	int transfersize;
-	int uid;
-	int gid;
-	unsigned int host;
-	struct pool *pool;
-	struct pool *gpool;
-	char *request;
-	int requestlen;
-	int requestread;
-	int lastrecord;
-	char *reply;
-	int replylen;
-	int replysent;
-	int suppressreply;
-};
-
 void *llmalloc(int size);
 
 #define LOGNAME "Moonfish"

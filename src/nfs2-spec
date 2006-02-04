@@ -26,6 +26,8 @@ const COOKIESIZE  = 4;
 /* The size in bytes of the opaque file handle. */
 const FHSIZE = 32;
 
+#ifndef NSTAT
+#define NSTAT
 
 enum nstat {
     NFS_OK = 0,
@@ -48,6 +50,8 @@ enum nstat {
     NFSERR_STALE=70,
     NFSERR_WFLUSH=99
 };
+
+#endif
 
 enum ftype {
     NFNON = 0,

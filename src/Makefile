@@ -3,7 +3,7 @@
 #    $URL$
 #
 
-INCLUDE = -ITCPIPLibs: -IOSLibSupport: -IOSLib: -Iauto
+INCLUDE = -ITCPIPLibs: -IOSLibSupport: -IOSLib: -Iauto -I.
 MODLIBS = TCPIPLIBS:o.unixlibzm TCPIPLIBS:o.inetlibzm TCPIPLibs:o.socklib5zm
 
 LIBS = -l TCPIPLIBS:o.unixlib TCPIPLIBS:o.inetlib -l TCPIPLibs:o.socklib5 -l OSLibSupport:o.OSLibSupport32 -l OSLib:o.OSLib32
