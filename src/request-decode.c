@@ -53,7 +53,6 @@
    an optimum size, but nothing bad will happen */
 #define MAX_HDRLEN 416
 
-#define MAX_UDPBUFFER 4096
 
 
 /* The size to use for tx and rx buffers */
@@ -82,8 +81,6 @@ static void init_output(struct server_conn *conn)
 buffer_overflow:
 	return;
 }
-
-enum accept_stat portmapper_decodebody(int prog, int vers, int proc, int *hi, int *lo, struct server_conn *conn);
 
 void request_decode(struct server_conn *conn)
 {

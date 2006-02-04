@@ -69,6 +69,21 @@ void syslogf(char *logname, int level, char *fmt, ...)
 	_swix(Syslog_LogMessage, _INR(0,2), logname, syslogbuf, level);
 }
 
+char *host_to_str(unsigned int host, struct pool *pool)
+{
+	char *str;
+
+	str = palloc(16, pool);
+	if (str == NULL) return NULL;
+
+	snprintf(str, 16, "%d.%d.%d.%d",
+	         (host & 0x000000FF) >> 0,
+	         (host & 0x0000FF00) >> 8,
+	         (host & 0x00FF0000) >> 16,
+	         (host & 0xFF000000) >> 24);
+	return str;
+}
+
 char *filename_unixify(char *name, unsigned int len, unsigned int *newlen, struct pool *pool)
 {
 	char *namebuffer;

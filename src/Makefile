@@ -45,9 +45,11 @@ nfs3-calls.o
 MOONFISHGENOBJS =  \
 portmapper-procs.o \
 mount1-procs.o \
+mount3-procs.o \
 nfs2-procs.o \
 portmapper-decode.o \
 mount1-decode.o \
+mount3-decode.o \
 nfs2-decode.o
 
 SUNFISHOBJS = \

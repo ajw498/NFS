@@ -43,50 +43,55 @@ enum mountstat3 {
 
 void MOUNTPROC3_NULL(void) = 0;
 
+struct mountres3_ok {
+        nfs_fh fhandle;
+        unsigned int auth_flavours<>;
+};
 
 union mountres switch (mountstat3 status) {
 case MNT3_OK:
-     nfs_fh  directory;
+     mountres3_ok mountinfo;
 default:
      void;
 };
 
 mountres MOUNTPROC3_MNT(dirpath) = 1;
 
-/*
-mountlist MOUNTPROC3_DUMP(void) = 2;
 
-
-typedef struct mountbody *mountlist;
-
-struct mountbody {
-     name       ml_hostname;
-     dirpath    ml_directory;
-     mountlist  ml_next;
+struct *mountlist {
+        name hostname;
+        dirpath directory;
+        mountlist *next;
 };
-*/
+
+struct mountlist2 {
+        mountlist *list;
+};
+
+mountlist2 MOUNTPROC3_DUMP(void) = 2;
+
 
 void MOUNTPROC3_UMNT(dirpath) = 3;
 
 void MOUNTPROC3_UMNTALL(void) = 4;
 
-/*
-exports MOUNTPROC3_EXPORT(void) = 5;
 
-typedef struct groupnode *groups;
-
-struct groupnode {
-     name     gr_name;
-     groups   gr_next;
+struct *groups {
+        name grname;
+        groups *next;
 };
 
-typedef struct exportnode *exports;
-
-struct exportnode {
-     dirpath  ex_dir;
-     groups   ex_groups;
-     exports  ex_next;
+struct *exportlist {
+        dirpath filesys;
+        groups *groups;
+        exportlist *next;
 };
-*/
+
+struct exportlist2 {
+	exportlist *list;
+};
+
+exportlist2 MOUNTPROC3_EXPORT(void) = 5;
+
 
 

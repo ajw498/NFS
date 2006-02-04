@@ -22,15 +22,11 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#include <stdio.h>
-
 #include "portmapper-procs.h"
+#include "request-decode.h"
 #include "pools.h"
-#include "request-decode.h" /**/
 #include "utils.h"
 
-
-typedef enum accept_stat (*decode_proc)(int proc, struct server_conn *conn);
 
 struct program {
 	struct mapping map;
@@ -40,10 +36,12 @@ struct program {
 
 static struct program *programs = NULL;
 
+/* Returns true if successful, false if it failed or the program was already registered */
 enum bool portmapper_set(int prog, int vers, int prot, int port, decode_proc decode, struct pool *pool)
 {
 	struct program *program = programs;
 
+	/* Check the program isn't already registered */
 	while (program) {
 		if (program->map.prog == prog &&
 		    program->map.vers == vers &&
@@ -52,6 +50,7 @@ enum bool portmapper_set(int prog, int vers, int prot, int port, decode_proc dec
 		}
 		program = program->next;
 	}
+
 	program = palloc(sizeof(struct program), pool);
 	if (program == NULL) {
 		syslogf(LOGNAME, LOG_MEM, OUTOFMEM);
@@ -64,9 +63,11 @@ enum bool portmapper_set(int prog, int vers, int prot, int port, decode_proc dec
 	program->decode = decode;
 	program->next = programs;
 	programs = program;
+
 	return TRUE;
 }
 
+/* Returns false if program not registered */
 static enum bool portmapper_unset(int prog, int vers)
 {
 	struct program *program = programs;
@@ -93,7 +94,7 @@ enum accept_stat portmapper_decodebody(int prog, int vers, int proc, int *hi, in
 	enum accept_stat res = PROG_UNAVAIL;
 
 	*hi = 0;
-	*lo = 100;
+	*lo = 0x7FFFFFFF;
 
 	while (program) {
 		if (program->map.prog == prog) {
@@ -114,6 +115,8 @@ enum accept_stat portmapper_decodebody(int prog, int vers, int proc, int *hi, in
 
 enum accept_stat PMAPPROC_NULL(struct server_conn *conn)
 {
+	(void) conn;
+
 	return SUCCESS;
 }
 
@@ -142,6 +145,8 @@ enum accept_stat PMAPPROC_UNSET(struct mapping *args, enum bool *res, struct ser
 enum accept_stat PMAPPROC_GETPORT(struct mapping *args, int *res, struct server_conn *conn)
 {
 	struct program *program = programs;
+
+	(void)conn;
 
 	while (program) {
 		if (program->map.prog == args->prog &&
@@ -176,8 +181,6 @@ enum accept_stat PMAPPROC_DUMP(struct pmaplist2 *res, struct server_conn *conn)
 	return SUCCESS;
 }
 
-#define MAX_UDPBUFFER 4096
-
 enum accept_stat PMAPPROC_CALLIT(struct call_args *args, struct call_result *res, struct server_conn *conn)
 {
 	char *oldibuf = ibuf;
@@ -191,7 +194,7 @@ enum accept_stat PMAPPROC_CALLIT(struct call_args *args, struct call_result *res
 	static int count = 0;
 
 	if (count || conn->tcp) {
-		/* Prevent recursive callit calls */
+		/* Prevent non-UDP and recursive callit calls */
 		conn->suppressreply = 1;
 		return ret;
 	}

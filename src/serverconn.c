@@ -351,8 +351,6 @@ int conn_poll(void)
 /* Global memory pool */
 static struct pool *gpool = NULL;
 
-typedef enum accept_stat (*decode_proc)(int proc, struct server_conn *conn);
-enum bool portmapper_set(int prog, int vers, int prot, int port, decode_proc decode, struct pool *pool);
 
 #define UR(x) do { \
 	if ((x) == NULL) { \
@@ -386,6 +384,8 @@ int conn_init(void)
 	BR(portmapper_set(100000, 2, 17, 111, portmapper_decode, gpool));
 	BR(portmapper_set(100005, 1, 6,  111, mount1_decode, gpool));
 	BR(portmapper_set(100005, 1, 17, 111, mount1_decode, gpool));
+	BR(portmapper_set(100005, 3, 6,  111, mount3_decode, gpool));
+	BR(portmapper_set(100005, 3, 17, 111, mount3_decode, gpool));
 	BR(portmapper_set(100003, 2, 6,  111, nfs2_decode, gpool));
 	BR(portmapper_set(100003, 2, 17, 111, nfs2_decode, gpool));
 

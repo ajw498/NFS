@@ -257,6 +257,9 @@ char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfile
 /* Drop to user mode to trigger any pending callbacks */
 void trigger_callback(void);
 
+/* Convert an IP address to a string */
+char *host_to_str(unsigned int host, struct pool *pool);
+
 #ifdef NFS3
 #define NFSPROC(proc, args) NFSPROC3_##proc args
 #else

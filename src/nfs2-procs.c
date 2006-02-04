@@ -87,7 +87,7 @@ static enum nstat oserr_to_nfserr(int errnum)
 	case 0x117c3: return NFSERR_ACCES;
 	case 0x117c6: return NFSERR_NOSPC;
 	case 0x80344a: return NFSERR_ROFS;
-	case 0xb0: return (enum nstat)18; /*NFS3ERR_XDEV */
+	case 0xb0: return NFSERR_XDEV;
 	}
 	return NFSERR_IO;
 }
@@ -100,7 +100,10 @@ static inline enum nstat nfs2fh_to_path(struct nfs_fh *fhandle, char **path, str
 
 static inline enum nstat path_to_nfs2fh(char *path, struct nfs_fh *fhandle, struct server_conn *conn)
 {
-	return path_to_fh(path, fhandle->data, FHSIZE, conn);
+	unsigned int fhsize = FHSIZE;
+	char *fh = fhandle->data;
+
+	return path_to_fh(path, &fh, &fhsize, conn);
 }
 
 /* Convert a RISC OS load and execution address into a unix timestamp */

@@ -2,7 +2,7 @@
 	$Id$
 	$URL$
 
-	Mount v3 procedures
+	Mount v1 procedures
 
 
 	Copyright (C) 2006 Alex Waugh
@@ -25,6 +25,7 @@
 #include <stdio.h>
 
 #include "mount1-procs.h"
+#include "utils.h"
 
 
 enum accept_stat MNTPROC_NULL(struct server_conn *conn)
@@ -32,23 +33,6 @@ enum accept_stat MNTPROC_NULL(struct server_conn *conn)
 	(void)conn;
 	return SUCCESS;
 }
-
-static char *host_to_str(unsigned int host, struct pool *pool)
-{
-	char *str;
-
-	str = palloc(16, pool);
-	if (str == NULL) return NULL;
-
-	snprintf(str, 16, "%d.%d.%d.%d",
-	         (host & 0x000000FF) >> 0,
-	         (host & 0x0000FF00) >> 8,
-	         (host & 0x00FF0000) >> 16,
-	         (host & 0xFF000000) >> 24);
-	return str;
-}
-
-int calc_fileid(char *path, char *leaf);
 
 
 enum accept_stat MNTPROC_MNT(string *args, struct mountres *res, struct server_conn *conn)
@@ -60,27 +44,28 @@ enum accept_stat MNTPROC_MNT(string *args, struct mountres *res, struct server_c
 	while (export) {
 		if (strncmp(export->exportname, args->data, args->size) == 0) {
 			int i;
+			unsigned int fhsize = FHSIZE;
+			char *fh = res->u.directory.data;
 
 			if ((conn->host & export->mask) != export->host) {
-				res->status = 13; /* ERR_ACCESS */
+				res->status = NFSERR_ACCES;
 				return SUCCESS;
 			}
-			res->status = 0;
-			memset(res->u.directory.data, 0, FHSIZE);
-			res->u.directory.data[0] = export->exportnum;
-			res->u.directory.data[1] = calc_fileid(export->basedir, NULL) & 0xFF;
+			res->status = path_to_fh("", &fh, &fhsize, conn);
 
-			for (i = 0; i < MAXHOSTS; i++) {
-				if (export->hosts[i] == 0) {
-					export->hosts[i] = conn->host;
-					break;
+			if (res->status == 0) {
+				for (i = 0; i < MAXHOSTS; i++) {
+					if (export->hosts[i] == 0) {
+						export->hosts[i] = conn->host;
+						break;
+					}
 				}
 			}
 			return SUCCESS;
 		}
 		export = export->next;
 	}
-	res->status = 2; /*NFSERR_NOENT*/
+	res->status = NFSERR_NOENT;
 	return SUCCESS;
 }
 

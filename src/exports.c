@@ -386,27 +386,35 @@ enum nstat fh_to_path(char *fhandle, int fhandlelen, char **path, struct server_
 	return NFS_OK;
 }
 
-enum nstat path_to_fh(char *path, char *fhandle, int fhandlelen, struct server_conn *conn)
+enum nstat path_to_fh(char *path, char **fhandle, unsigned int *fhandlelen, struct server_conn *conn)
 {
 	size_t len;
-	memset(fhandle, 0, fhandlelen);
+
+	if (*fhandle == NULL) {
+		UR(*fhandle = palloc(*fhandlelen, conn->pool));
+	}
+	memset(*fhandle, 0, *fhandlelen);
 	len = strlen(path);
 	if ((len < conn->export->basedirlen) ||
 	    (memcmp(path, conn->export->basedir, conn->export->basedirlen) != 0) ||
 	    ((path[conn->export->basedirlen] != '.') &&
 	     (path[conn->export->basedirlen] != '\0'))) {
-		abort();/*FIXME*/
+		/* This should only ever happen if we are called from mount
+		   to get the root filehandle */
+		(*fhandle)[0] = conn->export->exportnum;
+		(*fhandle)[1] = calc_fileid(conn->export->basedir, NULL) & 0xFF;
+		*fhandlelen = 2;
 	}
 	len -= conn->export->basedirlen + 1;
-	if (len > fhandlelen - 2) {
-		char *fh = fhandle;
+	if (len > *fhandlelen - 2) {
+		char *fh = *fhandle;
 		int fhremain;
 		struct pathentry **pathentryptr;
 		struct pathentry *pathentry;
 
 		*fh++ = conn->export->exportnum | 0x80;
 		*fh++ = calc_fileid(path, NULL) & 0xFF;
-		fhremain = fhandlelen - 2;
+		fhremain = *fhandlelen - 2;
 		path += conn->export->basedirlen + 1;
 		pathentryptr = &(conn->export->pathentry);
 		pathentry = conn->export->pathentry;
@@ -469,11 +477,13 @@ enum nstat path_to_fh(char *path, char *fhandle, int fhandlelen, struct server_c
 			}
 		}
 		if (fhremain > 0) *fh++ = 0xFF;
+		*fhandlelen -= fhremain;
 	} else {
-		fhandle[0] = conn->export->exportnum;
-		fhandle[1] = calc_fileid(path, NULL) & 0xFF;
-		memcpy(fhandle + 2, path + conn->export->basedirlen + 1, len);
+		(*fhandle)[0] = conn->export->exportnum;
+		(*fhandle)[1] = calc_fileid(path, NULL) & 0xFF;
+		memcpy(*fhandle + 2, path + conn->export->basedirlen + 1, len);
 		/* Terminated by the earlier memset */
+		*fhandlelen = 2 + len;
 	}
 
 	return NFS_OK;

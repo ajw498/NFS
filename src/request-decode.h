@@ -39,9 +39,18 @@
 
 #define OUTOFMEM "Unable to allocate enough memory"
 
+#define MAX_UDPBUFFER 4096
+/**/
+
 extern int logging;
 
 void request_decode(struct server_conn *conn);
+
+typedef enum accept_stat (*decode_proc)(int proc, struct server_conn *conn);
+
+enum bool portmapper_set(int prog, int vers, int prot, int port, decode_proc decode, struct pool *pool);
+
+enum accept_stat portmapper_decodebody(int prog, int vers, int proc, int *hi, int *lo, struct server_conn *conn);
 
 #endif
 
