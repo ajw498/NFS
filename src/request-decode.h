@@ -25,15 +25,9 @@
 #ifndef REQUEST_DECODE_H
 #define REQUEST_DECODE_H
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <time.h>
 
 #include "exports.h"
 
-
-void *llmalloc(int size);
 
 #define LOGNAME "Moonfish"
 

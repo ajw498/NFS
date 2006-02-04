@@ -30,8 +30,6 @@ void rpc_resetfifo(void);
 
 #define rpc_buffer_overflow() gen_error(RPCBUFOVERFLOW, RPCBUFOVERFLOWMESS)
 
-void *llmalloc(size_t size);
-
 void swap_rxbuffers(void);
 
 os_error *rpc_init_connection(struct conn_info *conn);

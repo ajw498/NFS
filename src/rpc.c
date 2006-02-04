@@ -98,12 +98,6 @@ static unsigned int tail;
 /* The position within to buffer list to start looking for a free rx buffer */
 static unsigned int freebufferstart;
 
-/* Buffer to allocate linked list structures from. Should be significanly
-   faster than using the RMA, doesn't require freeing each element of
-   the list, and won't fragment */
-static char malloc_buffer[MAX_DATABUFFER];
-/* The start of the next location to return for linked list malloc */
-static char *nextmalloc;
 
 /* These point to the current buffer for tx or rx, and are used by
    the process_* macros to read/write data from/to */
@@ -437,8 +431,6 @@ void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, s
 	fifo[head].xid = call_header.xid;
 	fifo[head].rx = NULL;
 
-	nextmalloc = malloc_buffer;
-
 	process_struct_rpc_msg(OUTPUT, call_header, 0);
 
 buffer_overflow: /* Should be impossible, but prevent compiler complaining */
@@ -625,18 +617,4 @@ buffer_overflow:
 	return rpc_buffer_overflow();
 }
 
-/* Allocate a chunk from the linklist buffer */
-void *llmalloc(size_t size)
-{
-	void *mem;
-
-	if (nextmalloc + size > malloc_buffer + sizeof(malloc_buffer)) {
-		mem = NULL;
-	} else {
-		mem = nextmalloc;
-		nextmalloc += size;
-	}
-
-	return mem;
-}
 

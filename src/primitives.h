@@ -160,7 +160,7 @@ extern char *obuf, *obufend;
   int i; \
   check_bufspace(input, structbase.size * 4); \
   if (input) { \
-  	structbase.data = llmalloc(structbase.size * 4); \
+  	structbase.data = palloc(structbase.size * 4, conn->pool); \
    if (structbase.data == NULL) goto buffer_overflow; \
   } \
   for (i = 0; i < structbase.size; i++) { \

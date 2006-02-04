@@ -238,7 +238,7 @@ while (<>) {
       print PROCS "process_int(input, opted, 0);\\\n";
       print PROCS "if (opted) {\\\n";
       print PROCS "if (input) {\\\n";
-      print PROCS "*ptr$llcount = llmalloc(sizeof(struct $name));\\\n";
+      print PROCS "*ptr$llcount = palloc(sizeof(struct $name), conn->pool);\\\n";
       print PROCS "if (*ptr$llcount == NULL) goto buffer_overflow;\\\n";
       print PROCS "}\\\n";
       $structbase = "(*ptr$llcount)->";
