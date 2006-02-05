@@ -211,11 +211,16 @@ static enum nstat set_attr(char *path, struct sattrguard3 *guard, struct sattr3 
 
 	if (sattr->mtime.set_it) timeval_to_loadexec(&(sattr->mtime.u.mtime), filetype, &load, &exec);
 
-	OR(_swix(OS_File, _INR(0,3) | _IN(5), 1, path, load, exec, attr));
-
-	if (((type == 1) || (type == 3 && conn->export->imagefs == 0)) && sattr->size.set_it && sattr->size.u.size != size) {
+	if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
+	if (sattr->size.set_it) {
 		size = sattr->size.u.size;
-		/*FIXME - open file if not already open, and set extent */
+	}
+
+	if (type == OBJ_FILE) {
+		/* Write through the cache to ensure consistency */
+		NR(filecache_setattr(path, load, exec, size, attr));
+	} else {
+		OR(_swix(OS_File, _INR(0,3) | _IN(5), 1, path, load, exec, attr));
 	}
 
 	if (obj_wcc) {
@@ -316,15 +321,20 @@ enum accept_stat NFSPROC3_READ(struct readargs *args, struct readres *res, struc
 	unsigned int read;
 	int eof;
 	char *data;
+	unsigned int load;
+	unsigned int exec;
+	unsigned int size;
+	unsigned int attr;
 
 	NF(nfs3fh_to_path(&(args->file), &path, conn));
-	NF(read_file(path, args->count, args->offset, &data, &read, &eof));
+	NF(filecache_read(path, args->count, args->offset, &data, &read, &eof));
 	res->u.resok.data.data = data;
 	res->u.resok.data.size = read;
 	res->u.resok.count = read;
 	res->u.resok.eof = eof ? TRUE : FALSE;
 	res->u.resok.file_attributes.attributes_follow = TRUE;
-	NF(get_fattr(path, -1, &(res->u.resok.file_attributes.u.attributes), conn)); /* FIXME can't this be cached on open? */
+	NF(filecache_getattr(path, &load, &exec, &size, &attr, NULL));
+	parse_fattr(path, NULL, OBJ_FILE, load, exec, size, attr, &(res->u.resok.file_attributes.u.attributes), conn);
 
 	return SUCCESS;
 
@@ -337,20 +347,29 @@ failure:
 enum accept_stat NFSPROC3_WRITE(struct writeargs *args, struct writeres *res, struct server_conn *conn)
 {
 	char *path;
-	int handle;
+	int sync = args->stable != UNSTABLE;
 	int amount;
+	unsigned int load;
+	unsigned int exec;
+	unsigned int size;
+	unsigned int attr;
+	int cached;
 
 	NF(nfs3fh_to_path(&(args->file), &path, conn));
 	if (conn->export->ro) NF(NFSERR_ROFS);
-	OF(open_file(path, &handle, NULL));
+
+	res->u.resok.file_wcc.before.attributes_follow = FALSE;
 	amount = args->count;
 	if (amount > args->data.size) amount = args->data.size;
-	OF(_swix(OS_GBPB, _INR(0,4), 1, handle, args->data.data, amount, args->offset));
-	res->u.resok.file_wcc.before.attributes_follow = FALSE; /*FIXME */
-	res->u.resok.file_wcc.after.attributes_follow = FALSE;
+
+	NF(filecache_write(path, amount, args->offset, args->data.data, sync, res->u.resok.verf));
+
+	res->u.resok.file_wcc.after.attributes_follow = TRUE;
+	NF(filecache_getattr(path, &load, &exec, &size, &attr, NULL));
+	parse_fattr(path, NULL, OBJ_FILE, load, exec, size, attr, &(res->u.resok.file_wcc.after.u.attributes), conn);
+
 	res->u.resok.count = amount;
-	res->u.resok.committed = DATA_SYNC; /*FIXME */
-	memset(res->u.resok.verf, 0, NFS3_WRITEVERFSIZE); /*FIXME */
+	res->u.resok.committed = sync ? FILE_SYNC : UNSTABLE;
 
 	return SUCCESS;
 
@@ -381,8 +400,7 @@ enum accept_stat NFSPROC3_CREATE(struct createargs *args, struct createres *res,
 	case UNCHECKED:
 		if (args->how.u.obj_attributes.size.set_it) size = args->how.u.obj_attributes.size.u.size;
 		if (size < 0) NF(NFSERR_FBIG);
-		/*FIXME - is file 0 extended?*/
-		OF(_swix(OS_File, _INR(0,5), 11, path, filetype, 0, 0, size));
+		OF(_swix(OS_File, _INR(0,5), 11, path, filetype, 0, 0, 0));
 		NF(set_attr(path, NULL, &(args->how.u.obj_attributes), NULL, conn));
 		break;
 	case EXCLUSIVE:
@@ -452,6 +470,7 @@ enum accept_stat NFSPROC3_SYMLINK(struct SYMLINK3args *args, struct SYMLINK3res 
 
 enum accept_stat NFSPROC3_MKNOD(struct MKNOD3args *args, struct MKNOD3res *res, struct server_conn *conn)
 {
+	(void)args;
 	(void)conn;
 
 	res->status = NFSERR_NOTSUPP;
@@ -552,6 +571,7 @@ enum accept_stat NFSPROC3_READDIR(struct readdirargs *args, struct readdirres *r
 	char *path;
 	int cookie = (int)args->cookie;
 	int bytes = 0;
+	struct entry **lastentry = &(res->u.readdirok.entries);
 
 	NF(nfs3fh_to_path(&(args->dir), &path, conn));
 
@@ -597,8 +617,9 @@ enum accept_stat NFSPROC3_READDIR(struct readdirargs *args, struct readdirres *r
 			if (bytes > args->count) {
 				return SUCCESS;
 			}
-			entry->next = res->u.readdirok.entries;
-			res->u.readdirok.entries = entry;
+			entry->next = NULL;
+			*lastentry = entry;
+			lastentry = &(entry->next);
 		}
 		if (cookie == -1) res->u.readdirok.eof = TRUE;
 	}
@@ -781,11 +802,30 @@ failure:
 
 enum accept_stat NFSPROC3_COMMIT(struct COMMIT3args *args, struct COMMIT3res *res, struct server_conn *conn)
 {
-	/*FIXME*/
-	res->status = NFS_OK;
+	char *path;
+	unsigned int load;
+	unsigned int exec;
+	unsigned int size;
+	unsigned int attr;
+	int cached;
+
+	NF(nfs3fh_to_path(&(args->file), &path, conn));
+
 	res->u.resok.file_wcc.before.attributes_follow = FALSE;
-	res->u.resok.file_wcc.after.attributes_follow = FALSE;
-	memset(res->u.resok.verf, 0, NFS3_COOKIEVERFSIZE);
+	NF(filecache_commit(path, res->u.resok.verf));
+	NF(filecache_getattr(path, &load, &exec, &size, &attr, &cached));
+	if (cached) {
+		res->u.resok.file_wcc.after.attributes_follow = TRUE;
+		parse_fattr(path, NULL, OBJ_FILE, load, exec, size, attr, &(res->u.resok.file_wcc.after.u.attributes), conn);
+	} else {
+		res->u.resok.file_wcc.after.attributes_follow = FALSE;
+	}
+
+	return SUCCESS;
+
+failure:
+	res->u.resfail.file_wcc.before.attributes_follow = FALSE;
+	res->u.resfail.file_wcc.after.attributes_follow = FALSE;
 
 	return SUCCESS;
 }

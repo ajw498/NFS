@@ -23,9 +23,17 @@
 */
 
 
-os_error *open_file(char *path, int *handle, int *index);
+void filecache_init(void);
 
-void reap_files(int all);
+void filecache_reap(int all);
 
-enum nstat read_file(char *path, unsigned int count, unsigned int offset, char **data, unsigned int *read, int *eof);
+enum nstat filecache_read(char *path, unsigned int count, unsigned int offset, char **data, unsigned int *read, int *eof);
+
+enum nstat filecache_write(char *path, unsigned int count, unsigned int offset, char *data, int sync, char *verf);
+
+enum nstat filecache_commit(char *path, char *verf);
+
+enum nstat filecache_getattr(char *path, unsigned int *load, unsigned int *exec, unsigned int *size, unsigned int *attr, int *cached);
+
+enum nstat filecache_setattr(char *path, unsigned int load, unsigned int exec, unsigned int size, unsigned int attr);
 

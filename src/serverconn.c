@@ -56,6 +56,7 @@
 #include "request-decode.h"
 #include "exports.h"
 #include "serverconn.h"
+#include "filecache.h"
 
 
 static int udpsock = -1;
@@ -109,7 +110,6 @@ static int conn_create_socket(int port, int tcp)
 	return sock;
 }
 
-void reap_files(int all);
 
 static struct export *exports;
 
@@ -343,7 +343,7 @@ int conn_poll(void)
 	}
 
 	/* Reap any open filehandles that haven't been accessed recently */
-	reap_files(0);
+	filecache_reap(0);
 
 	return activity ? 0 : 1; /*FIXME*/
 }
@@ -381,6 +381,8 @@ int conn_init(void)
 		conns[i].gpool = gpool;
 	}
 
+	filecache_init();
+
 	BR(portmapper_set(100000, 2, 6,  111, portmapper_decode, gpool));
 	BR(portmapper_set(100000, 2, 17, 111, portmapper_decode, gpool));
 	BR(portmapper_set(100005, 1, 6,  111, mount1_decode, gpool));
@@ -406,9 +408,22 @@ int conn_init(void)
 
 void conn_close(void)
 {
-	reap_files(1);
+	int i;
+
+	filecache_reap(1);
+
+	for (i = 0; i < MAXCONNS; i++) {
+		if (conns[i].state != IDLE) {
+			if (conns[i].tcp) {
+				shutdown(conns[i].socket, 2);
+				close(conns[i].socket);
+			}
+		}
+	}
+
 	if (udpsock != -1) close(udpsock);
 	if (tcpsock != -1) close(tcpsock);
+
 	if (gpool) pfree(gpool);
 }
 

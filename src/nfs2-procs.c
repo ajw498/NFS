@@ -113,6 +113,31 @@ static void loadexec_to_timeval(unsigned int load, unsigned int exec, struct nti
 	}
 }
 
+static void parse_fattr(char *path, int type, int load, int exec, int len, int attr, struct fattr *fattr, struct server_conn *conn)
+{
+	fattr->type = type == 3 ? (conn->export->imagefs ? NFDIR : NFREG) :
+	              type == 2 ? NFDIR : NFREG;
+	fattr->mode = fattr->type == NFDIR ? 040000 : 0100000;
+	fattr->mode |= (attr & 0x01) << 8; /* Owner read */
+	fattr->mode |= (attr & 0x02) << 6; /* Owner write */
+	fattr->mode |= (attr & 0x10) << 1; /* Group read */
+	fattr->mode |= (attr & 0x20) >> 1; /* Group write */
+	fattr->mode |= (attr & 0x10) >> 2; /* Others read */
+	fattr->mode |= (attr & 0x20) >> 4; /* Others write */
+	fattr->nlink = 1;
+	fattr->uid = conn->uid;
+	fattr->gid = conn->gid;
+	fattr->size = len;
+	fattr->blocksize = 4096;
+	fattr->blocks = fattr->size >> 12;
+	fattr->rdev = 0;
+	fattr->fsid = conn->export->exportnum;
+	fattr->fileid = calc_fileid(path, NULL);
+	loadexec_to_timeval(load, exec, &(fattr->atime));
+	loadexec_to_timeval(load, exec, &(fattr->ctime));
+	loadexec_to_timeval(load, exec, &(fattr->mtime));
+}
+
 static enum nstat get_fattr(char *path, int filetype, struct fattr *fattr, struct server_conn *conn)
 {
 	int type, load, exec, len, attr;
@@ -123,29 +148,12 @@ static enum nstat get_fattr(char *path, int filetype, struct fattr *fattr, struc
 		return NFSERR_NOENT;
 	} else {
 		int ftype = (load & 0x000FFF00) >> 8;
-		fattr->type = type == 3 ? (conn->export->imagefs ? NFDIR : NFREG) :
-		              type == 2 ? NFDIR : NFREG;
-		if ((fattr->type == NFREG) && (filetype != -1) && (filetype != ftype)) return NFSERR_NOENT;
-		fattr->mode = fattr->type == NFDIR ? 040000 : 0100000;
-		fattr->mode |= (attr & 0x01) << 8; /* Owner read */
-		fattr->mode |= (attr & 0x02) << 6; /* Owner write */
-		fattr->mode |= (attr & 0x10) << 1; /* Group read */
-		fattr->mode |= (attr & 0x20) >> 1; /* Group write */
-		fattr->mode |= (attr & 0x10) >> 2; /* Others read */
-		fattr->mode |= (attr & 0x20) >> 4; /* Others write */
-		fattr->nlink = 1;
-		fattr->uid = conn->uid;
-		fattr->gid = conn->gid;
-		fattr->size = len;
-		fattr->blocksize = 4096;
-		fattr->blocks = fattr->size >> 12;
-		fattr->rdev = 0;
-		fattr->fsid = conn->export->exportnum;
-		fattr->fileid = calc_fileid(path, NULL);
-		loadexec_to_timeval(load, exec, &(fattr->atime));
-		loadexec_to_timeval(load, exec, &(fattr->ctime));
-		loadexec_to_timeval(load, exec, &(fattr->mtime));
+		if (((type == OBJ_FILE) || ((type == OBJ_IMAGE) && conn->export->imagefs)) &&
+		    (filetype != -1) && (filetype != ftype)) return NFSERR_NOENT;
 	}
+
+	parse_fattr(path, type, load, exec, len, attr, fattr, conn);
+
 	return NFS_OK;
 }
 
@@ -180,11 +188,18 @@ static enum nstat set_attr(char *path, struct sattr *sattr, struct server_conn *
 	filetype = (load & 0x000FFF00) >> 8;
 	if (sattr->mtime.seconds != -1) timeval_to_loadexec(&(sattr->mtime), filetype, &load, &exec);
 
-	OR(_swix(OS_File, _INR(0,3) | _IN(5), 1, path, load, exec, attr));
-
-	if (((type == 1) || (type == 3 && conn->export->imagefs == 0)) && sattr->size != -1 && sattr->size != size) {
-		/*FIXME - open file if not already open, and set extent */
+	if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
+	if (sattr->size != -1) {
+		size = sattr->size;
 	}
+
+	if (type == OBJ_FILE) {
+		/* Write through the cache to ensure consistency */
+		NR(filecache_setattr(path, load, exec, size, attr));
+	} else {
+		OR(_swix(OS_File, _INR(0,3) | _IN(5), 1, path, load, exec, attr));
+	}
+
 	return NFS_OK;
 }
 
@@ -239,6 +254,7 @@ enum accept_stat NFSPROC_READDIR(struct readdirargs *args, struct readdirres *re
 	char *path;
 	int cookie = args->cookie;
 	int bytes = 0;
+	struct entry **lastentry = &(res->u.readdirok.entries);
 
 	NE(nfs2fh_to_path(&(args->dir), &path, conn));
 
@@ -282,8 +298,9 @@ enum accept_stat NFSPROC_READDIR(struct readdirargs *args, struct readdirres *re
 			if (bytes > args->count) {
 				return SUCCESS;
 			}
-			entry->next = res->u.readdirok.entries;
-			res->u.readdirok.entries = entry;
+			entry->next = NULL;
+			*lastentry = entry;
+			lastentry = &(entry->next);
 		}
 		if (cookie == -1) res->u.readdirok.eof = TRUE;
 	}
@@ -297,31 +314,35 @@ enum accept_stat NFSPROC_READ(struct readargs *args, struct readres *res, struct
 	int handle;
 	unsigned int read;
 	char *data;
+	unsigned int load;
+	unsigned int exec;
+	unsigned int size;
+	unsigned int attr;
 
 	NE(nfs2fh_to_path(&(args->file), &path, conn));
-	/*OE(open_file(path, &handle));*/
-	/*FIXME verify count is sensible (and offset?) */
-/*	UE(data = palloc(args->count, conn->pool));
-	OE(_swix(OS_GBPB, _INR(0,4) | _OUT(3), 3, handle, data, args->count, args->offset, &read));
-	res->u.resok.data.data = data;
-	res->u.resok.data.size = args->count - read;*/
-	NE(read_file(path, args->count, args->offset, &data, &read, NULL));
+	NE(filecache_read(path, args->count, args->offset, &data, &read, NULL));
 	res->u.resok.data.data = data;
 	res->u.resok.data.size = read;
-	NE(get_fattr(path, -1, &(res->u.resok.attributes), conn));
+	NE(filecache_getattr(path, &load, &exec, &size, &attr, NULL));
+	parse_fattr(path, OBJ_FILE, load, exec, size, attr, &(res->u.resok.attributes), conn);
 	return SUCCESS;
 }
 
 enum accept_stat NFSPROC_WRITE(struct writeargs *args, struct attrstat *res, struct server_conn *conn)
 {
 	char *path;
-	int handle;
+	unsigned int load;
+	unsigned int exec;
+	unsigned int size;
+	unsigned int attr;
 
 	NE(nfs2fh_to_path(&(args->file), &path, conn));
 	if (conn->export->ro) NE(NFSERR_ROFS);
-	OE(open_file(path, &handle, NULL));
-	OE(_swix(OS_GBPB, _INR(0,4), 1, handle, args->data.data, args->data.size, args->offset));
-	NE(get_fattr(path, -1, &(res->u.attributes), conn));
+
+	NE(filecache_write(path, args->data.size, args->offset, args->data.data, 1, NULL));
+
+	NE(filecache_getattr(path, &load, &exec, &size, &attr, NULL));
+	parse_fattr(path, OBJ_FILE, load, exec, size, attr, &(res->u.attributes), conn);
 
 	return SUCCESS;
 }
@@ -336,8 +357,7 @@ enum accept_stat NFSPROC_CREATE(struct createargs *args, struct createres *res, 
 	if (conn->export->ro) NE(NFSERR_ROFS);
 	size = args->attributes.size == -1 ? 0 : args->attributes.size;
 	if (size < 0) NE(NFSERR_FBIG);
-	/*FIXME - is file 0 extended?*/
-	OE(_swix(OS_File, _INR(0,5), 11, path, filetype, 0, 0, size));
+	OE(_swix(OS_File, _INR(0,5), 11, path, filetype, 0, 0, 0));
 	NE(set_attr(path, &(args->attributes), conn));
 	NE(path_to_nfs2fh(path, &(res->u.diropok.file), conn));
 	NE(get_fattr(path, -1, &(res->u.diropok.attributes), conn));
