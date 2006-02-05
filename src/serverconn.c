@@ -50,6 +50,7 @@
 #include "mount1-decode.h"
 #include "mount3-decode.h"
 #include "nfs2-decode.h"
+#include "nfs3-decode.h"
 
 #include "utils.h"
 #include "request-decode.h"
@@ -388,6 +389,8 @@ int conn_init(void)
 	BR(portmapper_set(100005, 3, 17, 111, mount3_decode, gpool));
 	BR(portmapper_set(100003, 2, 6,  111, nfs2_decode, gpool));
 	BR(portmapper_set(100003, 2, 17, 111, nfs2_decode, gpool));
+	BR(portmapper_set(100003, 3, 6,  111, nfs3_decode, gpool));
+	BR(portmapper_set(100003, 3, 17, 111, nfs3_decode, gpool));
 
 	udpsock = conn_create_socket(111, 0);
 	if (udpsock == -1) return 1;

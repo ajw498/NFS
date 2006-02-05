@@ -57,6 +57,42 @@ typedef uint32 mode3;
 
 typedef uint32 count3;
 
+#ifndef NSTAT
+#define NSTAT
+
+enum nstat {
+   NFS_OK             = 0,
+   NFSERR_PERM        = 1,
+   NFSERR_NOENT       = 2,
+   NFSERR_IO          = 5,
+   NFSERR_NXIO        = 6,
+   NFSERR_ACCES       = 13,
+   NFSERR_EXIST       = 17,
+   NFSERR_XDEV        = 18,
+   NFSERR_NODEV       = 19,
+   NFSERR_NOTDIR      = 20,
+   NFSERR_ISDIR       = 21,
+   NFSERR_INVAL       = 22,
+   NFSERR_FBIG        = 27,
+   NFSERR_NOSPC       = 28,
+   NFSERR_ROFS        = 30,
+   NFSERR_MLINK       = 31,
+   NFSERR_NAMETOOLONG = 63,
+   NFSERR_NOTEMPTY    = 66,
+   NFSERR_DQUOT       = 69,
+   NFSERR_STALE       = 70,
+   NFSERR_REMOTE      = 71,
+   NFSERR_BADHANDLE   = 10001,
+   NFSERR_NOT_SYNC    = 10002,
+   NFSERR_BAD_COOKIE  = 10003,
+   NFSERR_NOTSUPP     = 10004,
+   NFSERR_TOOSMALL    = 10005,
+   NFSERR_SERVERFAULT = 10006,
+   NFSERR_BADTYPE     = 10007,
+   NFSERR_JUKEBOX     = 10008
+};
+#endif
+
 enum ftype {
    NFREG    = 1,
    NFDIR    = 2,
@@ -268,7 +304,7 @@ default:
 
 diropres NFSPROC3_LOOKUP(diropargs) = 3;
 
-/*
+
 const ACCESS3_READ    = 0x0001;
 const ACCESS3_LOOKUP  = 0x0002;
 const ACCESS3_MODIFY  = 0x0004;
@@ -299,7 +335,7 @@ default:
 
 
 ACCESS3res NFSPROC3_ACCESS(ACCESS3args) = 4;
-*/
+
 
 struct readlinkargs {
      nfs_fh  fhandle;
@@ -434,7 +470,7 @@ struct mkdirargs {
 
 createres NFSPROC3_MKDIR(mkdirargs) = 9;
 
-/*
+
 
 struct symlinkdata3 {
      sattr3    symlink_attributes;
@@ -473,11 +509,11 @@ struct devicedata3 {
 };
 
 union mknoddata3 switch (ftype type) {
-case NF3CHR:
-case NF3BLK:
+case NFCHR:
+case NFBLK:
      devicedata3  device;
-case NF3SOCK:
-case NF3FIFO:
+case NFSOCK:
+case NFFIFO:
      sattr3       pipe_attributes;
 default:
      void;
@@ -509,7 +545,7 @@ default:
 
 MKNOD3res NFSPROC3_MKNOD(MKNOD3args) = 11;
 
-*/
+
 
 
 struct REMOVE3resok {
@@ -559,7 +595,7 @@ default:
 
 renameres NFSPROC3_RENAME(renameargs) = 14;
 
-/*
+
 struct LINK3args {
      nfs_fh     file;
      diropargs  link;
@@ -585,7 +621,7 @@ default:
 
 LINK3res NFSPROC3_LINK(LINK3args) = 15;
 
-*/
+
 struct readdirargs {
      nfs_fh      dir;
      cookie3      cookie;
@@ -663,7 +699,7 @@ default:
 readdirplusres NFSPROC3_READDIRPLUS(readdirplusargs) = 17;
 
 
-/*
+
 struct FSSTAT3args {
      nfs_fh   fsroot;
 };
@@ -691,7 +727,7 @@ default:
 };
 
 FSSTAT3res NFSPROC3_FSSTAT(FSSTAT3args) = 18;
-*/
+
 
 const FSF3_LINK        = 0x0001;
 const FSF3_SYMLINK     = 0x0002;
@@ -729,7 +765,7 @@ default:
 
 fsinfores NFSPROC3_FSINFO(fsinfoargs) = 19;
 
-/*
+
 struct PATHCONF3args {
      nfs_fh   object;
 };
@@ -781,4 +817,4 @@ default:
 
 COMMIT3res NFSPROC3_COMMIT(COMMIT3args) = 21;
 
-*/
+

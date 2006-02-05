@@ -403,7 +403,8 @@ enum nstat path_to_fh(char *path, char **fhandle, unsigned int *fhandlelen, stru
 		   to get the root filehandle */
 		(*fhandle)[0] = conn->export->exportnum;
 		(*fhandle)[1] = calc_fileid(conn->export->basedir, NULL) & 0xFF;
-		*fhandlelen = 2;
+/*		*fhandlelen = 2; FIXME */
+		return NFS_OK;
 	}
 	len -= conn->export->basedirlen + 1;
 	if (len > *fhandlelen - 2) {
@@ -477,13 +478,13 @@ enum nstat path_to_fh(char *path, char **fhandle, unsigned int *fhandlelen, stru
 			}
 		}
 		if (fhremain > 0) *fh++ = 0xFF;
-		*fhandlelen -= fhremain;
+/*		*fhandlelen -= fhremain;*/
 	} else {
 		(*fhandle)[0] = conn->export->exportnum;
 		(*fhandle)[1] = calc_fileid(path, NULL) & 0xFF;
 		memcpy(*fhandle + 2, path + conn->export->basedirlen + 1, len);
 		/* Terminated by the earlier memset */
-		*fhandlelen = 2 + len;
+/*		*fhandlelen = 2 + len; */
 	}
 
 	return NFS_OK;

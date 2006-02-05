@@ -47,10 +47,17 @@ portmapper-procs.o \
 mount1-procs.o \
 mount3-procs.o \
 nfs2-procs.o \
+nfs3-procs.o \
 portmapper-decode.o \
+portmapper-decode2.o \
 mount1-decode.o \
+mount1-decode2.o \
 mount3-decode.o \
-nfs2-decode.o
+mount3-decode2.o \
+nfs2-decode.o \
+nfs2-decode2.o \
+nfs3-decode.o \
+nfs3-decode2.o
 
 SUNFISHOBJS = \
 rpc.o \

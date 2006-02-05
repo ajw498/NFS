@@ -44,18 +44,6 @@
 	} \
 } while (0)
 
-static enum nstat oserr_to_nfserr(int errnum)
-{
-	switch (errnum) {
-	case 0x117b4: return NFSERR_NOTEMPTY;
-	case 0x117c3: return NFSERR_ACCES;
-	case 0x117c6: return NFSERR_NOSPC;
-	case 0x80344a: return NFSERR_ROFS;
-	case 0xb0: return (enum nstat)18; /*NFS3ERR_XDEV */
-	}
-	return NFSERR_IO;
-}
-
 
 #define MAXOPENFILES 3
 
@@ -68,6 +56,7 @@ static struct openfile {
 	char buffer[DATABUFFER];
 	int bufferoffset;
 	int buffercount;
+	int filesize;
 } openfiles[MAXOPENFILES];
 
 static int openfileinit = 0;
@@ -111,6 +100,7 @@ os_error *open_file(char *path, int *handle, int *index)
 	openfiles[earliest].handle = err ? 0 : *handle;
 	openfiles[earliest].buffercount = 0;
 	openfiles[earliest].bufferoffset = 0;
+	if (err == NULL) err = _swix(OS_Args, _INR(0,1) | _OUT(2), 2, *handle, &(openfiles[earliest].filesize));
 	if (index) *index = earliest;
 	return err;
 
@@ -133,7 +123,7 @@ void reap_files(int all)
 	}
 }
 
-enum nstat read_file(char *path, unsigned int count, unsigned int offset, char **data, unsigned int *read)
+enum nstat read_file(char *path, unsigned int count, unsigned int offset, char **data, unsigned int *read, int *eof)
 {
 	int handle;
 	int index;
@@ -156,6 +146,7 @@ enum nstat read_file(char *path, unsigned int count, unsigned int offset, char *
 	*data = openfiles[index].buffer + bufferoffset;
 	*read = openfiles[index].buffercount - bufferoffset;
 	if (*read > count) *read = count;
+	if (eof) *eof = offset + *read >= openfiles[index].filesize;
 	return NFS_OK;
 }
 

@@ -39,12 +39,14 @@ enum accept_stat MOUNTPROC3_MNT(string *args, struct mountres *res, struct serve
 	while (export) {
 		if (strncmp(export->exportname, args->data, args->size) == 0) {
 			int i;
-			unsigned int auth = AUTH_UNIX;
+			static unsigned int auth = AUTH_UNIX;
 
 			if ((conn->host & export->mask) != export->host) {
 				res->status = MNT3ERR_ACCES;
 				return SUCCESS;
 			}
+
+			conn->export = export;
 
 			res->u.mountinfo.auth_flavours.size = 1;
 			res->u.mountinfo.auth_flavours.data = &auth;

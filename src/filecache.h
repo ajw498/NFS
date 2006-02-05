@@ -27,5 +27,5 @@ os_error *open_file(char *path, int *handle, int *index);
 
 void reap_files(int all);
 
-enum nstat read_file(char *path, unsigned int count, unsigned int offset, char **data, unsigned int *read);
+enum nstat read_file(char *path, unsigned int count, unsigned int offset, char **data, unsigned int *read, int *eof);
 

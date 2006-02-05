@@ -48,12 +48,6 @@
 
 
 
-/* Buffer to allocate linked list structures from. Should be significanly
-   faster than using the RMA, doesn't require freeing each element of
-   the list, and won't fragment */
-static char malloc_buffer[MAX_DATABUFFER];
-/* The start of the next location to return for linked list malloc */
-static char *nextmalloc;
 
 
 /* Log an entire data packet */
@@ -67,41 +61,6 @@ static void logdata(int rx, char *buf, int len)
 }
 
 
-
-/* Allocate a chunk from the linklist buffer */
-void *llmalloc(int size)
-{
-	void *mem;
-
-	abort();
-
-	if (nextmalloc + size > malloc_buffer + sizeof(malloc_buffer)) {
-		mem = NULL;
-	} else {
-		mem = nextmalloc;
-		nextmalloc += size;
-	}
-
-	return mem;
-}
-
-#define SYSLOGF_BUFSIZE 1024
-#define Syslog_LogMessage 0x4C880
-
-void syslogf(char *logname, int level, char *fmt, ...)
-{
-	static char syslogbuf[SYSLOGF_BUFSIZE];
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsnprintf(syslogbuf, sizeof(syslogbuf), fmt, ap);
-	va_end(ap);
-
-	/* Ignore any errors, as there's not much we can do with them */
-	_swix(Syslog_LogMessage, _INR(0,2), logname, syslogbuf, level);
-/*	printf("syslogged: %s\n", syslogbuf);*/
-}
-
 int main(void)
 {
 	if (conn_init()) return 1;
@@ -109,7 +68,7 @@ int main(void)
 	while (1) {
 		int ch;
 
-		_swix(OS_Byte, _INR(0,2) | _OUT(2), 129, 10, 0, &ch);
+		_swix(OS_Byte, _INR(0,2) | _OUT(2), 129, 1, 0, &ch);
 		if (ch != 255) break;
 		conn_poll();
 	}

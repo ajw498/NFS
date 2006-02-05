@@ -260,6 +260,9 @@ void trigger_callback(void);
 /* Convert an IP address to a string */
 char *host_to_str(unsigned int host, struct pool *pool);
 
+/* Convert a RISC OS error number to an NFS error */
+enum nstat oserr_to_nfserr(int errnum);
+
 #ifdef NFS3
 #define NFSPROC(proc, args) NFSPROC3_##proc args
 #else

@@ -51,6 +51,7 @@ enum accept_stat MNTPROC_MNT(string *args, struct mountres *res, struct server_c
 				res->status = NFSERR_ACCES;
 				return SUCCESS;
 			}
+			conn->export = export;
 			res->status = path_to_fh("", &fh, &fhsize, conn);
 
 			if (res->status == 0) {

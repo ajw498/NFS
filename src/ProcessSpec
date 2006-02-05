@@ -41,9 +41,11 @@ open(UNIONS, ">auto/$spectype-process2.h") or die $^E;
 open(STRUCTS,">auto/$spectype-structs.h") or die $^E;
 open(CALLS,  ">auto/$spectype-calls.c") or die $^E;
 open(CALLSH, ">auto/$spectype-calls.h") or die $^E;
-open(RECV2H, ">auto/$spectype-decode.h") or die $^E;
+open(RECVH,  ">auto/$spectype-decode.h") or die $^E;
+open(RECV2H, ">auto/$spectype-decode2.h") or die $^E;
 open(RECV,   ">auto/$spectype-decode.c") or die $^E;
-open(RECVH,  ">auto/$spectype-procs.h") or die $^E;
+open(RECV2,  ">auto/$spectype-decode2.c") or die $^E;
+open(RECVPROCSH,  ">auto/$spectype-procs.h") or die $^E;
 
 my $header = "/* Automatically generated */\n\n";
 
@@ -65,20 +67,28 @@ print CALLSH  "#include \"$spectype-process2.h\"\n\n";
 
 print RECV   $header;
 print RECV   "#include \"$spectype-decode.h\"\n";
-print RECV   "#include \"$spectype-procs.h\"\n\n";
-print RECV   "enum accept_stat ${spectype}_decode(int proc, struct server_conn *conn)\n{\nenum accept_stat success = SUCCESS;\nswitch (proc) {\n";
+print RECV   "#include \"$spectype-decode2.h\"\n";
+print RECV   "enum accept_stat ${spectype}_decode(int proc, struct server_conn *conn)\n{\nswitch (proc) {\n";
+
+print RECV2   $header;
+print RECV2   "#include \"$spectype-decode2.h\"\n";
+print RECV2   "#include \"$spectype-procs.h\"\n\n";
+
+print RECVPROCSH   $header;
+print RECVPROCSH  "#include \"rpc-structs.h\"\n";
+print RECVPROCSH  "#include \"$spectype-structs.h\"\n";
+print RECVPROCSH  "#include \"$spectype-process1.h\"\n";
+print RECVPROCSH  "#include \"$spectype-process2.h\"\n\n";
+print RECVPROCSH  "#include \"request-decode.h\"\n";
 
 print RECVH   $header;
-print RECVH  "#include \"rpc-structs.h\"\n";
-print RECVH  "#include \"$spectype-structs.h\"\n";
-print RECVH  "#include \"$spectype-process1.h\"\n";
-print RECVH  "#include \"$spectype-process2.h\"\n\n";
+print RECVH  "#include \"rpc-structs.h\"\n\n";
 print RECVH  "#include \"request-decode.h\"\n";
+print RECVH  "enum accept_stat ${spectype}_decode(int proc, struct server_conn *conn);\n\n";
 
 print RECV2H   $header;
 print RECV2H  "#include \"rpc-structs.h\"\n\n";
-print RECV2H  "#include \"request-decode.h\"\n";
-print RECV2H  "enum accept_stat ${spectype}_decode(int proc, struct server_conn *conn);\n\n";
+print RECV2H  "#include \"request-decode.h\"\n\n";
 
 $types{"unsigned int"} = "int";
 $types{"uint32"} = "int";
@@ -341,31 +351,35 @@ while (<>) {
       print CALLS "buffer_overflow:\n";
       print CALLS "\treturn rpc_buffer_overflow();\n}\n";
 
-      print RECVH "enum accept_stat $procname(";
-      print RECVH "$argtype *args, " if ($argtype ne "");
-      print RECVH "$restype *res, " if ($restype ne "");
-      print RECVH "struct server_conn *conn";
-      print RECVH ");\n\n";
+      print RECVPROCSH "enum accept_stat $procname(";
+      print RECVPROCSH "$argtype *args, " if ($argtype ne "");
+      print RECVPROCSH "$restype *res, " if ($restype ne "");
+      print RECVPROCSH "struct server_conn *conn";
+      print RECVPROCSH ");\n\n";
 
-      print RECV "case $procno: {\n";
-      print RECV "\t$argtype args;\n" if ($argtype ne "");
-      print RECV "\t$restype res;\n" if ($restype ne "");
-      print RECV "\t$restype *res2 = &res;\n" if (($types{$res} =~ /linklist/));
-      print RECV "\tprocess_$types{$args}";
-      print RECV "_${args}" if (($types{$args} =~ /(struct)|(union)|(linklist)/));
-      print RECV "(INPUT, args, $typessize{$args});\n";
-      print RECV "\tsuccess = $procname(";
-      print RECV "&args, " if ($argtype ne "");
-      print RECV "&res, " if ($restype ne "");
-      print RECV "conn);\n";
-      print RECV "\tif (success == SUCCESS) {\n";
-      print RECV "\t\tprocess_$types{$res}";
-      print RECV "_$res" if (($types{$res} =~ /(struct)|(union)|(linklist)/));
-      print RECV "(OUTPUT, res";
-      print RECV "2" if (($types{$res} =~ /linklist/));
-      print RECV ", $typessize{$res});\n";
-      print RECV "\t}\n";
-      print RECV "}\nbreak;\n";
+      print RECV "case $procno: return decode_$procname(conn);\n";
+
+      print RECV2H "enum accept_stat decode_$procname(struct server_conn *conn);\n\n";
+
+      print RECV2 "enum accept_stat decode_$procname(struct server_conn *conn)\n{\n";
+      print RECV2 "\tenum accept_stat success;\n";
+      print RECV2 "\t$argtype args;\n" if ($argtype ne "");
+      print RECV2 "\t$restype res;\n" if ($restype ne "");
+      print RECV2 "\t$restype *res2 = &res;\n" if (($types{$res} =~ /linklist/));
+      print RECV2 "\tprocess_$types{$args}";
+      print RECV2 "_${args}" if (($types{$args} =~ /(struct)|(union)|(linklist)/));
+      print RECV2 "(INPUT, args, $typessize{$args});\n";
+      print RECV2 "\tsuccess = $procname(";
+      print RECV2 "&args, " if ($argtype ne "");
+      print RECV2 "&res, " if ($restype ne "");
+      print RECV2 "conn);\n";
+      print RECV2 "\tif (success == SUCCESS) {\n";
+      print RECV2 "\t\tprocess_$types{$res}";
+      print RECV2 "_$res" if (($types{$res} =~ /(struct)|(union)|(linklist)/));
+      print RECV2 "(OUTPUT, res";
+      print RECV2 "2" if (($types{$res} =~ /linklist/));
+      print RECV2 ", $typessize{$res});\n";
+      print RECV2 "\t}\n\treturn success;\nbuffer_overflow:\n\treturn GARBAGE_ARGS;\n}\n\n";
     } elsif (/\/\*.*\*\//) {
       print STRUCTS;
     } elsif (/\/\*/) {
@@ -384,5 +398,5 @@ while (<>) {
 print CALLSH  "#endif\n\n";
 print STRUCTS "#endif\n\n";
 
-print RECV   "default:\n\treturn PROC_UNAVAIL;\n}\nreturn success;\nbuffer_overflow:\n\treturn GARBAGE_ARGS;\n}\n";
+print RECV   "}\nreturn PROC_UNAVAIL;\n}\n";
 

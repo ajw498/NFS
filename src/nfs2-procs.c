@@ -80,17 +80,6 @@
 	} \
 } while (0)
 
-static enum nstat oserr_to_nfserr(int errnum)
-{
-	switch (errnum) {
-	case 0x117b4: return NFSERR_NOTEMPTY;
-	case 0x117c3: return NFSERR_ACCES;
-	case 0x117c6: return NFSERR_NOSPC;
-	case 0x80344a: return NFSERR_ROFS;
-	case 0xb0: return NFSERR_XDEV;
-	}
-	return NFSERR_IO;
-}
 
 
 static inline enum nstat nfs2fh_to_path(struct nfs_fh *fhandle, char **path, struct server_conn *conn)
@@ -261,7 +250,7 @@ enum accept_stat NFSPROC_READDIR(struct readdirargs *args, struct readdirres *re
 		char buffer[1024];
 
 		/* We have to read one entry at a time, which is less
-		   efficient the reading several, as we need to return
+		   efficient than reading several, as we need to return
 		   a cookie for every entry. */
 		OE(_swix(OS_GBPB, _INR(0,6) | _OUTR(3,4), 10, path, buffer, 1, cookie, sizeof(buffer), 0, &read, &cookie));
 		if (read > 0) {
@@ -316,7 +305,7 @@ enum accept_stat NFSPROC_READ(struct readargs *args, struct readres *res, struct
 	OE(_swix(OS_GBPB, _INR(0,4) | _OUT(3), 3, handle, data, args->count, args->offset, &read));
 	res->u.resok.data.data = data;
 	res->u.resok.data.size = args->count - read;*/
-	NE(read_file(path, args->count, args->offset, &data, &read));
+	NE(read_file(path, args->count, args->offset, &data, &read, NULL));
 	res->u.resok.data.data = data;
 	res->u.resok.data.size = read;
 	NE(get_fattr(path, -1, &(res->u.resok.attributes), conn));

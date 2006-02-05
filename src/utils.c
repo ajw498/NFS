@@ -84,6 +84,18 @@ char *host_to_str(unsigned int host, struct pool *pool)
 	return str;
 }
 
+enum nstat oserr_to_nfserr(int errnum)
+{
+	switch (errnum) {
+	case 0x117b4: return NFSERR_NOTEMPTY;
+	case 0x117c3: return NFSERR_ACCES;
+	case 0x117c6: return NFSERR_NOSPC;
+	case 0x80344a: return NFSERR_ROFS;
+	case 0xb0: return NFSERR_XDEV;
+	}
+	return NFSERR_IO;
+}
+
 char *filename_unixify(char *name, unsigned int len, unsigned int *newlen, struct pool *pool)
 {
 	char *namebuffer;
