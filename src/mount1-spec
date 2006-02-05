@@ -30,9 +30,13 @@ struct nfs_fh {
 };
 #endif
 
+struct mountres_ok {
+        nfs_fh fhandle;
+};
+
 union mountres switch (unsigned status) {
 case 0:
-    nfs_fh directory;
+    mountres_ok mountinfo;
 default:
     void;
 }

@@ -45,7 +45,7 @@ enum accept_stat MNTPROC_MNT(string *args, struct mountres *res, struct server_c
 		if (strncmp(export->exportname, args->data, args->size) == 0) {
 			int i;
 			unsigned int fhsize = FHSIZE;
-			char *fh = res->u.directory.data;
+			char *fh = res->u.mountinfo.fhandle.data;
 
 			if ((conn->host & export->mask) != export->host) {
 				res->status = NFSERR_ACCES;

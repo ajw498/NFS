@@ -97,7 +97,7 @@ os_error *ENTRYFUNC(func_newimage_mount) (struct conn_info *conn)
 		/* status is an errno value. Probably the same as an NFS status value. */
 		return ENTRYFUNC(gen_nfsstatus_error) ((enum nstat)mountres.status);
 	}
-	fh_to_commonfh(conn->rootfh, mountres.u.directory);
+	fh_to_commonfh(conn->rootfh, mountres.u.mountinfo.fhandle);
 #ifdef NFS3
 	commonfh_to_fh(fsinfoargs.fsroot, conn->rootfh);
 	err = NFSPROC(FSINFO, (&fsinfoargs, &fsinfores, conn));
