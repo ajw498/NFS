@@ -8,10 +8,26 @@ MODLIBS = TCPIPLIBS:o.unixlibzm TCPIPLIBS:o.inetlibzm TCPIPLibs:o.socklib5zm
 
 LIBS = -l TCPIPLIBS:o.unixlib TCPIPLIBS:o.inetlib -l TCPIPLibs:o.socklib5 -l OSLibSupport:o.OSLibSupport32 -l OSLib:o.OSLib32
 
-ifeq ($(BUILD),gcc)
+ifneq (,$(findstring release,$(MAKECMDGOALS)))
+
+CFLAGSN = -Otime
+CFLAGSG = -O3
+EXTRATARGET = release
+
+else
+
+CFLAGSN = -zpz0
+CFLAGSG = -O0
+
+endif
+
+
+ifneq (,$(findstring gcc,$(MAKECMDGOALS)))
+
+EXTRATARGET := $(EXTRATARGET) gcc
 
 CC = gcc
-CFLAGS =  $(INCLUDE) -Wall -mthrowback -mlibscl -std=c99 -O3 -pedantic 
+CFLAGS =  $(INCLUDE) -Wall -mthrowback -mlibscl -std=c99 -pedantic $(CFLAGSG) 
 
 MODULE = -mmodule
 
@@ -23,14 +39,14 @@ LIBS := $(LIBS) C:o.stubs
 MODLIBS := $(MODLIBS) C:o.stubs
 
 CC = cc
-#CFLAGS = -Wp $(INCLUDE) -Otime -fah -throwback -zpq262144 -IC:
-CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpz0 -zpq262144 -IC:
+CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpq262144 -IC: $(CFLAGSN)
 
 LINK = link -m 
 
 MODULE = -zM
 
 endif
+
 
 VPATH = auto:.
 
@@ -98,16 +114,40 @@ MODULE =
 
 endif
 
-all: sunfish Moonfish
 
+all: sunfish-stage1 moonfish-stage1
 
-sunfish: ../!Sunfish/Sunfish ../!Sunfish/!RunImage
+sunfish: sunfish-stage1
 
-.PHONY: auto
+mf: moonfish-stage1
 
-auto: auto/stamp
+debug: auto
+	$(MAKE) debug-server $(EXTRATARGET)
 
-auto/stamp: ProcessSpec rpc-spec nfs2-spec nfs3-spec mount1-spec mount3-spec portmapper-spec pcnfsd-spec @.cmhg.sunfish @.cmhg.moonfish
+release:
+
+gcc:
+
+ifeq (gcc,$(MAKECMDGOALS))
+gcc: all
+endif
+ifeq (,$(findstring stage2,$(MAKECMDGOALS)))
+release: all
+endif
+
+.PHONY: sunfish sunfish-stage1 sunfish-stage2 moonfish-stage1 moonfish-stage2 clean all release gcc debug
+
+sunfish-stage1: auto
+	$(MAKE) sunfish-stage2 $(EXTRATARGET)
+
+moonfish-stage1: auto
+	$(MAKE) moonfish-stage2 $(EXTRATARGET)
+
+sunfish-stage2: ../!Sunfish/Sunfish ../!Sunfish/!RunImage
+
+moonfish-stage2: Moonfish
+
+auto: ProcessSpec rpc-spec nfs2-spec nfs3-spec mount1-spec mount3-spec portmapper-spec pcnfsd-spec @.cmhg.sunfish @.cmhg.moonfish
 	mkdir -p auto
 	mkdir -p o
 	perl ProcessSpec rpc rpc-spec
@@ -119,7 +159,7 @@ auto/stamp: ProcessSpec rpc-spec nfs2-spec nfs3-spec mount1-spec mount3-spec por
 	perl ProcessSpec pcnfsd pcnfsd-spec
 	cmhg  -throwback sunfish.cmhg -o sunfishhdr.o auto/sunfishdefs.h
 	cmhg  -throwback moonfish.cmhg -o moonfishhdr.o auto/moonfishdefs.h
-	touch auto/stamp
+	touch auto
 
 
 
@@ -180,7 +220,6 @@ imageentry_common3.o: imageentry_common.c imageentry_common.h
 .s.o:
 	$(CC) -c  $(CFLAGS) -o $@ $<
 
-.PHONY: sunfish clean all
 
 clean:
 	-rm -f ../!Sunfish/Sunfish
