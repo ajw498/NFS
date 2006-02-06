@@ -157,6 +157,7 @@ static struct export *parse_line(char *line, struct pool *pool)
 	export->imagefs = 0;
 	export->defaultfiletype = 0xFFF;
 	export->xyzext = NEEDED;
+	export->fakedirtimes = 0;
 	export->next = NULL;
 	export->pathentry = NULL;
 	memset(export->hosts, 0, sizeof(unsigned int) * MAXHOSTS);
@@ -210,6 +211,8 @@ static struct export *parse_line(char *line, struct pool *pool)
 			export->gid = atoi(opt + 4);
 		} else if (CHECK("imagefs")) {
 			export->imagefs = 1;
+		} else if (CHECK("fakedirtimes")) {
+			export->fakedirtimes = 1;
 		} else if (CHECK("logging")) {
 			logging = 1;
 		} else if (CHECK("defaultfiletype") && opt[15] == '=') {

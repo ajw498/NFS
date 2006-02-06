@@ -140,16 +140,35 @@ static void parse_fattr(char *path, int type, int load, int exec, int len, int a
 
 static enum nstat get_fattr(char *path, int filetype, struct fattr *fattr, struct server_conn *conn)
 {
-	int type, load, exec, len, attr;
+	unsigned int type;
+	unsigned int load;
+	unsigned int exec;
+	unsigned int len;
+	unsigned int attr;
+	int cached;
 
-	OR(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, path, &type, &load, &exec, &len, &attr));
+	NR(filecache_getattr(path, &load, &exec, &len, &attr, &cached));
+	if (cached) {
+		type = OBJ_FILE;
+	} else {
+		OR(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, path, &type, &load, &exec, &len, &attr));
+	}
 
-	if (type == 0) {
+	if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
+	if (type == OBJ_NONE) {
 		return NFSERR_NOENT;
 	} else {
 		int ftype = (load & 0x000FFF00) >> 8;
-		if (((type == OBJ_FILE) || ((type == OBJ_IMAGE) && conn->export->imagefs)) &&
-		    (filetype != -1) && (filetype != ftype)) return NFSERR_NOENT;
+		if ((type == OBJ_FILE) && (filetype != -1) && (filetype != ftype)) return NFSERR_NOENT;
+	}
+
+	if ((type == OBJ_DIR) && conn->export->fakedirtimes) {
+		unsigned int block[2];
+
+		block[0] = 3;
+		OR(_swix(OS_Word, _INR(0, 1), 14, block));
+		exec = block[0] & 0xFFFFFFC0;
+		load = (load & 0xFFFFFF00) | (block[1] & 0xFF);
 	}
 
 	parse_fattr(path, type, load, exec, len, attr, fattr, conn);
@@ -179,8 +198,9 @@ static enum nstat set_attr(char *path, struct sattr *sattr, struct server_conn *
 	unsigned int exec;
 	int filetype;
 	int type;
-	int size;
 	int attr;
+	int size;
+	int setsize;
 
 	OR(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, path, &type, &load, &exec, &size, &attr));
 	if (type == 0) return NFSERR_NOENT;
@@ -189,16 +209,18 @@ static enum nstat set_attr(char *path, struct sattr *sattr, struct server_conn *
 	if (sattr->mtime.seconds != -1) timeval_to_loadexec(&(sattr->mtime), filetype, &load, &exec);
 
 	if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
+
+	setsize = (sattr->size != -1) && (size != sattr->size);
 	if (sattr->size != -1) {
+		if (sattr->size & 0x10000000) NR(NFSERR_FBIG);
 		size = sattr->size;
 	}
 
 	if (type == OBJ_FILE) {
 		/* Write through the cache to ensure consistency */
-		NR(filecache_setattr(path, load, exec, size, attr));
-	} else {
-		OR(_swix(OS_File, _INR(0,3) | _IN(5), 1, path, load, exec, attr));
+		NR(filecache_setattr(path, load, exec, attr, size, setsize));
 	}
+	OR(_swix(OS_File, _INR(0,3) | _IN(5), 1, path, load, exec, attr));
 
 	return NFS_OK;
 }
@@ -294,7 +316,7 @@ enum accept_stat NFSPROC_READDIR(struct readdirargs *args, struct readdirres *re
 			entry->name.size = leaflen;
 			entry->cookie = cookie;
 
-			bytes += 16 + (leaflen + 3) & ~3;
+			bytes += 16 + ((leaflen + 3) & ~3);
 			if (bytes > args->count) {
 				return SUCCESS;
 			}
@@ -311,7 +333,6 @@ enum accept_stat NFSPROC_READDIR(struct readdirargs *args, struct readdirres *re
 enum accept_stat NFSPROC_READ(struct readargs *args, struct readres *res, struct server_conn *conn)
 {
 	char *path;
-	int handle;
 	unsigned int read;
 	char *data;
 	unsigned int load;

@@ -65,6 +65,7 @@ struct export {
 	int imagefs;
 	int defaultfiletype;
 	int xyzext;
+	int fakedirtimes;
 	struct pool *pool;
 	struct pathentry *pathentry;
 	struct export *next;

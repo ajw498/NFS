@@ -333,18 +333,19 @@ enum nstat filecache_getattr(char *path, unsigned int *load, unsigned int *exec,
 	return NFS_OK;
 }
 
-enum nstat filecache_setattr(char *path, unsigned int load, unsigned int exec, unsigned int size, unsigned int attr)
+enum nstat filecache_setattr(char *path, unsigned int load, unsigned int exec, unsigned int attr, unsigned int size, int setsize)
 {
 	int index;
-/*FIXME - if size hasn't changed and file is not cached, why bother opening it */
-/*FIXME nned to write load and exec anyway */
-	NR(filecache_open(path, &index, 0));
 
-	openfiles[index].load = load;
-	openfiles[index].exec = exec;
-	openfiles[index].filesize = size;
-	openfiles[index].attr = attr;
-	OR(_swix(OS_Args, _INR(0,2), 3, openfiles[index].handle, size));
+	NR(filecache_open(path, &index, !setsize));
+
+	if (index != -1) {
+		openfiles[index].load = load;
+		openfiles[index].exec = exec;
+		openfiles[index].filesize = size;
+		openfiles[index].attr = attr;
+		if (setsize) OR(_swix(OS_Args, _INR(0,2), 3, openfiles[index].handle, size));
+	}
 
 	return NFS_OK;
 }
