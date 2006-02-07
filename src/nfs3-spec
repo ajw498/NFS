@@ -116,10 +116,16 @@ struct nfs_fh {
 #endif
 
 
+#ifndef NTIMEVAL
+#define NTIMEVAL
+
 struct ntimeval {
    uint32   seconds;
    uint32   nseconds;
 };
+
+#endif
+
 
 struct fattr {
    ftype      type;

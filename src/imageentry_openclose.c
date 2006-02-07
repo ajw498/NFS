@@ -120,7 +120,7 @@ os_error *ENTRYFUNC(open_file) (char *filename, int access, struct conn_info *co
 	handle->conn = conn;
 	handle->fhandle = finfo->objhandle;
 	handle->extent = filesize(finfo->attributes.size);
-	ENTRYFUNC(timeval_to_loadexec) (&(finfo->attributes.mtime), filetype, &(handle->load), &(handle->exec));
+	timeval_to_loadexec(&(finfo->attributes.mtime), filetype, &(handle->load), &(handle->exec));
 
 	*internal_handle = handle;
 	/* It is too difficult to determine if we will have permission to read

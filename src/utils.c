@@ -324,3 +324,81 @@ char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfile
 	return newleafname;
 }
 
+/* Convert a RISC OS load and execution address into a unix timestamp */
+void (loadexec_to_timeval)(unsigned int load, unsigned int exec, struct ntimeval *unixtime, int mult)
+{
+	if ((load & 0xFFF00000) != 0xFFF00000) {
+		/* A real load/exec address */
+		unixtime->seconds = -1;
+		unixtime->nseconds = -1;
+	} else {
+		uint64_t csecs;
+
+		csecs = exec;
+		csecs |= ((uint64_t)load & 0xFF) << 32;
+		csecs -= 0x336e996a00LL; /* Difference between 1900 and 1970 */
+		unixtime->seconds = (unsigned int)((csecs / 100) & 0xFFFFFFFF);
+		unixtime->nseconds = (unsigned int)((csecs % 100) * 10000 * mult);
+	}
+}
+
+/* Convert a unix timestamp into a RISC OS load and execution address */
+void (timeval_to_loadexec)(struct ntimeval *unixtime, int filetype, unsigned int *load, unsigned int *exec, int mult)
+{
+	uint64_t csecs;
+
+	csecs = unixtime->seconds;
+	csecs *= 100;
+	csecs += ((int64_t)unixtime->nseconds / (10000 * (int64_t)mult));
+	csecs += 0x336e996a00LL; /* Difference between 1900 and 1970 */
+	*load = (unsigned int)((csecs >> 32) & 0xFF);
+	*load |= (0xFFF00000 | ((filetype & 0xFFF) << 8));
+	*exec = (unsigned int)(csecs & 0xFFFFFFFF);
+}
+
+
+#define Resolver_GetHost 0x46001
+
+/* A version of gethostbyname that will timeout.
+   Also handles IP addresses without needing a reverse lookup */
+os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct hostent **hp)
+{
+	unsigned long starttime;
+	unsigned long endtime;
+	os_error *err;
+	int errnum;
+	int quad1, quad2, quad3, quad4;
+
+	if (sscanf(host, "%d.%d.%d.%d", &quad1, &quad2, &quad3, &quad4) == 4) {
+		/* Host is an IP address, so doesn't need resolving */
+		static struct hostent hostent;
+		static unsigned int addr;
+		static char *addr_list = (char *)&addr;
+
+		addr = quad1 | (quad2 << 8) | (quad3 << 16) | (quad4 << 24);
+		hostent.h_addr_list = &addr_list;
+		hostent.h_length = sizeof(addr);
+
+		*hp = &hostent;
+		return NULL;
+	}
+
+	err = _swix(OS_ReadMonotonicTime, _OUT(0), &starttime);
+	if (err) return err;
+
+	do {
+		err = _swix(Resolver_GetHost, _IN(0) | _OUTR(0,1), host, &errnum, hp);
+		if (err) return err;
+
+		if (errnum != EINPROGRESS) break;
+
+		err = _swix(OS_ReadMonotonicTime, _OUT(0), &endtime);
+		if (err) return err;
+
+	} while (endtime - starttime < timeout * 100);
+
+	if (errnum == 0) return NULL; /* Host found */
+
+	return gen_error(RPCERRBASE + 1, "Unable to resolve hostname '%s' (%d)", host, errnum);
+}
+

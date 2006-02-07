@@ -425,24 +425,6 @@ os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, stru
 	return NULL;
 }
 
-/* Convert a unix timestamp into a RISC OS load and execution address */
-void ENTRYFUNC(timeval_to_loadexec) (struct ntimeval *unixtime, int filetype, unsigned int *load, unsigned int *exec)
-{
-	uint64_t csecs;
-
-	csecs = unixtime->seconds;
-	csecs *= 100;
-#ifdef NFS3
-	csecs += ((int64_t)unixtime->nseconds / 10000000);
-#else
-	csecs += ((int64_t)unixtime->useconds / 10000);
-#endif
-	csecs += 0x336e996a00LL; /* Difference between 1900 and 1970 */
-	*load = (unsigned int)((csecs >> 32) & 0xFF);
-	*load |= (0xFFF00000 | ((filetype & 0xFFF) << 8));
-	*exec = (unsigned int)(csecs & 0xFFFFFFFF);
-}
-
 #ifdef NFS3
 void ENTRYFUNC(loadexec_to_setmtime) (unsigned int load, unsigned int exec, struct set_mtime *mtime)
 {
@@ -450,34 +432,9 @@ void ENTRYFUNC(loadexec_to_setmtime) (unsigned int load, unsigned int exec, stru
 		mtime->set_it = DONT_CHANGE;
 	} else {
 		mtime->set_it = SET_TO_CLIENT_TIME;
-		ENTRYFUNC(loadexec_to_timeval) (load, exec, &(mtime->u.mtime));
+		loadexec_to_timeval(load, exec, &(mtime->u.mtime));
 	}
 }
 #endif
 
-/* Convert a RISC OS load and execution address into a unix timestamp */
-void ENTRYFUNC(loadexec_to_timeval) (unsigned int load, unsigned int exec, struct ntimeval *unixtime)
-{
-	if ((load & 0xFFF00000) != 0xFFF00000) {
-		/* A real load/exec address */
-		unixtime->seconds = -1;
-#ifdef NFS3
-		unixtime->nseconds = -1;
-#else
-		unixtime->useconds = -1;
-#endif
-	} else {
-		uint64_t csecs;
-
-		csecs = exec;
-		csecs |= ((uint64_t)load & 0xFF) << 32;
-		csecs -= 0x336e996a00LL; /* Difference between 1900 and 1970 */
-		unixtime->seconds = (unsigned int)((csecs / 100) & 0xFFFFFFFF);
-#ifdef NFS3
-		unixtime->nseconds = (unsigned int)((csecs % 100) * 10000000);
-#else
-		unixtime->useconds = (unsigned int)((csecs % 100) * 10000);
-#endif
-	}
-}
 

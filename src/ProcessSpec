@@ -60,10 +60,11 @@ print CALLS   "#include \"$spectype-calls.h\"\n\n";
 print CALLSH  $header;
 print CALLSH  "#ifndef ${spectype}_calls_h\n";
 print CALLSH  "#define ${spectype}_calls_h\n\n";
-print CALLSH  "#include \"rpc.h\"\n";
+print CALLSH  "#include <sys/types.h>\n";
 print CALLSH  "#include \"$spectype-structs.h\"\n";
 print CALLSH  "#include \"$spectype-process1.h\"\n";
 print CALLSH  "#include \"$spectype-process2.h\"\n\n";
+print CALLSH  "#include \"rpc.h\"\n";
 
 print RECV   $header;
 print RECV   "#include \"$spectype-decode.h\"\n";
@@ -71,10 +72,11 @@ print RECV   "#include \"$spectype-decode2.h\"\n";
 print RECV   "enum accept_stat ${spectype}_decode(int proc, struct server_conn *conn)\n{\nswitch (proc) {\n";
 
 print RECV2   $header;
-print RECV2   "#include \"$spectype-decode2.h\"\n";
 print RECV2   "#include \"$spectype-procs.h\"\n\n";
+print RECV2   "#include \"$spectype-decode2.h\"\n";
 
 print RECVPROCSH   $header;
+print RECVPROCSH  "#include <sys/types.h>\n";
 print RECVPROCSH  "#include \"rpc-structs.h\"\n";
 print RECVPROCSH  "#include \"$spectype-structs.h\"\n";
 print RECVPROCSH  "#include \"$spectype-process1.h\"\n";
@@ -87,6 +89,7 @@ print RECVH  "#include \"request-decode.h\"\n";
 print RECVH  "enum accept_stat ${spectype}_decode(int proc, struct server_conn *conn);\n\n";
 
 print RECV2H   $header;
+print RECV2H  "#include <sys/types.h>\n";
 print RECV2H  "#include \"rpc-structs.h\"\n\n";
 print RECV2H  "#include \"request-decode.h\"\n\n";
 

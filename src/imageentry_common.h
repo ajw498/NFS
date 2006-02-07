@@ -14,13 +14,13 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-#include "utils.h"
-
 #ifdef NFS3
 #include "nfs3-structs.h"
 #else
 #include "nfs2-structs.h"
 #endif
+
+#include "utils.h"
 
 
 #ifdef NFS3
@@ -58,12 +58,6 @@ ENTRYFUNCDECL(os_error *, leafname_to_finfo, (char *leafname, unsigned int *len,
 
 /* Convert a full filename/dirname into an nfs handle */
 ENTRYFUNCDECL(os_error *, filename_to_finfo, (char *filename, int followsymlinks, struct objinfo **dinfo, struct objinfo **finfo, char **leafname, int *filetype, int *extfound, struct conn_info *conn));
-
-/* Convert a unix timestamp into a RISC OS load and execution address */
-ENTRYFUNCDECL(void, timeval_to_loadexec, (struct ntimeval *unixtime, int filetype, unsigned int *load, unsigned int *exec));
-
-/* Convert a RISC OS load and execution address into a unix timestamp */
-ENTRYFUNCDECL(void, loadexec_to_timeval, (unsigned int load, unsigned int exec, struct ntimeval *unixtime));
 
 #ifdef NFS3
 ENTRYFUNCDECL(void, loadexec_to_setmtime, (unsigned int load, unsigned int exec, struct set_mtime *mtime));

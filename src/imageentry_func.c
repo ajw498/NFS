@@ -222,7 +222,7 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 #ifdef NFS3
 						if (direntry->name_attributes.attributes_follow && direntry->name_attributes.u.attributes.type != NFLNK) {
 							if (direntry->name_attributes.u.attributes.type == NFDIR) filetype = DIR_FILETYPE;
-							ENTRYFUNC(timeval_to_loadexec) (&(direntry->name_attributes.u.attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
+							timeval_to_loadexec(&(direntry->name_attributes.u.attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
 							info_entry->len = filesize(direntry->name_attributes.u.attributes.size);
 							info_entry->attr = mode_to_attr(direntry->name_attributes.u.attributes.mode);
 							info_entry->type = direntry->name_attributes.u.attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
@@ -235,7 +235,7 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 							if (err) return err;
 							if (status == NFS_OK && lookupres->attributes.type != NFLNK) {
 								if (lookupres->attributes.type == NFDIR) filetype = DIR_FILETYPE;
-								ENTRYFUNC(timeval_to_loadexec) (&(lookupres->attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
+								timeval_to_loadexec(&(lookupres->attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
 								info_entry->len = filesize(lookupres->attributes.size);
 								info_entry->attr = mode_to_attr(lookupres->attributes.mode);
 								info_entry->type = lookupres->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;

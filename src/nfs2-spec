@@ -71,10 +71,15 @@ struct nfs_fh {
 };
 #endif
 
+#ifndef NTIMEVAL
+#define NTIMEVAL
+
 struct ntimeval {
     unsigned int seconds;
     unsigned int useconds;
 };
+
+#endif
 
 struct fattr {
     ftype        type;

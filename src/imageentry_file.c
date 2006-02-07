@@ -52,7 +52,7 @@ os_error *ENTRYFUNC(file_readcatinfo) (char *filename, struct conn_info *conn, i
 	}
 
 	*objtype = finfo->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
-	ENTRYFUNC(timeval_to_loadexec) (&(finfo->attributes.mtime), filetype, load, exec);
+	timeval_to_loadexec(&(finfo->attributes.mtime), filetype, load, exec);
 	*len = filesize(finfo->attributes.size);
 	*attr = mode_to_attr(finfo->attributes.mode);
 
@@ -127,7 +127,7 @@ os_error *ENTRYFUNC(file_writecatinfo) (char *filename, unsigned int load, unsig
 	sattrargs.attributes.size = NOVALUE;
 	sattrargs.attributes.atime.seconds = NOVALUE;
 	sattrargs.attributes.atime.useconds = NOVALUE;
-	ENTRYFUNC(loadexec_to_timeval) (load, exec, &(sattrargs.attributes.mtime));
+	loadexec_to_timeval(load, exec, &(sattrargs.attributes.mtime));
 #endif
 
 	err = NFSPROC(SETATTR, (&sattrargs, &sattrres, conn));
@@ -241,7 +241,7 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 	createargs.attributes.size = NOVALUE;
 	createargs.attributes.atime.seconds = NOVALUE;
 	createargs.attributes.atime.useconds = NOVALUE;
-	ENTRYFUNC(loadexec_to_timeval) (load, exec, &(createargs.attributes.mtime));
+	loadexec_to_timeval(load, exec, &(createargs.attributes.mtime));
 #endif
 	err = NFSPROC(CREATE, (&createargs, &createres, conn));
 
@@ -302,7 +302,7 @@ os_error *ENTRYFUNC(file_createdir) (char *filename, unsigned int load, unsigned
 	mkdirargs.attributes.size = NOVALUE;
 	mkdirargs.attributes.atime.seconds = NOVALUE;
 	mkdirargs.attributes.atime.useconds = NOVALUE;
-	ENTRYFUNC(loadexec_to_timeval) (load, exec, &(mkdirargs.attributes.mtime));
+	loadexec_to_timeval(load, exec, &(mkdirargs.attributes.mtime));
 #endif
 
 	err = NFSPROC(MKDIR, (&mkdirargs, &createres, conn));
@@ -371,7 +371,7 @@ os_error *ENTRYFUNC(file_delete) (char *filename, struct conn_info *conn, int *o
 
 		/* Treat all special files as if they were regular files */
 		*objtype = finfo->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
-		ENTRYFUNC(timeval_to_loadexec) (&(finfo->attributes.mtime), filetype, load, exec);
+		timeval_to_loadexec(&(finfo->attributes.mtime), filetype, load, exec);
 		*len = filesize(finfo->attributes.size);
 		*attr = mode_to_attr(finfo->attributes.mode);
 	}

@@ -13,6 +13,8 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <netdb.h>
+#include <sys/errno.h>
 
 #include "pools.h"
 
@@ -175,6 +177,16 @@ enum nstat {
 };
 #endif
 
+#ifndef NTIMEVAL
+#define NTIMEVAL
+
+struct ntimeval {
+   unsigned int seconds;
+   unsigned int nseconds;
+};
+
+#endif
+
 /* All infomation associated with a connection */
 struct conn_info {
 	char *server;
@@ -262,6 +274,28 @@ char *host_to_str(unsigned int host, struct pool *pool);
 
 /* Convert a RISC OS error number to an NFS error */
 enum nstat oserr_to_nfserr(int errnum);
+
+/* Convert a RISC OS load and execution address into a unix timestamp */
+void loadexec_to_timeval(unsigned int load, unsigned int exec, struct ntimeval *unixtime, int mult);
+#ifdef NFS3
+#define loadexec_to_timeval(load, exec, unixtime) (loadexec_to_timeval)(load, exec, unixtime, 1000)
+#else
+#define loadexec_to_timeval(load, exec, unixtime) (loadexec_to_timeval)(load, exec, unixtime, 1)
+#endif
+
+/* Convert a unix timestamp into a RISC OS load and execution address */
+void timeval_to_loadexec(struct ntimeval *unixtime, int filetype, unsigned int *load, unsigned int *exec, int mult);
+#ifdef NFS3
+#define timeval_to_loadexec(unixtime, filetype, load, exec) (timeval_to_loadexec)(unixtime, filetype, load, exec, 1000)
+#else
+#define timeval_to_loadexec(unixtime, filetype, load, exec) (timeval_to_loadexec)(unixtime, filetype, load, exec, 1)
+#endif
+
+
+/* A version of gethostbyname that will timeout.
+   Also handles IP addresses without needing a reverse lookup */
+os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct hostent **hp);
+
 
 #ifdef NFS3
 #define NFSPROC(proc, args) NFSPROC3_##proc args

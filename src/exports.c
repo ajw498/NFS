@@ -28,11 +28,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/ioctl.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <socklib.h>
 #include <time.h>
 #include <sys/time.h>
 #include <swis.h>
@@ -46,51 +41,6 @@
 #include "exports.h"
 #include "serverconn.h"
 
-
-#define Resolver_GetHost 0x46001
-
-/* A version of gethostbyname that will timeout.
-   Also handles IP addresses without needing a reverse lookup */
-static os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct hostent **hp)
-{
-	unsigned long starttime;
-	unsigned long endtime;
-	os_error *err;
-	int errnum;
-	int quad1, quad2, quad3, quad4;
-
-	if (sscanf(host, "%d.%d.%d.%d", &quad1, &quad2, &quad3, &quad4) == 4) {
-		/* Host is an IP address, so doesn't need resolving */
-		static struct hostent hostent;
-		static unsigned int addr;
-		static char *addr_list = (char *)&addr;
-
-		addr = quad1 | (quad2 << 8) | (quad3 << 16) | (quad4 << 24);
-		hostent.h_addr_list = &addr_list;
-		hostent.h_length = sizeof(addr);
-
-		*hp = &hostent;
-		return NULL;
-	}
-
-	err = _swix(OS_ReadMonotonicTime, _OUT(0), &starttime);
-	if (err) return err;
-
-	do {
-		err = _swix(Resolver_GetHost, _IN(0) | _OUTR(0,1), host, &errnum, hp);
-		if (err) return err;
-
-		if (errnum != EINPROGRESS) break;
-
-		err = _swix(OS_ReadMonotonicTime, _OUT(0), &endtime);
-		if (err) return err;
-
-	} while (endtime - starttime < timeout * 100);
-
-	if (errnum == 0) return NULL; /* Host found */
-
-	return gen_error(RPCERRBASE + 1, "Unable to resolve hostname '%s' (%d)", host, errnum);
-}
 
 int logging = 0;
 
