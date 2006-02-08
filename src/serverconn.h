@@ -32,6 +32,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#include "pools.h"
 
 enum conn_state {
 	IDLE,

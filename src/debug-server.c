@@ -51,24 +51,29 @@
 
 
 /* Log an entire data packet */
-static void logdata(int rx, char *buf, int len)
+/*static void logdata(int rx, char *buf, int len)
 {
 	int i;
 
 	printf("%s data (%d): xid %.2x%.2x%.2x%.2x\n", rx ? "rx" : "tx", len, buf[0], buf[1], buf[2], buf[3]);
 	for (i=0; i<(len & ~3); i+=4) printf("  %.2x %.2x %.2x %.2x\n", buf[i], buf[i+1], buf[i+2], buf[i+3]);
 	for (i=0; i<(len & 3); i++) printf("  %.2x\n", buf[(len &~3) + i]);
-}
+}*/
 
 
 int main(void)
 {
-	if (conn_init()) return 1;
+	if (conn_init()) {
+		printf("Failed to initialise\n");
+		return 1;
+	}
 
 	while (1) {
 		int ch;
+		int time = 1;
 
-		_swix(OS_Byte, _INR(0,2) | _OUT(2), 129, 1, 0, &ch);
+/*		printf("Poll\n");*/
+		_swix(OS_Byte, _INR(0,2) | _OUT(2), 129, time, 0, &ch);
 		if (ch != 255) break;
 		conn_poll();
 	}

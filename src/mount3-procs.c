@@ -22,6 +22,9 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+#include "moonfish.h"
+#include "serverconn.h"
+#include "exports.h"
 #include "mount3-procs.h"
 
 enum accept_stat MOUNTPROC3_NULL(struct server_conn *conn)

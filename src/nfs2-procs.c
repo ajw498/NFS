@@ -30,55 +30,11 @@
 #include <ctype.h>
 
 
+#include "moonfish.h"
 #include "utils.h"
-
-
+#include "exports.h"
 #include "nfs2-procs.h"
 #include "filecache.h"
-
-
-#define NE(x) do { \
-	res->status = x; \
-	if (res->status != NFS_OK) return SUCCESS; \
-} while (0)
-
-#define UE(x) do { \
-	if ((x) == NULL) { \
-		res->status = NFSERR_IO; \
-		return SUCCESS; \
-	} else { \
-		res->status = NFS_OK; \
-	} \
-} while (0)
-
-
-#define OE(x) do { \
-	os_error *err = x; \
-	if (err) { \
-		res->status = oserr_to_nfserr(err->errnum); \
-		syslogf(LOGNAME, LOG_ERROR, "Error: %x %s", err->errnum, err->errmess); \
-		return SUCCESS; \
-	} else { \
-		res->status = NFS_OK; \
-	} \
-} while (0)
-
-#define NR(x) do { \
-	enum nstat status = x; \
-	if (status != NFS_OK) return status; \
-} while (0)
-
-#define UR(x) do { \
-	if ((x) == NULL) return NFSERR_IO; \
-} while (0)
-
-#define OR(x) do { \
-	os_error *err = x; \
-	if (err) { \
-		syslogf(LOGNAME, LOG_ERROR, "Error: %x %s", err->errnum, err->errmess); \
-		return oserr_to_nfserr(err->errnum); \
-	} \
-} while (0)
 
 
 

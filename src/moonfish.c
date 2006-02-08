@@ -3,7 +3,6 @@
 	$URL$
 
 	Main module entry points.
-	This then calls the imageentry_* functions as appropriate.
 
 
 	Copyright (C) 2003 Alex Waugh
@@ -42,7 +41,7 @@
 
 _kernel_oserror *initialise(const char *cmd_tail, int podule_base, void *private_word)
 {
-	static _kernel_oserror initerr = {1/*FIXME*/, "Unable to initialise server, see syslog for details"};
+	static _kernel_oserror initerr = {STARTUPERR, "Unable to initialise server, see syslog for details"};
 	_kernel_oserror *err;
 
 	(void)cmd_tail;
@@ -77,9 +76,6 @@ _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 	_swix(OS_Release, _INR(0,2), EventV, internet_event, private_word);
 
 	conn_close();
-
-/*	if (enablelog) syslogf(LOGNAME, LOGENTRY, "Module finalisation");*/
-
 
 	return NULL;
 }

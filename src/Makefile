@@ -182,7 +182,7 @@ $(MOONFISHGENOBJS): auto
 Moonfish: $(MOONFISHOBJS) $(MOONFISHGENOBJS) $(COMMONOBJS) moonfish.o
 	$(LINK) -o Moonfish $(MOONFISHOBJS) $(MOONFISHGENOBJS) $(COMMONOBJS) moonfish.o moonfishhdr.o $(MODLIBS)
 
-debug-server: $(MOONFISHOBJS) $(MOONFISHGENOBJS) debug-server.o
+debug-server: $(MOONFISHOBJS) $(MOONFISHGENOBJS) $(COMMONOBJS) debug-server.o
 	$(CC) $(CFLAGS) $(MOONFISHOBJS) $(MOONFISHGENOBJS) $(COMMONOBJS) debug-server.o -o debug-server $(LIBS)
 
 

@@ -101,6 +101,8 @@
 #define NOATTRS (ERRBASE + 52)
 #define NOATTRSMESS "Object attributes not supplied by server"
 
+#define STARTUPERR (ERRBASE + 53)
+
 /* Directory not empty error number must match what filecore uses */
 #define ERRDIRNOTEMPTY 67764
 

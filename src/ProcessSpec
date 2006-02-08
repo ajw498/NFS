@@ -91,7 +91,7 @@ print RECVH  "enum accept_stat ${spectype}_decode(int proc, struct server_conn *
 print RECV2H   $header;
 print RECV2H  "#include <sys/types.h>\n";
 print RECV2H  "#include \"rpc-structs.h\"\n\n";
-print RECV2H  "#include \"request-decode.h\"\n\n";
+print RECV2H  "#include \"serverconn.h\"\n\n";
 
 $types{"unsigned int"} = "int";
 $types{"uint32"} = "int";

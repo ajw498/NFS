@@ -52,6 +52,7 @@
 #include "nfs2-decode.h"
 #include "nfs3-decode.h"
 
+#include "moonfish.h"
 #include "utils.h"
 #include "request-decode.h"
 #include "exports.h"
@@ -62,6 +63,8 @@
 static int udpsock = -1;
 static int tcpsock = -1;
 
+/* Global memory pool */
+static struct pool *gpool = NULL;
 
 static int conn_create_socket(int port, int tcp)
 {
@@ -349,20 +352,6 @@ int conn_poll(void)
 }
 
 
-/* Global memory pool */
-static struct pool *gpool = NULL;
-
-
-#define UR(x) do { \
-	if ((x) == NULL) { \
-		syslogf(LOGNAME, LOG_MEM, OUTOFMEM); \
-		return 1; \
-	} \
-} while (0)
-
-#define BR(x) do { \
-	if ((x) == FALSE) return 1; \
-} while (0)
 
 int conn_init(void)
 {

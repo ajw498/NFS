@@ -22,8 +22,11 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#include <stdio.h>
+#include <string.h>
 
+#include "moonfish.h"
+#include "serverconn.h"
+#include "exports.h"
 #include "mount1-procs.h"
 #include "utils.h"
 

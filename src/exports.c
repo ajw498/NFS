@@ -36,6 +36,7 @@
 #include <stdarg.h>
 #include <ctype.h>
 
+#include "moonfish.h"
 #include "utils.h"
 #include "rpc-decode.h"
 #include "exports.h"
@@ -45,33 +46,6 @@
 int logging = 0;
 
 #define CHECK(str) (strncasecmp(opt,str,sizeof(str) - 1)==0)
-
-#define UE(x) do { \
-	if ((x) == NULL) { \
-		syslogf(LOGNAME, LOG_MEM, OUTOFMEM); \
-		return NULL; \
-	} \
-} while (0)
-
-#define UR(x) do { \
-	if ((x) == NULL) { \
-		syslogf(LOGNAME, LOG_MEM, OUTOFMEM); \
-		return NFSERR_IO; \
-	} \
-} while (0)
-
-#define ER(x) do { \
-	os_error *err = x; \
-	if (x) { \
-		syslogf(LOGNAME, LOG_SERIOUS, "%s", err->errmess); \
-		return NULL; \
-	} \
-} while (0)
-
-#define NR(x) do { \
-	enum nstat status = x; \
-	if (status != NFS_OK) return status; \
-} while (0)
 
 static struct export *parse_line(char *line, struct pool *pool)
 {
@@ -96,7 +70,7 @@ static struct export *parse_line(char *line, struct pool *pool)
 	while (*line && *line != '(') line++;
 	if (*line) *line++ = '\0';
 
-	UE(export = palloc(sizeof(struct export), pool));
+	UU(export = palloc(sizeof(struct export), pool));
 
 	/* Set defaults */
 	export->ro = 1;
@@ -111,9 +85,9 @@ static struct export *parse_line(char *line, struct pool *pool)
 	export->next = NULL;
 	export->pathentry = NULL;
 	memset(export->hosts, 0, sizeof(unsigned int) * MAXHOSTS);
-	UE(export->pool = pinit(pool));
+	UU(export->pool = pinit(pool));
 
-	UE(export->basedir = pstrdup(basedir, pool));
+	UU(export->basedir = pstrdup(basedir, pool));
 	export->basedirlen = strlen(basedir);
 	export->exportnum = exportnum++;
 	if (exportnum > 128) {
@@ -121,7 +95,7 @@ static struct export *parse_line(char *line, struct pool *pool)
 		return NULL;
 	}
 
-	UE(export->exportname = pstrdup(exportname, pool));
+	UU(export->exportname = pstrdup(exportname, pool));
 
 	maskstart = strchr(host, '/');
 	if (maskstart) {
@@ -175,17 +149,15 @@ static struct export *parse_line(char *line, struct pool *pool)
 	return export;
 }
 
-#define EXPORTSFILE "Choices:Moonfish.exports"
-
 struct export *parse_exports_file(struct pool *pool)
 {
 	char line[1024];
 	FILE *file;
 	struct export *exports = NULL;
 
-	file = fopen(EXPORTSFILE, "r");
+	file = fopen(EXPORTSREAD, "r");
 	if (file == NULL) {
-		syslogf(LOGNAME, LOG_SERIOUS, "Unable to open exports file (%s)", EXPORTSFILE);
+		syslogf(LOGNAME, LOG_SERIOUS, "Unable to open exports file (%s)", EXPORTSREAD);
 		return NULL;
 	}
 

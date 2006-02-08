@@ -22,51 +22,14 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+#define NFS3
+
+#include "moonfish.h"
+#include "exports.h"
 #include "utils.h"
 #include "filecache.h"
 #include "nfs3-procs.h"
 
-#define NF(x) do { \
-	res->status = x; \
-	if (res->status != NFS_OK) goto failure; \
-} while (0)
-
-#define UF(x) do { \
-	if ((x) == NULL) { \
-		res->status = NFSERR_IO; \
-		goto failure; \
-	} else { \
-		res->status = NFS_OK; \
-	} \
-} while (0)
-
-#define OF(x) do { \
-	os_error *err = x; \
-	if (err) { \
-		res->status = oserr_to_nfserr(err->errnum); \
-		syslogf(LOGNAME, LOG_ERROR, "Error: %x %s", err->errnum, err->errmess); \
-		goto failure; \
-	} else { \
-		res->status = NFS_OK; \
-	} \
-} while (0)
-
-#define NR(x) do { \
-	enum nstat status = x; \
-	if (status != NFS_OK) return status; \
-} while (0)
-
-#define UR(x) do { \
-	if ((x) == NULL) return NFSERR_IO; \
-} while (0)
-
-#define OR(x) do { \
-	os_error *err = x; \
-	if (err) { \
-		syslogf(LOGNAME, LOG_ERROR, "Error: %x %s", err->errnum, err->errmess); \
-		return oserr_to_nfserr(err->errnum); \
-	} \
-} while (0)
 
 static inline enum nstat nfs3fh_to_path(struct nfs_fh *fhandle, char **path, struct server_conn *conn)
 {
@@ -669,12 +632,13 @@ enum accept_stat NFSPROC3_READDIRPLUS(struct readdirplusargs *args, struct readd
 			UF(entry = palloc(sizeof(struct entryplus3), conn->pool));
 
 			entry->fileid = calc_fileid(path, leaf);
-			UF(leaf = filename_unixify(leaf, strlen(leaf), &leaflen, conn->pool));
-			if (type == 1 || (type == 3 && conn->export->imagefs == 0)) {
-				UF(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, conn->pool));
-			}
+			leaflen = strlen(leaf);
 			if (pathlen + 2 + leaflen > MAX_PATHNAME) NF(NFSERR_NAMETOOLONG);
 			memcpy(pathbuffer + pathlen + 1, leaf, leaflen + 1);
+			UF(leaf = filename_unixify(leaf, leaflen, &leaflen, conn->pool));
+			if (type == OBJ_FILE || (type == OBJ_IMAGE && conn->export->imagefs == 0)) {
+				UF(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, conn->pool));
+			}
 
 			entry->name.data = leaf;
 			entry->name.size = leaflen;

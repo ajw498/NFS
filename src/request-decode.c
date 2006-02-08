@@ -44,6 +44,7 @@
 #include "rpc-process1.h"
 #include "rpc-process2.h"
 
+#include "moonfish.h"
 #include "utils.h"
 
 #include "request-decode.h"

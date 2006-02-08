@@ -26,23 +26,8 @@
 #define REQUEST_DECODE_H
 
 
-#include "exports.h"
-
-
-#define LOGNAME "Moonfish"
-
-#define LOG_SERIOUS 1
-#define LOG_MEM 2
-#define LOG_ERROR 150
-#define LOG_ACCESS 200
-#define LOG_DATA 300
-
-#define OUTOFMEM "Unable to allocate enough memory"
-
-#define MAX_UDPBUFFER 4096
-/**/
-
-extern int logging;
+#include "serverconn.h"
+#include "pools.h"
 
 void request_decode(struct server_conn *conn);
 

@@ -24,29 +24,16 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/types.h>
 #include <swis.h>
 #include <kernel.h>
 #include <ctype.h>
 
-#include "nfs2-procs.h" /*FIXME*/
-
+#include "moonfish.h"
 #include "utils.h"
 
 #include "filecache.h"
-
-#define NR(x) do { \
-	enum nstat status = x; \
-	if (status != NFS_OK) return status; \
-} while (0)
-
-#define OR(x) do { \
-	os_error *err = x; \
-	if (err) { \
-		syslogf(LOGNAME, LOG_ERROR, "Error: %x %s", err->errnum, err->errmess); \
-		return oserr_to_nfserr(err->errnum); \
-	} \
-} while (0)
 
 
 #define MAXOPENFILES 3
@@ -90,6 +77,8 @@ static enum nstat filecache_flush(int index)
 	if (openfiles[index].write && openfiles[index].buffercount > 0) {
 		os_error *err;
 
+		if (openfiles[index].buffercount > DATABUFFER) return NFSERR_SERVERFAULT;
+
 		err = _swix(OS_GBPB, _INR(0,4), 1, openfiles[index].handle,
 		                                   openfiles[index].buffer,
 		                                   openfiles[index].buffercount,
@@ -99,8 +88,8 @@ static enum nstat filecache_flush(int index)
 			        openfiles[index].name, err->errmess);
 			ret = openfiles[index].writeerror = oserr_to_nfserr(err->errnum);
 		}
-		openfiles[index].buffercount = 0;
 	}
+	openfiles[index].buffercount = 0;
 
 	return ret;
 }
@@ -209,7 +198,7 @@ enum nstat filecache_read(char *path, unsigned int count, unsigned int offset, c
 
 	if (count > DATABUFFER) count = DATABUFFER;
 
-	/* Ensure offset and count lie withing the file */
+	/* Ensure offset and count lie within the file */
 	if (offset > openfiles[index].filesize) {
 		count = 0;
 		offset = 0;
@@ -228,9 +217,12 @@ enum nstat filecache_read(char *path, unsigned int count, unsigned int offset, c
 		openfiles[index].bufferoffset = offset;
 	} else if (offset + count > openfiles[index].bufferoffset + openfiles[index].buffercount) {
 		/* Buffer contains partial results */
-		bufferoffset = openfiles[index].bufferoffset - offset;
+		bufferoffset = offset - openfiles[index].bufferoffset;
 		bufferread = openfiles[index].buffercount - bufferoffset;
+
+		if ((bufferread > DATABUFFER) || (bufferoffset > DATABUFFER)) return NFSERR_SERVERFAULT;
 		memmove(openfiles[index].buffer, openfiles[index].buffer + bufferoffset, bufferread);
+
 		bufferoffset = bufferread;
 		bufferread = DATABUFFER - bufferoffset;
 		openfiles[index].bufferoffset = offset;
@@ -243,12 +235,15 @@ enum nstat filecache_read(char *path, unsigned int count, unsigned int offset, c
 
 	/* Fill the buffer if we need */
 	if (bufferread > 0) {
+		if (bufferoffset + bufferread > DATABUFFER) return NFSERR_SERVERFAULT;
 		OR(_swix(OS_GBPB, _INR(0,4) | _OUT(3), 3, openfiles[index].handle, openfiles[index].buffer + bufferoffset, bufferread, offset + bufferoffset, &bufferread));
 		openfiles[index].buffercount = DATABUFFER - bufferread;
 	}
 
 	/* Return data from the buffer */
 	bufferoffset = (offset - openfiles[index].bufferoffset);
+	if (bufferoffset > DATABUFFER) return NFSERR_SERVERFAULT;
+
 	*data = openfiles[index].buffer + bufferoffset;
 	*read = openfiles[index].buffercount - bufferoffset;
 	if (*read > count) *read = count;
@@ -273,9 +268,9 @@ enum nstat filecache_write(char *path, unsigned int count, unsigned int offset, 
 	}
 
 	/* Check for data that would be non-contiguous, or overflow the buffer */
-	if (openfiles[index].buffercount > 0 &&
-	    ((openfiles[index].bufferoffset + openfiles[index].buffercount != offset) ||
-	     (openfiles[index].buffercount + count > DATABUFFER))) {
+	if ((openfiles[index].buffercount > 0) &&
+	    (((openfiles[index].bufferoffset + openfiles[index].buffercount) != offset) ||
+	     ((openfiles[index].buffercount + count) > DATABUFFER))) {
 		NR(filecache_flush(index));
 	}
 
@@ -285,6 +280,7 @@ enum nstat filecache_write(char *path, unsigned int count, unsigned int offset, 
 		if (sync) OR(_swix(OS_Args, _INR(0,1), 255, openfiles[index].handle));
 	} else {
 		/* Write to the buffer */
+		if (openfiles[index].buffercount + count > DATABUFFER) return NFSERR_SERVERFAULT;
 		memcpy(openfiles[index].buffer + openfiles[index].buffercount, data, count);
 		if (openfiles[index].buffercount == 0) openfiles[index].bufferoffset = offset;
 		openfiles[index].buffercount += count;
