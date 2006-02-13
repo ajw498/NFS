@@ -38,7 +38,7 @@
 
 #define MAXOPENFILES 3
 
-#define DATABUFFER 512*1024
+#define DATABUFFER 128*1024
 
 static struct openfile {
 	char name[MAX_PATHNAME];
