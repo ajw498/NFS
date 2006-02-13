@@ -36,6 +36,7 @@
 #define EventV 16
 #define Internet_Event 19
 #define Socket_Async_Event 1
+#define Socket_Broken_Event 3
 
 
 
@@ -70,10 +71,10 @@ _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 	(void)fatal;
 	(void)podule_base;
 
-	_swix(OS_RemoveTickerEvent, _INR(0,1), callevery, private_word);
-
 	_swix(OS_Byte, _INR(0,1), 13, Internet_Event);
 	_swix(OS_Release, _INR(0,2), EventV, internet_event, private_word);
+
+	_swix(OS_RemoveTickerEvent, _INR(0,1), callevery, private_word);
 
 	conn_close();
 
@@ -87,25 +88,14 @@ _kernel_oserror *callback_handler(_kernel_swi_regs *r, void *pw)
 	(void)r;
 	(void)pw;
 
-/*	do { */
-		delay = conn_poll();
-/*	} while (delay == 0);*/
+	if (conn_poll()) {
+		delay = 0;
+	} else {
+		delay = 100;
+	}
 
+	_swix(OS_RemoveTickerEvent, _INR(0,1), callevery, pw);
 	_swix(OS_CallAfter, _INR(0,2), delay, callevery, pw);
-
-	return NULL;
-}
-
-_kernel_oserror *callback2_handler(_kernel_swi_regs *r, void *pw)
-{
-	int delay;
-
-	(void)r;
-	(void)pw;
-
-/*	do {*/
-		delay = conn_poll();
-/*	} while (delay == 0);*/
 
 	return NULL;
 }
@@ -121,9 +111,13 @@ _kernel_oserror *callevery_handler(_kernel_swi_regs *r, void *pw)
 
 int internet_event_handler(_kernel_swi_regs *r, void *pw)
 {
-	if (r->r[0] == Internet_Event && r->r[1] == Socket_Async_Event) {
+	if ((r->r[0] == Internet_Event) && (r->r[1] == Socket_Async_Event)) {
 		if (conn_validsocket(r->r[2])) {
-			_swix(OS_AddCallBack, _INR(0,1), callback2, pw);
+			_swix(OS_AddCallBack, _INR(0,1), callback, pw);
+			return 0;
+		}
+	} else if ((r->r[0] == Internet_Event) && (r->r[1] == Socket_Broken_Event)) {
+		if (conn_brokensocket(r->r[2])) {
 			return 0;
 		}
 	}

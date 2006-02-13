@@ -52,14 +52,8 @@
 #include <unixlib.h>
 
 #include "sunfish.h"
+#include "utils.h"
 
-/* The worstcase size of a header for read/write calls.
-   If this value is not big enough, the data part will not be of
-   an optimum size, but nothing bad will happen */
-#define MAX_HDRLEN 416
-
-/* The size to use for tx and rx buffers */
-#define BUFFERSIZE (MAX_HDRLEN + MAX_DATABUFFER)
 
 /* An xid indicating the buffer entry is unused */
 #define UNALLOCATED 0

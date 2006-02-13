@@ -14,5 +14,5 @@ initialisation-code: initialise
 finalisation-code: finalise
 
 event-handler: internet_event 19
-generic-veneers: callevery callback callback2
+generic-veneers: callevery callback
 

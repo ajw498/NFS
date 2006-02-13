@@ -82,6 +82,9 @@ static struct export *parse_line(char *line, struct pool *pool)
 	export->defaultfiletype = 0xFFF;
 	export->xyzext = NEEDED;
 	export->fakedirtimes = 0;
+	export->udpsize = 4096;
+	export->umask = 0;
+	export->unumask = 0;
 	export->next = NULL;
 	export->pathentry = NULL;
 	memset(export->hosts, 0, sizeof(unsigned int) * MAXHOSTS);
@@ -133,12 +136,19 @@ static struct export *parse_line(char *line, struct pool *pool)
 		} else if (CHECK("gid") && opt[3] == '=') {
 			export->matchgid = 1;
 			export->gid = atoi(opt + 4);
+		} else if (CHECK("udpsize") && opt[7] == '=') {
+			export->udpsize = atoi(opt + 8);
+			if (export->udpsize > 8192) export->udpsize = 8192;
 		} else if (CHECK("imagefs")) {
 			export->imagefs = 1;
 		} else if (CHECK("fakedirtimes")) {
 			export->fakedirtimes = 1;
 		} else if (CHECK("logging")) {
 			logging = 1;
+		} else if (CHECK("umask") && opt[5] == '=') {
+			export->umask = (int)strtol(opt + 6, NULL, 8) & 0777;
+		} else if (CHECK("unumask") && opt[7] == '=') {
+			export->unumask = (int)strtol(opt + 8, NULL, 8) & 0777;
 		} else if (CHECK("defaultfiletype") && opt[15] == '=') {
 			export->defaultfiletype = (int)strtol(opt + 16, NULL, 16);
 		} else if (CHECK("addext") && opt[6] == '=') {

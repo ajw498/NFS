@@ -60,11 +60,22 @@
 #include "filecache.h"
 
 
+#define MAXCONNS 5
+#define CONNTIMEOUT (100*CLOCKS_PER_SEC)
+
+
+static struct server_conn conns[MAXCONNS];
+
 static int udpsock = -1;
 static int tcpsock = -1;
 
 /* Global memory pool */
 static struct pool *gpool = NULL;
+
+static struct export *exports;
+
+
+static int now;
 
 static int conn_create_socket(int port, int tcp)
 {
@@ -113,20 +124,14 @@ static int conn_create_socket(int port, int tcp)
 	return sock;
 }
 
-
-static struct export *exports;
-
-#define MAXCONNS 5
-
-static struct server_conn conns[MAXCONNS];
-
-#define MAXREQUEST 32*1024
-/*FIXME*/
-
-static int now;
-
-#define UDPTRANSFERSIZE 4096
-#define TCPTRANSFERSIZE 32*1024
+static void close_conn(struct server_conn *conn)
+{
+	conn->state = IDLE;
+	pclear(conn->pool);
+	if (conn->tcp) {
+		close(conn->socket);
+	}
+}
 
 /* Returns non-zero when data was read */
 static int udp_read(void)
@@ -139,46 +144,38 @@ static int udp_read(void)
 	if (i == MAXCONNS) return 0;
 
 	conns[i].hostaddrlen = sizeof(struct sockaddr);
-	conns[i].requestlen = recvfrom(udpsock, conns[i].request, MAXREQUEST, 0, (struct sockaddr *)&(conns[i].hostaddr), &(conns[i].hostaddrlen));
+	conns[i].requestlen = recvfrom(udpsock, conns[i].request, BUFFERSIZE, 0, (struct sockaddr *)&(conns[i].hostaddr), &(conns[i].hostaddrlen));
 
 	if (conns[i].requestlen > 0) {
 		conns[i].state = DECODE;
 		conns[i].socket = udpsock;
 		conns[i].tcp = 0;
 		conns[i].time = now;
-		conns[i].transfersize = UDPTRANSFERSIZE;
 		conns[i].suppressreply = 0;
 		conns[i].host = conns[i].hostaddr.sin_addr.s_addr;
 		return 1;
 	} else if (conns[i].requestlen == -1 && errno != EWOULDBLOCK) {
 		syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",xstrerror(errno));
-		/* FIXME close connection */
+		close_conn(&(conns[i]));
 	}
 	return 0;
 }
 
-/* Returns non-zero when data was read */
-static int udp_write(struct server_conn *conn)
+static void udp_write(struct server_conn *conn)
 {
-	int ret = 0;
-
 	if (conn->replylen > 0) {
 		int len;
-/*		logdata(0, output_buf, buf - output_buf); */
 		len = sendto(udpsock, conn->reply, conn->replylen, 0, (struct sockaddr *)&(conn->hostaddr), conn->hostaddrlen);
 		if (len > 0) {
 			conn->replysent = conn->replylen;
-			ret = 1;
 		} else if (len == -1 && errno != EWOULDBLOCK) {
 			syslogf(LOGNAME, LOG_ERROR, "Error writing to socket (%s)",xstrerror(errno));
-			/* FIXME close connection */
+			close_conn(conn);
 		}
 	}
 	if (conn->replysent >= conn->replylen) {
-		conn->state = IDLE;
-		pclear(conn->pool);
+		close_conn(conn);
 	}
-	return ret;
 }
 
 /* Returns non-zero when data was read */
@@ -186,9 +183,11 @@ static int tcp_accept(void)
 {
 	int i;
 
+	/* Find a free connection entry */
 	for (i = 0; i < MAXCONNS; i++) {
 		if (conns[i].state == IDLE) break;
 	}
+	/* If there are no free entries then don't accept any new connections */
 	if (i == MAXCONNS) return 0;
 
 	conns[i].hostaddrlen = sizeof(struct sockaddr);
@@ -197,7 +196,6 @@ static int tcp_accept(void)
 		conns[i].state = READLEN;
 		conns[i].tcp = 1;
 		conns[i].time = now;
-		conns[i].transfersize = TCPTRANSFERSIZE;
 		conns[i].requestlen = 0;
 		conns[i].requestread = 0;
 		conns[i].suppressreply = 0;
@@ -209,14 +207,16 @@ static int tcp_accept(void)
 	return 0;
 }
 
-static void tcp_read(struct server_conn *conn)
+static int tcp_read(struct server_conn *conn)
 {
 	int len;
 
 	if (conn->state == READLEN) {
 		len = 4 - (conn->requestread - conn->requestlen);
 		len = read(conn->socket, conn->request + conn->requestread, len);
-		if (len != -1) {
+		if (len == 0) {
+			close_conn(conn);
+		} else if (len != -1) {
 			conn->requestread += len;
 			if (conn->requestread - conn->requestlen == 4) {
 				conn->requestlen  = (conn->request[3]);
@@ -226,27 +226,32 @@ static void tcp_read(struct server_conn *conn)
 				conn->lastrecord  = (conn->request[0] & 0x80) >> 7;
 				conn->requestread -= 4;
 				conn->state = READ;
+				if (conn->requestread + conn->requestlen > BUFFERSIZE) close_conn(conn);
 			}
 		} else if (errno != EWOULDBLOCK) {
 			syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",xstrerror(errno));
-			/* FIXME close connection */
+			close_conn(conn);
 		}
 	}
 
 	if (conn->state == READ) {
 		len = conn->requestlen - conn->requestread;
 		len = read(conn->socket, conn->request + conn->requestread, len);
-		if (len != -1) {
+		if (len == 0) {
+			close_conn(conn);
+		} else if (len != -1) {
 			conn->time = now;
 			conn->requestread += len;
 			if (conn->requestread == conn->requestlen) {
 				conn->state = conn->lastrecord ? DECODE : READLEN;
 			}
+			return 1;
 		} else if (errno != EWOULDBLOCK) {
 			syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",xstrerror(errno));
-			/* FIXME close connection */
+			close_conn(conn);
 		}
 	}
+	return 0;
 }
 
 static void tcp_write(struct server_conn *conn)
@@ -260,7 +265,8 @@ static void tcp_write(struct server_conn *conn)
 			conn->replysent += len;
 		} else if (errno != EWOULDBLOCK) {
 			syslogf(LOGNAME, LOG_ERROR, "Error writing to socket (%s)",xstrerror(errno));
-			/* FIXME close connection */
+			close_conn(conn);
+			return;
 		}
 	}
 
@@ -289,20 +295,40 @@ int conn_validsocket(int sock)
 	return 0;
 }
 
+/* Called from the internet event handler on a broken socket event */
+int conn_brokensocket(int sock)
+{
+	int i;
+
+	for (i = 0; i < MAXCONNS; i++) {
+		if (conns[i].tcp && (conns[i].state != IDLE)) {
+			if (conns[i].socket == sock) {
+				/* We can't do much from within the event
+				   handler, so just set the timeout so that
+				   the normal cleanup code will get rid of
+				   the connection next time it is called */
+				conns[i].time -= CONNTIMEOUT + 1;
+				return 1;
+			}
+		}
+	}
+	return 0;
+}
+
 int conn_poll(void)
 {
 	int i;
 	now = clock();
-	int activity;
+	int activity = 0;
 
 	/* Accept any new connections */
-	activity = udp_read();
+	activity |= udp_read();
 	activity |= tcp_accept();
 
 	/* Read any data waiting to be read */
 	for (i = 0; i < MAXCONNS; i++) {
 		if (conns[i].tcp && (conns[i].state == READ || conns[i].state == READLEN)) {
-			tcp_read(&(conns[i]));
+			activity |= tcp_read(&(conns[i]));
 		}
 	}
 
@@ -312,9 +338,7 @@ int conn_poll(void)
 			conns[i].export = NULL;
 			request_decode(&(conns[i]));
 			if (conns[i].suppressreply) {
-				conns[i].state = IDLE;
-				pclear(conns[i].pool);
-				if (conns[i].tcp) close(conns[i].socket);
+				close_conn(&conns[i]);
 			} else {
 				conns[i].replysent = 0;
 				conns[i].state = WRITE;
@@ -325,30 +349,26 @@ int conn_poll(void)
 	/* Write any data waiting to be sent */
 	for (i = 0; i < MAXCONNS; i++) {
 		if (conns[i].state == WRITE) {
+			activity = 1;
 			if (conns[i].tcp) {
 				tcp_write(&(conns[i]));
 			} else {
-				activity |= udp_write(&(conns[i]));
+				udp_write(&(conns[i]));
 			}
 		}
 	}
 
 	/* Reap any connections that time out */
 	for (i = 0; i < MAXCONNS; i++) {
-		if (conns[i].state != IDLE && (now - conns[i].time) > 10*CLOCKS_PER_SEC) {
-			conns[i].state = IDLE;
-			pclear(conns[i].pool);
-			if (conns[i].tcp) {
-				shutdown(conns[i].socket, 2);
-				close(conns[i].socket);
-			}
+		if (conns[i].state != IDLE && (now - conns[i].time) > CONNTIMEOUT) {
+			close_conn(&(conns[i]));
 		}
 	}
 
 	/* Reap any open filehandles that haven't been accessed recently */
 	filecache_reap(0);
 
-	return activity ? 0 : 1; /*FIXME*/
+	return activity;
 }
 
 
@@ -364,8 +384,9 @@ int conn_init(void)
 	for (i = 0; i < MAXCONNS; i++) {
 		conns[i].state = IDLE;
 		conns[i].exports = exports;
-		UR(conns[i].request = palloc(MAXREQUEST + 4, gpool));
-		UR(conns[i].reply = palloc(MAXREQUEST + 4, gpool));
+		/* Allocate buffers, adding an extra 4 for the record marker */
+		UR(conns[i].request = palloc(BUFFERSIZE + 4, gpool));
+		UR(conns[i].reply = palloc(BUFFERSIZE + 4, gpool));
 		UR(conns[i].pool = pinit(gpool));
 		conns[i].gpool = gpool;
 	}
@@ -403,10 +424,7 @@ void conn_close(void)
 
 	for (i = 0; i < MAXCONNS; i++) {
 		if (conns[i].state != IDLE) {
-			if (conns[i].tcp) {
-				shutdown(conns[i].socket, 2);
-				close(conns[i].socket);
-			}
+			close_conn(&(conns[i]));
 		}
 	}
 

@@ -49,16 +49,6 @@
 
 #include "request-decode.h"
 
-/* The worstcase size of a header for read/write calls.
-   If this value is not big enough, the data part will not be of
-   an optimum size, but nothing bad will happen */
-#define MAX_HDRLEN 416
-
-
-
-/* The size to use for tx and rx buffers */
-#define BUFFERSIZE (MAX_HDRLEN + MAX_DATABUFFER)
-
 
 /* These point to the current buffer for tx or rx, and are used by
    the process_* macros to read/write data from/to */
@@ -73,7 +63,7 @@ static struct rpc_msg reply_header;
 static void init_output(struct server_conn *conn)
 {
 	obuf = conn->reply;
-	obufend = obuf + 32*1024;/*FIXME*/
+	obufend = obuf + BUFFERSIZE;
 
 	/* Leave room for the record marker */
 	if (conn->tcp) obuf += 4;

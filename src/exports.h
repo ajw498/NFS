@@ -66,6 +66,9 @@ struct export {
 	int defaultfiletype;
 	int xyzext;
 	int fakedirtimes;
+	int umask;
+	int unumask;
+	int udpsize;
 	struct pool *pool;
 	struct pathentry *pathentry;
 	struct export *next;

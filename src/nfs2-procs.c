@@ -55,13 +55,15 @@ static void parse_fattr(char *path, int type, int load, int exec, int len, int a
 {
 	fattr->type = type == 3 ? (conn->export->imagefs ? NFDIR : NFREG) :
 	              type == 2 ? NFDIR : NFREG;
-	fattr->mode = fattr->type == NFDIR ? 040000 : 0100000;
-	fattr->mode |= (attr & 0x01) << 8; /* Owner read */
+	fattr->mode  = (attr & 0x01) << 8; /* Owner read */
 	fattr->mode |= (attr & 0x02) << 6; /* Owner write */
 	fattr->mode |= (attr & 0x10) << 1; /* Group read */
 	fattr->mode |= (attr & 0x20) >> 1; /* Group write */
 	fattr->mode |= (attr & 0x10) >> 2; /* Others read */
 	fattr->mode |= (attr & 0x20) >> 4; /* Others write */
+	fattr->mode |= conn->export->unumask;
+	fattr->mode &= ~conn->export->umask;
+	fattr->mode |= fattr->type == NFDIR ? 040000 : 0100000;
 	fattr->nlink = 1;
 	fattr->uid = conn->uid;
 	fattr->gid = conn->gid;
@@ -418,7 +420,7 @@ enum accept_stat NFSPROC_STATFS(struct statfsargs *args, struct statfsres *res, 
 		res->u.info.blocks = (sizehi << 20) | (sizelo >> 12);
 	}
 
-	res->u.info.tsize = conn->transfersize;
+	res->u.info.tsize = conn->tcp ? NFS2MAXDATA : conn->export->udpsize;
 
 	return SUCCESS;
 }

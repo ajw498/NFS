@@ -77,6 +77,8 @@ static void parse_fattr(char *path, int type, int load, int exec, int len, int a
 	fattr->mode |= (attr & 0x20) >> 1; /* Group write */
 	fattr->mode |= (attr & 0x10) >> 2; /* Others read */
 	fattr->mode |= (attr & 0x20) >> 4; /* Others write */
+	fattr->mode |= conn->export->unumask;
+	fattr->mode &= ~conn->export->umask;
 	fattr->nlink = 1;
 	fattr->uid = conn->uid;
 	fattr->gid = conn->gid;
@@ -712,7 +714,7 @@ enum accept_stat NFSPROC3_FSINFO(struct fsinfoargs *args, struct fsinfores *res,
 	NF(nfs3fh_to_path(&(args->fsroot), &path, conn));
 	res->u.resok.obj_attributes.attributes_follow = TRUE;
 	NF(get_fattr(path, -1, &(res->u.resok.obj_attributes.u.attributes), conn));
-	res->u.resok.rtmax = conn->tcp ? MAX_DATABUFFER : MAX_UDPBUFFER;
+	res->u.resok.rtmax = conn->tcp ? MAX_DATABUFFER : conn->export->udpsize;
 	res->u.resok.rtpref = res->u.resok.rtmax;
 	res->u.resok.rtmult = 4096;
 	res->u.resok.wtmax = res->u.resok.rtmax;

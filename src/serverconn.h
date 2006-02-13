@@ -51,7 +51,6 @@ struct server_conn {
 	struct sockaddr_in hostaddr;
 	int hostaddrlen;
 	clock_t time;
-	int transfersize;
 	int uid;
 	int gid;
 	unsigned int host;
@@ -70,6 +69,8 @@ struct server_conn {
 int conn_init(void);
 
 int conn_validsocket(int sock);
+
+int conn_brokensocket(int sock);
 
 int conn_poll(void);
 
