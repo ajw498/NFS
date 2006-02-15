@@ -5,7 +5,7 @@
 	Main module entry points.
 
 
-	Copyright (C) 2003 Alex Waugh
+	Copyright (C) 2006 Alex Waugh
 	
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
@@ -58,7 +58,7 @@ _kernel_oserror *initialise(const char *cmd_tail, int podule_base, void *private
 		return err;
 	}
 
-	err = _swix(OS_CallAfter, _INR(0,2), 10, callevery, private_word);
+	err = _swix(OS_CallAfter, _INR(0,2), 100, callevery, private_word);
 	if (err) {
 		_swix(OS_Byte, _INR(0,1), 13, Internet_Event);
 		_swix(OS_Release, _INR(0,2), EventV, internet_event, private_word);
@@ -89,13 +89,17 @@ _kernel_oserror *callback_handler(_kernel_swi_regs *r, void *pw)
 	(void)r;
 	(void)pw;
 
+	/* Repeatedly poll while there is data being read or written */
 	do {
 		activity = conn_poll();
 	} while (activity & 1);
 
 	if (activity) {
+		/* If there was activity or there is still data waiting to
+		   be written then we want to try again soon */
 		delay = 1;
 	} else {
+		/* Otherwise wait a while as not much is going on */
 		delay = 100;
 	}
 

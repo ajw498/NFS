@@ -61,7 +61,7 @@
 
 
 #define MAXCONNS 5
-#define CONNTIMEOUT (100*CLOCKS_PER_SEC)
+#define CONNTIMEOUT (5*60*CLOCKS_PER_SEC)
 
 
 static struct server_conn conns[MAXCONNS];
@@ -407,16 +407,16 @@ int conn_init(void)
 
 	filecache_init();
 
-	BR(portmapper_set(100000, 2, 6,  111, portmapper_decode, gpool));
-	BR(portmapper_set(100000, 2, 17, 111, portmapper_decode, gpool));
-	BR(portmapper_set(100005, 1, 6,  111, mount1_decode, gpool));
-	BR(portmapper_set(100005, 1, 17, 111, mount1_decode, gpool));
-	BR(portmapper_set(100005, 3, 6,  111, mount3_decode, gpool));
-	BR(portmapper_set(100005, 3, 17, 111, mount3_decode, gpool));
-	BR(portmapper_set(100003, 2, 6,  111, nfs2_decode, gpool));
-	BR(portmapper_set(100003, 2, 17, 111, nfs2_decode, gpool));
-	BR(portmapper_set(100003, 3, 6,  111, nfs3_decode, gpool));
-	BR(portmapper_set(100003, 3, 17, 111, nfs3_decode, gpool));
+	BR(portmapper_set(100000, 2, IPPROTO_UDP, 111, portmapper_decode, gpool));
+	BR(portmapper_set(100000, 2, IPPROTO_TCP, 111, portmapper_decode, gpool));
+	BR(portmapper_set(100005, 1, IPPROTO_UDP, 111, mount1_decode, gpool));
+	BR(portmapper_set(100005, 1, IPPROTO_TCP, 111, mount1_decode, gpool));
+	BR(portmapper_set(100005, 3, IPPROTO_UDP, 111, mount3_decode, gpool));
+	BR(portmapper_set(100005, 3, IPPROTO_TCP, 111, mount3_decode, gpool));
+	BR(portmapper_set(100003, 2, IPPROTO_UDP, 111, nfs2_decode, gpool));
+	BR(portmapper_set(100003, 2, IPPROTO_TCP, 111, nfs2_decode, gpool));
+	BR(portmapper_set(100003, 3, IPPROTO_UDP, 111, nfs3_decode, gpool));
+	BR(portmapper_set(100003, 3, IPPROTO_TCP, 111, nfs3_decode, gpool));
 
 	udpsock = conn_create_socket(111, 0);
 	if (udpsock == -1) return 1;
