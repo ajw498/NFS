@@ -341,7 +341,7 @@ enum nstat path_to_fh(char *path, char **fhandle, unsigned int *fhandlelen, stru
 		   to get the root filehandle */
 		(*fhandle)[0] = conn->export->exportnum;
 		(*fhandle)[1] = calc_fileid(conn->export->basedir, NULL) & 0xFF;
-/*		*fhandlelen = 2; FIXME */
+		*fhandlelen = 8;
 		return NFS_OK;
 	}
 	len -= conn->export->basedirlen + 1;
@@ -416,14 +416,18 @@ enum nstat path_to_fh(char *path, char **fhandle, unsigned int *fhandlelen, stru
 			}
 		}
 		if (fhremain > 0) *fh++ = 0xFF;
-/*		*fhandlelen -= fhremain;*/
+		*fhandlelen -= fhremain;
 	} else {
 		(*fhandle)[0] = conn->export->exportnum;
 		(*fhandle)[1] = calc_fileid(path, NULL) & 0xFF;
 		memcpy(*fhandle + 2, path + conn->export->basedirlen + 1, len);
 		/* Terminated by the earlier memset */
-/*		*fhandlelen = 2 + len; */
+		*fhandlelen = 2 + len;
 	}
+
+	/* Ethereal doesn't seem to like short filehandles, so make the
+	   minimum size 8 bytes to aid debugging */
+	if (*fhandlelen < 8) *fhandlelen = 8;
 
 	return NFS_OK;
 }
