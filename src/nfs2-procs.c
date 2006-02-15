@@ -53,15 +53,19 @@ static inline enum nstat path_to_nfs2fh(char *path, struct nfs_fh *fhandle, stru
 
 static void parse_fattr(char *path, int type, int load, int exec, int len, int attr, struct fattr *fattr, struct server_conn *conn)
 {
-	fattr->type = type == 3 ? (conn->export->imagefs ? NFDIR : NFREG) :
-	              type == 2 ? NFDIR : NFREG;
+	fattr->type = type == OBJ_IMAGE ? (conn->export->imagefs ? NFDIR : NFREG) :
+	              type == OBJ_DIR ? NFDIR : NFREG;
 	fattr->mode  = (attr & 0x01) << 8; /* Owner read */
 	fattr->mode |= (attr & 0x02) << 6; /* Owner write */
 	fattr->mode |= (attr & 0x10) << 1; /* Group read */
 	fattr->mode |= (attr & 0x20) >> 1; /* Group write */
 	fattr->mode |= (attr & 0x10) >> 2; /* Others read */
 	fattr->mode |= (attr & 0x20) >> 4; /* Others write */
+	/* Apply the unumask to force access */
 	fattr->mode |= conn->export->unumask;
+	/* Set executable permissions for directories if they have read permission */
+	if (fattr->type == NFDIR) fattr->mode |= (fattr->mode & 0444) >> 2;
+	/* Remove bits requested by the umask */
 	fattr->mode &= ~conn->export->umask;
 	fattr->mode |= fattr->type == NFDIR ? 040000 : 0100000;
 	fattr->nlink = 1;
