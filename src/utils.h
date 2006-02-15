@@ -114,9 +114,6 @@
 #define NFS3_COOKIEVERFSIZE 8
 #endif
 
-/*The maximum size of our data buffers */
-#define MAX_DATABUFFER 32*1024
-
 /* The worstcase size of a header for read/write calls.
    If this value is not big enough, the data part will not be of
    an optimum size, but nothing bad will happen */

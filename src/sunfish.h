@@ -25,6 +25,8 @@
 #define LOGDATASUMMARY 70
 #define LOGDATA  130
 
+/*The maximum size of our data buffers */
+#define MAX_DATABUFFER 32*1024
 
 /* The default port range to bind to. */
 #define LOCALPORTMIN_DEFAULT 800

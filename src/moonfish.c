@@ -28,7 +28,7 @@
 #include <swis.h>
 
 #include "moonfishdefs.h"
-
+#include "moonfish.h"
 #include "serverconn.h"
 #include "utils.h"
 
@@ -84,18 +84,23 @@ _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 _kernel_oserror *callback_handler(_kernel_swi_regs *r, void *pw)
 {
 	int delay;
+	int activity;
 
 	(void)r;
 	(void)pw;
 
-	if (conn_poll()) {
-		delay = 0;
+	do {
+		activity = conn_poll();
+	} while (activity & 1);
+
+	if (activity) {
+		delay = 1;
 	} else {
 		delay = 100;
 	}
 
-	_swix(OS_RemoveTickerEvent, _INR(0,1), callevery, pw);
-	_swix(OS_CallAfter, _INR(0,2), delay, callevery, pw);
+	ER(_swix(OS_RemoveTickerEvent, _INR(0,1), callevery, pw));
+	ER(_swix(OS_CallAfter, _INR(0,2), delay, callevery, pw));
 
 	return NULL;
 }

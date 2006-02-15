@@ -102,6 +102,13 @@ static int conn_create_socket(int port, int tcp)
 		return -1;
 	}
 
+	/* Prevent bind from failing if we have recently close the connection */
+	if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0) {
+		syslogf(LOGNAME, LOG_SERIOUS, "Unable to setsockopt (%s)", xstrerror(errno));
+		close(sock);
+		return -1;
+	}
+
 	struct sockaddr_in name;
 
 	memset(&name, 0, sizeof(name));
@@ -254,8 +261,10 @@ static int tcp_read(struct server_conn *conn)
 	return 0;
 }
 
-static void tcp_write(struct server_conn *conn)
+static int tcp_write(struct server_conn *conn)
 {
+	int activity = 0;
+
 	if (conn->replylen > 0) {
 		int len;
 
@@ -263,10 +272,11 @@ static void tcp_write(struct server_conn *conn)
 		if (len != -1) {
 			conn->time = now;
 			conn->replysent += len;
+			activity = 1;
 		} else if (errno != EWOULDBLOCK) {
 			syslogf(LOGNAME, LOG_ERROR, "Error writing to socket (%s)",xstrerror(errno));
 			close_conn(conn);
-			return;
+			return activity;
 		}
 	}
 
@@ -278,6 +288,7 @@ static void tcp_write(struct server_conn *conn)
 		conn->state = READLEN;
 		pclear(conn->pool);
 	}
+	return activity;
 }
 
 int conn_validsocket(int sock)
@@ -315,6 +326,9 @@ int conn_brokensocket(int sock)
 	return 0;
 }
 
+/* Poll all open connections. Returns bit 0 set if there was read or write
+   activity, bit 1 set if there was a pending write. Returns 0 if nothing
+   is happening. */
 int conn_poll(void)
 {
 	int i;
@@ -349,9 +363,9 @@ int conn_poll(void)
 	/* Write any data waiting to be sent */
 	for (i = 0; i < MAXCONNS; i++) {
 		if (conns[i].state == WRITE) {
-			activity = 1;
+			activity |= 2;
 			if (conns[i].tcp) {
-				tcp_write(&(conns[i]));
+				activity |= tcp_write(&(conns[i]));
 			} else {
 				udp_write(&(conns[i]));
 			}
