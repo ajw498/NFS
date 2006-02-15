@@ -76,8 +76,8 @@ static struct export *parse_line(char *line, struct pool *pool)
 	export->ro = 1;
 	export->matchuid = 1;
 	export->uid = 0;
-	export->matchuid = 1;
-	export->uid = 0;
+	export->matchgid = 1;
+	export->gid = 0;
 	export->imagefs = 0;
 	export->defaultfiletype = 0xFFF;
 	export->xyzext = NEEDED;
@@ -131,10 +131,10 @@ static struct export *parse_line(char *line, struct pool *pool)
 		} else if (CHECK("ro")) {
 			export->ro = 1;
 		} else if (CHECK("uid") && opt[3] == '=') {
-			export->matchuid = 1;
+			export->matchuid = 0;
 			export->uid = atoi(opt + 4);
 		} else if (CHECK("gid") && opt[3] == '=') {
-			export->matchgid = 1;
+			export->matchgid = 0;
 			export->gid = atoi(opt + 4);
 		} else if (CHECK("udpsize") && opt[7] == '=') {
 			export->udpsize = atoi(opt + 8);
@@ -250,6 +250,9 @@ enum nstat fh_to_path(char *fhandle, int fhandlelen, char **path, struct server_
 	}
 
 	if ((conn->host & conn->export->mask) != conn->export->host) return NFSERR_ACCES;
+
+	if (conn->export->matchuid == 0) conn->uid = conn->export->uid;
+	if (conn->export->matchgid == 0) conn->gid = conn->export->gid;
 
 	if (extendedfh) {
 		char *dest;

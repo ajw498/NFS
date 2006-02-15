@@ -96,12 +96,24 @@ void request_decode(struct server_conn *conn)
 
 		init_output(conn);
 
-		/* Get uid/gid ? */
-	/*	if (conn->auth) {
-			call_header.body.u.cbody.cred.flavor = AUTH_UNIX;
-			call_header.body.u.cbody.cred.body.size = conn->authsize;
-			call_header.body.u.cbody.cred.body.data = conn->auth;
-		} */
+		/* Get the uid and gid */
+		if (call_header.body.u.cbody.cred.flavor == AUTH_UNIX) {
+			char *oldibuf = ibuf;
+			char *oldibufend = ibufend;
+			struct auth_unix auth;
+
+			ibuf = call_header.body.u.cbody.cred.body.data;
+			ibufend = ibuf + call_header.body.u.cbody.cred.body.size;
+			process_struct_auth_unix(INPUT, auth, 0);
+			ibuf = oldibuf;
+			ibufend = oldibufend;
+
+			conn->uid = auth.uid;
+			conn->gid = auth.gid;
+		} else {
+			conn->uid = 0;
+			conn->gid = 0;
+		}
 
 		if (logging) syslogf(LOGNAME, LOG_ACCESS, "Access: xid %x prog %d vers %d proc %d",
 		                     call_header.xid, call_header.body.u.cbody.prog,
