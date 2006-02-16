@@ -144,28 +144,37 @@ static void close_conn(struct server_conn *conn)
 static int udp_read(void)
 {
 	int i;
+	int activity = 0;
+	int active = 0;
 
-	for (i = 0; i < MAXCONNS; i++) {
-		if (conns[i].state == IDLE) break;
-	}
-	if (i == MAXCONNS) return 0;
+	do {
 
-	conns[i].hostaddrlen = sizeof(struct sockaddr);
-	conns[i].requestlen = recvfrom(udpsock, conns[i].request, BUFFERSIZE, 0, (struct sockaddr *)&(conns[i].hostaddr), &(conns[i].hostaddrlen));
+		for (i = 0; i < MAXCONNS; i++) {
+			if (conns[i].state == IDLE) break;
+		}
+		if (i == MAXCONNS) return activity;
 
-	if (conns[i].requestlen > 0) {
-		conns[i].state = DECODE;
-		conns[i].socket = udpsock;
-		conns[i].tcp = 0;
-		conns[i].time = now;
-		conns[i].suppressreply = 0;
-		conns[i].host = conns[i].hostaddr.sin_addr.s_addr;
-		return 1;
-	} else if (conns[i].requestlen == -1 && errno != EWOULDBLOCK) {
-		syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",xstrerror(errno));
-		close_conn(&(conns[i]));
-	}
-	return 0;
+		conns[i].hostaddrlen = sizeof(struct sockaddr);
+		conns[i].requestlen = recvfrom(udpsock, conns[i].request, BUFFERSIZE, 0, (struct sockaddr *)&(conns[i].hostaddr), &(conns[i].hostaddrlen));
+
+		active = 0;
+		if (conns[i].requestlen > 0) {
+			conns[i].state = DECODE;
+			conns[i].socket = udpsock;
+			conns[i].tcp = 0;
+			conns[i].time = now;
+			conns[i].suppressreply = 0;
+			conns[i].host = conns[i].hostaddr.sin_addr.s_addr;
+			activity |= 1;
+			active = 1;
+		} else if (conns[i].requestlen == -1 && errno != EWOULDBLOCK) {
+			syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",xstrerror(errno));
+			close_conn(&(conns[i]));
+			return activity;
+		}
+	} while (active);
+
+	return activity;
 }
 
 static void udp_write(struct server_conn *conn)
