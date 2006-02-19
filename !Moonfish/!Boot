@@ -1,0 +1,8 @@
+|
+|    $Id$
+|    $URL$
+|
+
+Set Moonfish$Dir <Obey$Dir>
+
+IconSprites <Moonfish$Dir>.!Sprites

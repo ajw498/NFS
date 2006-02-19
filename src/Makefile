@@ -33,6 +33,7 @@ MODULE = -mmodule
 
 LINK = gcc -mlibscl -mmodule
 
+CMHG = cmunge -32bit -tgcc
 else
 
 LIBS := $(LIBS) C:o.stubs
@@ -44,6 +45,8 @@ CFLAGS = -Wp $(INCLUDE) -fah -throwback -zpq262144 -IC: $(CFLAGSN)
 LINK = link -m 
 
 MODULE = -zM
+
+CMHG = cmhg
 
 endif
 
@@ -157,8 +160,8 @@ auto: ProcessSpec rpc-spec nfs2-spec nfs3-spec mount1-spec mount3-spec portmappe
 	perl ProcessSpec mount3 mount3-spec
 	perl ProcessSpec portmapper portmapper-spec
 	perl ProcessSpec pcnfsd pcnfsd-spec
-	cmhg  -throwback sunfish.cmhg -o sunfishhdr.o auto/sunfishdefs.h
-	cmhg  -throwback moonfish.cmhg -o moonfishhdr.o auto/moonfishdefs.h
+	$(CMHG) -throwback sunfish.cmhg -o sunfishhdr.o -d auto/sunfishdefs.h
+	$(CMHG) -throwback moonfish.cmhg -o moonfishhdr.o -d auto/moonfishdefs.h
 	touch auto
 
 
@@ -177,6 +180,10 @@ $(MOONFISHGENOBJS): auto
 	$(LINK) -o Sunfish $(SUNFISHOBJS) $(SUNFISHGENOBJS) $(SUNFISHDUALOBJS) $(ASMOBJS) $(COMMONOBJS) sunfishhdr.o $(MODLIBS)
 	mv Sunfish ../!Sunfish/Sunfish
 
+mff: ../!Moonfish/!RunImage
+
+../!Moonfish/!RunImage: moonfish-frontend.c auto
+	$(CC) $(CFLAGS) moonfish-frontend.c -o ../!Moonfish/!RunImage $(LIBS)
 
 
 Moonfish: $(MOONFISHOBJS) $(MOONFISHGENOBJS) $(COMMONOBJS) moonfish.o
