@@ -122,7 +122,7 @@ all: sunfish-stage1 moonfish-stage1
 
 sunfish: sunfish-stage1
 
-mf: moonfish-stage1
+moonfish: moonfish-stage1
 
 debug: auto
 	$(MAKE) debug-server $(EXTRATARGET)
@@ -138,7 +138,7 @@ ifeq (,$(findstring stage2,$(MAKECMDGOALS)))
 release: all
 endif
 
-.PHONY: sunfish sunfish-stage1 sunfish-stage2 moonfish-stage1 moonfish-stage2 clean all release gcc debug
+.PHONY: sunfish sunfish-stage1 sunfish-stage2 moonfish moonfish-stage1 moonfish-stage2 clean all release gcc debug
 
 sunfish-stage1: auto
 	$(MAKE) sunfish-stage2 $(EXTRATARGET)
@@ -148,7 +148,7 @@ moonfish-stage1: auto
 
 sunfish-stage2: ../!Sunfish/Sunfish ../!Sunfish/!RunImage
 
-moonfish-stage2: Moonfish
+moonfish-stage2: ../!Moonfish/Moonfish ../!Moonfish/!RunImage
 
 auto: ProcessSpec rpc-spec nfs2-spec nfs3-spec mount1-spec mount3-spec portmapper-spec pcnfsd-spec @.cmhg.sunfish @.cmhg.moonfish
 	mkdir -p auto
@@ -173,21 +173,20 @@ $(MOONFISHOBJS): auto $(MOONFISHOBJS:.o=.h)
 $(MOONFISHGENOBJS): auto 
 
 
-../!Sunfish/!RunImage: frontend.c auto
-	$(CC) $(CFLAGS) frontend.c -o ../!Sunfish/!RunImage $(LIBS)
+../!Sunfish/!RunImage: sunfish-frontend.c auto
+	$(CC) $(CFLAGS) sunfish-frontend.c -o ../!Sunfish/!RunImage $(LIBS)
 
 ../!Sunfish/Sunfish: $(SUNFISHOBJS) $(SUNFISHGENOBJS) $(SUNFISHDUALOBJS) $(ASMOBJS) $(COMMONOBJS)
 	$(LINK) -o Sunfish $(SUNFISHOBJS) $(SUNFISHGENOBJS) $(SUNFISHDUALOBJS) $(ASMOBJS) $(COMMONOBJS) sunfishhdr.o $(MODLIBS)
 	mv Sunfish ../!Sunfish/Sunfish
 
-mff: ../!Moonfish/!RunImage
-
 ../!Moonfish/!RunImage: moonfish-frontend.c auto
 	$(CC) $(CFLAGS) moonfish-frontend.c -o ../!Moonfish/!RunImage $(LIBS)
 
 
-Moonfish: $(MOONFISHOBJS) $(MOONFISHGENOBJS) $(COMMONOBJS) moonfish.o
+../!Moonfish/Moonfish: $(MOONFISHOBJS) $(MOONFISHGENOBJS) $(COMMONOBJS) moonfish.o
 	$(LINK) -o Moonfish $(MOONFISHOBJS) $(MOONFISHGENOBJS) $(COMMONOBJS) moonfish.o moonfishhdr.o $(MODLIBS)
+	mv Moonfish ../!Moonfish/Moonfish
 
 debug-server: $(MOONFISHOBJS) $(MOONFISHGENOBJS) $(COMMONOBJS) debug-server.o
 	$(CC) $(CFLAGS) $(MOONFISHOBJS) $(MOONFISHGENOBJS) $(COMMONOBJS) debug-server.o -o debug-server $(LIBS)
@@ -231,10 +230,12 @@ imageentry_common3.o: imageentry_common.c imageentry_common.h
 clean:
 	-rm -f ../!Sunfish/Sunfish
 	-rm -f ../!Sunfish/!RunImage
+	-rm -f ../!Moonfish/Moonfish
+	-rm -f ../!Moonfish/!RunImage
 	-rm -f $(MOONFISHOBJS) $(MOONFISHGENOBJS)
-	-rm -f debug-server.o moonfish.o moonfishhdr.o
 	-rm -f $(SUNFISHOBJS) $(SUNFISHGENOBJS) $(SUNFISHDUALOBJS)
-	-rm -f $(ASMOBJS) sunfishhdr.o frontend.o
+	-rm -f $(ASMOBJS) $(COMMONOBJS) 
+	-rm -f moonfishhdr.o moonfish.o sunfishhdr.o
+	-rm -f moonfish-frontend.o sunfish-frontend.o
 	-rm -rf auto
-	-rm -f Moonfish
-	-rm -f debug-server
+	-rm -f debug-server debug-server.o

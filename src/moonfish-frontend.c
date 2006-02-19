@@ -289,6 +289,11 @@ static osbool exports_save(bits event_code, toolbox_action *event, toolbox_block
 	}
 
 	fclose(file);
+
+	/* Reload the module so it rereads the new exports file */
+	system("RMKill Moonfish");
+	system("RMLoad <Moonfish$Dir>.Moonfish");
+
 	return 1;
 }
 
