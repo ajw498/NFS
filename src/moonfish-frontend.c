@@ -43,6 +43,7 @@
 #include "oslib/window.h"
 #include "oslib/iconbar.h"
 #include "oslib/proginfo.h"
+#include "oslib/quit.h"
 #include "oslib/scrolllist.h"
 
 #include "oslib/osfile.h"
@@ -115,7 +116,8 @@
 } while (0)
 
 #define error(x) do { \
-	os_error err = {1, x}; \
+	os_error err = {1, ""}; \
+	strcpy(err.errmess, x);\
 	xwimp_report_error(&err, 0, "Moonfish", NULL);\
 } while (0)
 
@@ -147,6 +149,10 @@ static int editingexport;
 static toolbox_o exportsid;
 static toolbox_o optionsid;
 static toolbox_o editid;
+static toolbox_o quitid;
+
+static int unsaveddata = 0;
+static int configureplugin = 0;
 
 
 static struct export *create_export(void)
@@ -289,6 +295,8 @@ static osbool exports_save(bits event_code, toolbox_action *event, toolbox_block
 	}
 
 	fclose(file);
+
+	unsaveddata = 0;
 
 	/* Reload the module so it rereads the new exports file */
 	system("RMKill Moonfish");
@@ -441,6 +449,8 @@ static osbool exports_delete(bits event_code, toolbox_action *event, toolbox_blo
 
 		E(xgadget_get_flags(0, exportsid, gadget_exports_DELETE, &flags));
 		E(xgadget_set_flags(0, exportsid, gadget_exports_DELETE, flags | gadget_FADED));
+
+		unsaveddata = 1;
 	}
 
 	return 1;
@@ -573,6 +583,8 @@ static osbool edit_set(bits event_code, toolbox_action *event, toolbox_block *id
 
 	E(xtoolbox_hide_object(0, editid));
 
+	unsaveddata = 1;
+
 	return 1;
 }
 
@@ -602,6 +614,7 @@ static osbool exports_show(bits event_code, toolbox_action *event, toolbox_block
 		E(xgadget_set_flags(0, exportsid, gadget_exports_DELETE, flags | gadget_FADED));
 
 		parse_exports_file();
+		unsaveddata = 0;
 
 		for (i = 0; i < numexports; i++) {
 			E(xscrolllist_add_item(0, exportsid, gadget_exports_LIST, exports[i]->directory, NULL, NULL, i));
@@ -627,6 +640,8 @@ static osbool exports_hide(bits event_code, toolbox_action *event, toolbox_block
 	}
 	numexports = 0;
 
+	if (configureplugin) exit(EXIT_SUCCESS);
+
 	return 1;
 }
 
@@ -647,17 +662,14 @@ static osbool autocreated(bits event_code, toolbox_action *event, toolbox_block 
 	UNUSED(event);
 	UNUSED(handle);
 
-	if (strcmp(event->data.created.name,"exports") == 0) {
-		exportsid = id_block->this_obj;
-	}
 	if (strcmp(event->data.created.name,"editexport") == 0) {
 		editid = id_block->this_obj;
-	}
-	if (strcmp(event->data.created.name,"options") == 0) {
+	} else if (strcmp(event->data.created.name,"options") == 0) {
 		optionsid = id_block->this_obj;
-	}
-	if (strcmp(event->data.created.name,"ProgInfo") == 0) {
+	} else if (strcmp(event->data.created.name,"ProgInfo") == 0) {
 		E(xproginfo_set_version(0, id_block->this_obj, Module_VersionString " (" Module_Date ")"));
+	} else if (strcmp(event->data.created.name,"Quit") == 0) {
+		quitid = id_block->this_obj;
 	}
 
 	return 1;
@@ -672,7 +684,114 @@ static osbool message_quit(wimp_message *message,void *handle)
 	return 1;
 }
 
-int main(void)
+static osbool message_data_load(wimp_message *message, void *handle)
+{
+	UNUSED(handle);
+
+	wimp_w window;
+
+	E(xwindow_get_wimp_handle(0, editid, &window));
+
+	if (message->data.data_xfer.w == window) {
+		char exportname[STRMAX];
+
+		E(xwritablefield_set_value(0, editid, gadget_edit_DIR, message->data.data_xfer.file_name));
+		E(xwritablefield_get_value(0, editid, gadget_edit_EXPORTNAME, exportname, STRMAX, NULL));
+		if (exportname[0] == '\0') {
+			char *dot;
+			dot = strrchr(message->data.data_xfer.file_name, '.');
+			if (dot) {
+				dot++;
+				E(xwritablefield_set_value(0, editid, gadget_edit_EXPORTNAME, dot));
+			}
+		}
+
+		message->your_ref = message->my_ref;
+		message->action = message_DATA_LOAD_ACK;
+
+		E(xwimp_send_message(wimp_USER_MESSAGE, message, message->sender));
+	}
+
+	return 1;
+}
+
+static int plugindescriptor;
+static wimp_t quitsender;
+
+static osbool message_plugin_quit(wimp_message *message, void *handle)
+{
+	UNUSED(handle);
+
+	toolbox_info info;
+
+	E(xtoolbox_get_object_info(0, editid, &info));
+	if (configureplugin && (unsaveddata || ((info & toolbox_INFO_SHOWING) == 1))) {
+		plugindescriptor = message->data.reserved[0];
+		quitsender = message->sender;
+		message->your_ref = message->my_ref;
+		E(xwimp_send_message(wimp_USER_MESSAGE_ACKNOWLEDGE, message, message->sender));
+
+		/* Open quit dialogue */
+		E(xtoolbox_show_object(0, quitid, toolbox_POSITION_CENTRED, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
+	}
+
+	return 1;
+}
+
+
+static osbool quit_cancelled(bits event_code, toolbox_action *event, toolbox_block *id_block,void *handle)
+{
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(id_block);
+	UNUSED(handle);
+
+	if (configureplugin) {
+		wimp_message message;
+
+		message.your_ref = message.my_ref = 0;
+		message.size = 24;
+		message.action = 0x50D82;
+		message.data.reserved[0] = plugindescriptor;
+		E(xwimp_send_message(wimp_USER_MESSAGE, &message, 0));
+	}
+
+	return 1;
+}
+
+static osbool quit_quit(bits event_code, toolbox_action *event, toolbox_block *id_block,void *handle)
+{
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(id_block);
+	UNUSED(handle);
+
+	if (configureplugin) {
+		wimp_message message;
+
+		message.your_ref = message.my_ref = 0;
+		message.size = 24;
+		message.action = 0x50D81;
+		message.data.reserved[0] = plugindescriptor;
+		E(xwimp_send_message(wimp_USER_MESSAGE, &message, quitsender));
+	}
+
+	exit(EXIT_SUCCESS);
+
+	return 1;
+}
+
+static osbool message_plugin_openwindow(wimp_message *message, void *handle)
+{
+	UNUSED(handle);
+	UNUSED(message);
+
+	E(xtoolbox_show_object(0, exportsid, toolbox_POSITION_DEFAULT, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
+
+	return 1;
+}
+
+int main(int argc, char *argv[])
 {
 	int toolbox_events[] = {0};
 	int wimp_messages[] = {0};
@@ -706,11 +825,31 @@ int main(void)
 	event_register_toolbox_handler(event_ANY, event_options_SHOW, options_show, NULL);
 	event_register_toolbox_handler(event_ANY, event_options_SET, options_set, NULL);
 
+	event_register_toolbox_handler(event_ANY, action_QUIT_QUIT, quit_quit, NULL);
+	event_register_toolbox_handler(event_ANY, action_QUIT_DIALOGUE_COMPLETED, quit_cancelled, NULL);
+
 	event_register_toolbox_handler(event_ANY, action_OBJECT_AUTO_CREATED, autocreated, NULL);
 	event_register_message_handler(message_QUIT, message_quit, NULL);
+	event_register_message_handler(message_DATA_LOAD, message_data_load, NULL);
+	event_register_message_handler(0x50D80, message_plugin_quit, NULL);
+	event_register_message_handler(0x50D83, message_plugin_openwindow, NULL);
 
-	E(xtoolbox_create_object(0, (toolbox_id)"iconbar", &unmountedicon));
-	E(xtoolbox_show_object(0, unmountedicon, toolbox_POSITION_DEFAULT, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
+	E(xtoolbox_create_object(0, (toolbox_id)"exports", &exportsid));
+
+	if ((argc == 4) && (strcmp(argv[1], "-openat") == 0)) {
+		/* Opened as a configure plugin */
+		toolbox_position pos;
+
+		configureplugin = 1;
+		pos.top_left.x = atoi(argv[2]);
+		pos.top_left.y = atoi(argv[3]);
+
+		E(xtoolbox_show_object(0, exportsid, toolbox_POSITION_TOP_LEFT, &pos, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
+	} else {
+		/* Not a configure plugin, so create an iconbar icon */
+		E(xtoolbox_create_object(0, (toolbox_id)"iconbar", &unmountedicon));
+		E(xtoolbox_show_object(0, unmountedicon, toolbox_POSITION_DEFAULT, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
+	}
 
 	while (TRUE) event_poll(&event_code, &poll_block, 0);
 

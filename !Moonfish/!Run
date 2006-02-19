@@ -30,4 +30,4 @@ RMEnsure Internet 5.00 Error Moonfish requires the Internet module 5.00 or later
 RMEnsure Moonfish RMLoad <Moonfish$Dir>.Moonfish
 
 Wimpslot -min 50k -max 50k
-Run <Moonfish$Dir>.!RunImage
+Run <Moonfish$Dir>.!RunImage %*0

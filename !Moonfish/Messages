@@ -1,1 +1,4 @@
 _TaskName:Moonfish
+_ConfigText:Moonfish
+_ConfigHelp:Click SELECT to open the Moonfish NFS server configuration window.
+_ConfigSprite:!moonfish
