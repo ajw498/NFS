@@ -77,6 +77,7 @@
 #define gadget_exports_EDIT   0xE
 #define gadget_exports_DELETE 0xF
 #define gadget_exports_LIST   0xC
+#define gadget_exports_AUTOLOAD 0x12
 
 #define gadget_edit_DIR        0x17
 #define gadget_edit_EXPORTNAME 0x1
@@ -120,6 +121,8 @@
 	strcpy(err.errmess, x);\
 	xwimp_report_error(&err, 0, "Moonfish", NULL);\
 } while (0)
+
+#define AUTOLOADPATH "<Boot$ToBeTasks>.Moonfish"
 
 #define STRMAX 256
 
@@ -302,6 +305,31 @@ static osbool exports_save(bits event_code, toolbox_action *event, toolbox_block
 	system("RMKill Moonfish");
 	system("RMLoad <Moonfish$Dir>.Moonfish");
 
+	if (configureplugin) {
+		osbool autoload;
+		fileswitch_object_type type;
+
+		E(xoptionbutton_get_state(0, exportsid, gadget_exports_AUTOLOAD, &autoload));
+
+		if (xosfile_read_no_path(AUTOLOADPATH, &type, NULL, NULL, NULL, NULL)) {
+			type = fileswitch_NOT_FOUND;
+		}
+		if (autoload && type == fileswitch_NOT_FOUND) {
+			/* Create */
+			file = fopen(AUTOLOADPATH, "w");
+			if (file == NULL) {
+				xwimp_report_error((os_error*)_kernel_last_oserror(),0,"Moonfish",NULL);
+				return 1;
+			}
+			fprintf(file, "|Auto created by Moonfish\nIFThere <Moonfish$Dir>.Moonfish RMLoad <Moonfish$Dir>.Moonfish\n");
+			fclose(file);
+			xosfile_set_type(AUTOLOADPATH, 0xFEB);
+		} else if (!autoload && type == fileswitch_IS_FILE) {
+			/* Remove */
+			xosfile_delete(AUTOLOADPATH, &type, NULL, NULL, NULL, NULL);
+		}
+
+	}
 	return 1;
 }
 
@@ -603,6 +631,18 @@ static osbool exports_show(bits event_code, toolbox_action *event, toolbox_block
 	if ((info & toolbox_INFO_SHOWING) == 0) {
 
 		E(xscrolllist_delete_items(0, exportsid, gadget_exports_LIST, 0, MAX_EXPORTS));
+
+		if (configureplugin) {
+			fileswitch_object_type type;
+
+			E(xgadget_get_flags(0, exportsid, gadget_exports_AUTOLOAD, &flags));
+			E(xgadget_set_flags(0, exportsid, gadget_exports_AUTOLOAD, flags & ~gadget_FADED));
+
+			if ((xosfile_read_no_path(AUTOLOADPATH, &type, NULL, NULL, NULL, NULL) == NULL) && (type == fileswitch_IS_FILE)) {
+				E(xoptionbutton_set_state(0, exportsid, gadget_exports_AUTOLOAD, 1));
+			}
+
+		}
 
 		E(xgadget_get_flags(0, exportsid, gadget_exports_ADD, &flags));
 		E(xgadget_set_flags(0, exportsid, gadget_exports_ADD, flags & ~gadget_FADED));
