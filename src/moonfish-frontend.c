@@ -124,6 +124,8 @@
 
 #define AUTOLOADPATH "<Boot$ToBeTasks>.Moonfish"
 
+#define PLUGINDESCRIPTOR 0x50DBF
+
 #define STRMAX 256
 
 struct export {
@@ -156,6 +158,7 @@ static toolbox_o quitid;
 
 static int unsaveddata = 0;
 static int configureplugin = 0;
+static wimp_t quitsender;
 
 
 static struct export *create_export(void)
@@ -755,9 +758,6 @@ static osbool message_data_load(wimp_message *message, void *handle)
 	return 1;
 }
 
-static int plugindescriptor;
-static wimp_t quitsender;
-
 static osbool message_plugin_quit(wimp_message *message, void *handle)
 {
 	UNUSED(handle);
@@ -766,13 +766,14 @@ static osbool message_plugin_quit(wimp_message *message, void *handle)
 
 	E(xtoolbox_get_object_info(0, editid, &info));
 	if (configureplugin && (unsaveddata || ((info & toolbox_INFO_SHOWING) == 1))) {
-		plugindescriptor = message->data.reserved[0];
-		quitsender = message->sender;
-		message->your_ref = message->my_ref;
-		E(xwimp_send_message(wimp_USER_MESSAGE_ACKNOWLEDGE, message, message->sender));
+		if (*((int *)message->data.reserved) == PLUGINDESCRIPTOR) {
+			quitsender = message->sender;
+			message->your_ref = message->my_ref;
+			E(xwimp_send_message(wimp_USER_MESSAGE_ACKNOWLEDGE, message, message->sender));
 
-		/* Open quit dialogue */
-		E(xtoolbox_show_object(0, quitid, toolbox_POSITION_CENTRED, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
+			/* Open quit dialogue */
+			E(xtoolbox_show_object(0, quitid, toolbox_POSITION_CENTRED, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
+		}
 	}
 
 	return 1;
@@ -792,7 +793,7 @@ static osbool quit_cancelled(bits event_code, toolbox_action *event, toolbox_blo
 		message.your_ref = message.my_ref = 0;
 		message.size = 24;
 		message.action = 0x50D82;
-		message.data.reserved[0] = plugindescriptor;
+		*((int *)message.data.reserved) = PLUGINDESCRIPTOR;
 		E(xwimp_send_message(wimp_USER_MESSAGE, &message, 0));
 	}
 
@@ -812,7 +813,7 @@ static osbool quit_quit(bits event_code, toolbox_action *event, toolbox_block *i
 		message.your_ref = message.my_ref = 0;
 		message.size = 24;
 		message.action = 0x50D81;
-		message.data.reserved[0] = plugindescriptor;
+		*((int *)message.data.reserved) = PLUGINDESCRIPTOR;
 		E(xwimp_send_message(wimp_USER_MESSAGE, &message, quitsender));
 	}
 
@@ -840,6 +841,7 @@ int main(int argc, char *argv[])
 	messagetrans_control_block messages;
 	toolbox_block id_block;
 	toolbox_o unmountedicon;
+	int i;
 
 	E(xtoolbox_initialise(0, 310, (wimp_message_list*)wimp_messages,
 							(toolbox_action_list*)toolbox_events,
@@ -876,16 +878,20 @@ int main(int argc, char *argv[])
 
 	E(xtoolbox_create_object(0, (toolbox_id)"exports", &exportsid));
 
-	if ((argc == 4) && (strcmp(argv[1], "-openat") == 0)) {
-		/* Opened as a configure plugin */
-		toolbox_position pos;
+	for (i = 1; i < argc - 2; i++) {
+		if (strcmp(argv[i], "-openat") == 0) {
+			/* Opened as a configure plugin */
+			toolbox_position pos;
 
-		configureplugin = 1;
-		pos.top_left.x = atoi(argv[2]);
-		pos.top_left.y = atoi(argv[3]);
+			configureplugin = 1;
+			pos.top_left.x = atoi(argv[i + 1]);
+			pos.top_left.y = atoi(argv[i + 2]);
 
-		E(xtoolbox_show_object(0, exportsid, toolbox_POSITION_TOP_LEFT, &pos, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
-	} else {
+			E(xtoolbox_show_object(0, exportsid, toolbox_POSITION_TOP_LEFT, &pos, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
+		}
+	}
+
+	if (!configureplugin) {
 		/* Not a configure plugin, so create an iconbar icon */
 		E(xtoolbox_create_object(0, (toolbox_id)"iconbar", &unmountedicon));
 		E(xtoolbox_show_object(0, unmountedicon, toolbox_POSITION_DEFAULT, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
