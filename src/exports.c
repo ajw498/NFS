@@ -243,7 +243,7 @@ enum nstat fh_to_path(char *fhandle, int fhandlelen, char **path, struct server_
 
 	if (conn->export == NULL) {
 		conn->export = conn->exports;
-		while ((conn->export->exportnum != exportnum) && conn->export) {
+		while (conn->export && (conn->export->exportnum != exportnum)) {
 			conn->export = conn->export->next;
 		}
 		if (conn->export == NULL) return NFSERR_STALE;

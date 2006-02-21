@@ -402,7 +402,8 @@ int conn_init(void)
 
 	UR(gpool = pinit(NULL));
 
-	UR(exports = parse_exports_file(gpool));
+	/* Don't quit if the exports file can't be read */
+	exports = parse_exports_file(gpool);
 
 	for (i = 0; i < MAXCONNS; i++) {
 		conns[i].state = IDLE;
