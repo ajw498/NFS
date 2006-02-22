@@ -166,6 +166,9 @@ Hard links, symbolic links, devices and other non regular files are not supporte
 <p>
 Currently up to 5 simultaneous requests are supported. When using UDP, the requests from different client machines can be interleaved and so there is no limit on the number of simultaneous clients than can connect (although there will of course be a practical limit arising from the speed of the server and network bandwidth). However, if using TCP then the connection is retained between requests, and so only 5 clients may be connected at once, and if more try to connect then they will be ignored until one of the connections is closed or times out. Please let me know if this issue is a real problem, and I may try to improve it.
 <p>
+The code is currently optimised for performance of the file transfers, at the expense of slowing the desktop down when large transfers are taking place. If there is demand I may add an option to try an keep the desktop more responsive, although this would of course reduce the speed of file transfers.
+<p>
+
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="recompiling">Recompiling</a></font></h2>
 </td></tr></table>
