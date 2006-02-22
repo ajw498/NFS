@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	Functions to implement decoding of recieved RPC calls.
 

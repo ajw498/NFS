@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 
 	Copyright (C) 2006 Alex Waugh

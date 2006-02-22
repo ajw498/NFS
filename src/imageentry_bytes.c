@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	Routines for ImageEntry_GetBytes and ImageEntry_PutBytes
 

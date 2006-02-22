@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	Server connection handling code.
 

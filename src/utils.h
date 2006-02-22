@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	Common bits for all entry points
 */

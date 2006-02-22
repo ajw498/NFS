@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	Common utility routines independant of NFS version
 

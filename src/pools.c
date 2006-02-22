@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	Memory pool allocation routines
 

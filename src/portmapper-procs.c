@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	Portmapper procedures
 

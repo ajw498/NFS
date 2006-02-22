@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	Functions to implement RPC calling. All network access is done in this file.
 

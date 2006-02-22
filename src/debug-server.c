@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	Prototype server code that can run in a taskwindow rather than as a module.
 

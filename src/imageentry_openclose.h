@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	Routines for ImageEntry_Open/Close
 */

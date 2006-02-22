@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	NFSv2 procedures
 

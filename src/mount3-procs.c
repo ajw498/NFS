@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	Mount v3 procedures
 

@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	Common routines shared between entry points
 

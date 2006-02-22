@@ -1,6 +1,5 @@
 ;
 ;    $Id$
-;    $URL$
 ;
 ;    Allow any pending callbacks to trigger by calling a SWI from user mode
 ;    This is unfortunatly necessary because the internet stack will not always

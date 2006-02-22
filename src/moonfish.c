@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	Main module entry points.
 

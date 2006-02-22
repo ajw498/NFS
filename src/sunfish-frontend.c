@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	Frontend for creating mount files
 

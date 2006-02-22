@@ -1,6 +1,5 @@
 #
 #    $Id$
-#    $URL$
 #
 
 INCLUDE = -ITCPIPLibs: -IOSLibSupport: -IOSLib: -Iauto -I.

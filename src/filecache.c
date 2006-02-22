@@ -1,6 +1,5 @@
 /*
 	$Id$
-	$URL$
 
 	Caching of file handles, and read/write buffers
 

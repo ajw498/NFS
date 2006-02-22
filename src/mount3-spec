@@ -1,6 +1,5 @@
 /*
 	$Id: mount-spec 58 2003-10-14 19:32:25Z ajw $
-	$URL: http://svn/NFS/trunk/!Sunfish/mount-spec $
 
 	XDR Specification for the MOUNT V3 protocol.
 	See RFC 1813 for more details.

@@ -1,6 +1,5 @@
 /*
 	$Id: nfs-spec 95 2003-11-02 22:41:17Z ajw $
-	$URL: http://svn/NFS/trunk/!Sunfish/nfs-spec $
 
 	XDR Specification for the NFS V3 protocol.
 	See RFC 1813 for more details.
