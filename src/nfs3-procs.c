@@ -96,7 +96,7 @@ static void parse_fattr(char *path, int type, int load, int exec, int len, int a
 	loadexec_to_timeval(load, exec, &(fattr->mtime));
 }
 
-static enum nstat get_fattr(char *path, int filetype, struct fattr *fattr, struct server_conn *conn)
+static enum nstat get_fattr(char *path, int filetype, struct fattr *fattr, int *access, struct server_conn *conn)
 {
 	unsigned int type;
 	unsigned int load;
@@ -127,6 +127,11 @@ static enum nstat get_fattr(char *path, int filetype, struct fattr *fattr, struc
 		OR(_swix(OS_Word, _INR(0, 1), 14, block));
 		exec = block[0] & 0xFFFFFFC0;
 		load = (load & 0xFFFFFF00) | (block[1] & 0xFF);
+	}
+
+	if (access && (type == OBJ_FILE)) {
+		if ((attr & 0x1) == 0) *access &= ~ACCESS3_READ;
+		if ((attr & 0x2) == 0) *access &= ~(ACCESS3_MODIFY | ACCESS3_EXTEND);
 	}
 
 	parse_fattr(path, type, load, exec, len, attr, fattr, conn);
@@ -200,7 +205,7 @@ enum accept_stat NFSPROC3_GETATTR(struct GETATTR3args *args, struct GETATTR3res 
 	char *path;
 
 	NF(nfs3fh_to_path(&(args->object), &path, conn));
-	NF(get_fattr(path, -1, &(res->u.resok.obj_attributes), conn));
+	NF(get_fattr(path, -1, &(res->u.resok.obj_attributes), NULL, conn));
 
 failure:
 	return SUCCESS;
@@ -231,7 +236,7 @@ enum accept_stat NFSPROC3_LOOKUP(struct diropargs *args, struct diropres *res, s
 	NF(diropargs_to_path(args, &path, &filetype, conn));
 	NF(path_to_nfs3fh(path, &(res->u.diropok.file), conn));
 	res->u.diropok.obj_attributes.attributes_follow = TRUE;
-	NF(get_fattr(path, filetype, &(res->u.diropok.obj_attributes.u.attributes), conn));
+	NF(get_fattr(path, filetype, &(res->u.diropok.obj_attributes.u.attributes), NULL, conn));
 	res->u.diropok.dir_attributes.attributes_follow = FALSE;
 
 	return SUCCESS;
@@ -247,10 +252,10 @@ enum accept_stat NFSPROC3_ACCESS(struct ACCESS3args *args, struct ACCESS3res *re
 	char *path;
 
 	NF(nfs3fh_to_path(&(args->object), &path, conn));
-	res->u.resok.obj_attributes.attributes_follow = TRUE;
-	NF(get_fattr(path, -1, &(res->u.resok.obj_attributes.u.attributes), conn));
 	res->u.resok.access = args->access & 0x1F;
-	if (conn->export->ro) res->u.resok.access &= 0x3;
+	if (conn->export->ro) res->u.resok.access &= ACCESS3_READ | ACCESS3_LOOKUP;
+	res->u.resok.obj_attributes.attributes_follow = TRUE;
+	NF(get_fattr(path, -1, &(res->u.resok.obj_attributes.u.attributes), &(res->u.resok.access), conn));
 
 	return SUCCESS;
 
@@ -374,7 +379,7 @@ enum accept_stat NFSPROC3_CREATE(struct createargs *args, struct createres *res,
 	res->u.diropok.obj.handle_follows = TRUE;
 	NF(path_to_nfs3fh(path, &(res->u.diropok.obj.u.handle), conn));
 	res->u.diropok.obj_attributes.attributes_follow = TRUE;
-	NF(get_fattr(path, -1, &(res->u.diropok.obj_attributes.u.attributes), conn));
+	NF(get_fattr(path, -1, &(res->u.diropok.obj_attributes.u.attributes), NULL, conn));
 	res->u.diropok.dir_wcc.before.attributes_follow = FALSE;
 	res->u.diropok.dir_wcc.after.attributes_follow = FALSE;
 
@@ -400,7 +405,7 @@ enum accept_stat NFSPROC3_MKDIR(struct mkdirargs *args, struct createres *res, s
 	res->u.diropok.obj.handle_follows = TRUE;
 	NF(path_to_nfs3fh(path, &(res->u.diropok.obj.u.handle), conn));
 	res->u.diropok.obj_attributes.attributes_follow = TRUE;
-	NF(get_fattr(path, -1, &(res->u.diropok.obj_attributes.u.attributes), conn));
+	NF(get_fattr(path, -1, &(res->u.diropok.obj_attributes.u.attributes), NULL, conn));
 	res->u.diropok.dir_wcc.before.attributes_follow = FALSE;
 	res->u.diropok.dir_wcc.after.attributes_follow = FALSE;
 
@@ -686,7 +691,7 @@ enum accept_stat NFSPROC3_FSSTAT(struct FSSTAT3args *args, struct FSSTAT3res *re
 
 	NF(nfs3fh_to_path(&(args->fsroot), &path, conn));
 	res->u.resok.obj_attributes.attributes_follow = TRUE;
-	NF(get_fattr(path, -1, &(res->u.resok.obj_attributes.u.attributes), conn));
+	NF(get_fattr(path, -1, &(res->u.resok.obj_attributes.u.attributes), NULL, conn));
 
 	if (_swix(OS_FSControl, _INR(0,1) | _OUTR(0,1) | _OUTR(3,4), 55, path, &freelo, &freehi, &sizelo, &sizehi)) {
 		OF(_swix(OS_FSControl, _INR(0,1) | _OUT(0) | _OUT(2), 49, path, &freelo, &sizelo));
@@ -716,7 +721,7 @@ enum accept_stat NFSPROC3_FSINFO(struct fsinfoargs *args, struct fsinfores *res,
 
 	NF(nfs3fh_to_path(&(args->fsroot), &path, conn));
 	res->u.resok.obj_attributes.attributes_follow = TRUE;
-	NF(get_fattr(path, -1, &(res->u.resok.obj_attributes.u.attributes), conn));
+	NF(get_fattr(path, -1, &(res->u.resok.obj_attributes.u.attributes), NULL, conn));
 	res->u.resok.rtmax = conn->tcp ? MAX_DATABUFFER : conn->export->udpsize;
 	res->u.resok.rtpref = res->u.resok.rtmax;
 	res->u.resok.rtmult = 4096;
@@ -743,7 +748,7 @@ enum accept_stat NFSPROC3_PATHCONF(struct PATHCONF3args *args, struct PATHCONF3r
 
 	NF(nfs3fh_to_path(&(args->object), &path, conn));
 	res->u.resok.obj_attributes.attributes_follow = TRUE;
-	NF(get_fattr(path, -1, &(res->u.resok.obj_attributes.u.attributes), conn));
+	NF(get_fattr(path, -1, &(res->u.resok.obj_attributes.u.attributes), NULL, conn));
 	res->u.resok.linkmax = 1;
 	res->u.resok.name_max = MAX_PATHNAME;
 	res->u.resok.no_trunc = TRUE;

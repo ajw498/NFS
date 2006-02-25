@@ -91,6 +91,7 @@ enum nstat oserr_to_nfserr(int errnum)
 	case 0x117c6: return NFSERR_NOSPC;
 	case 0x80344a: return NFSERR_ROFS;
 	case 0xb0: return NFSERR_XDEV;
+	case 0xc1: return NFSERR_ACCES;
 	}
 	return NFSERR_IO;
 }
