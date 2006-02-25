@@ -80,18 +80,20 @@ _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 	return NULL;
 }
 
+/* Prevent reentrancy */
+static volatile int ref = 0;
+
 _kernel_oserror *callback_handler(_kernel_swi_regs *r, void *pw)
 {
 	int delay;
 	int activity;
 
 	(void)r;
-	(void)pw;
 
-	/* Repeatedly poll while there is data being read or written */
-	do {
-		activity = conn_poll();
-	} while (activity & 1);
+	if (ref) return NULL;
+	ref++;
+
+	activity = conn_poll();
 
 	if (activity) {
 		/* If there was activity or there is still data waiting to
@@ -105,6 +107,8 @@ _kernel_oserror *callback_handler(_kernel_swi_regs *r, void *pw)
 	ER(_swix(OS_RemoveTickerEvent, _INR(0,1), callevery, pw));
 	ER(_swix(OS_CallAfter, _INR(0,2), delay, callevery, pw));
 
+	ref--;
+
 	return NULL;
 }
 
@@ -112,7 +116,7 @@ _kernel_oserror *callevery_handler(_kernel_swi_regs *r, void *pw)
 {
 	(void)r;
 
-	_swix(OS_AddCallBack, _INR(0,1), callback, pw);
+	if (ref == 0) _swix(OS_AddCallBack, _INR(0,1), callback, pw);
 
 	return NULL;
 }
@@ -121,7 +125,19 @@ int internet_event_handler(_kernel_swi_regs *r, void *pw)
 {
 	if ((r->r[0] == Internet_Event) && (r->r[1] == Socket_Async_Event)) {
 		if (conn_validsocket(r->r[2])) {
-			_swix(OS_AddCallBack, _INR(0,1), callback, pw);
+			/* This originally set a callback to do the work, as
+			   that seemed the right thing to do from reading the
+			   PRMs, and this gave better desktop responsiveness
+			   and (bizarrely) was marginally faster.
+			   However for some reason it seemed to trigger a
+			   memory leak in the system heap which would
+			   eventually bring the machine to its knees.
+			   So it is now called directly. Allegedly the internet
+			   stack does all its processing from a callback anyway
+			   so it is safe to call non-reentrant SWIs etc.
+			   Sigh. It would be nice if all this was actually
+			   documented though rather than having to guess... */
+			callback_handler(r, pw);
 			return 0;
 		}
 	} else if ((r->r[0] == Internet_Event) && (r->r[1] == Socket_Broken_Event)) {
