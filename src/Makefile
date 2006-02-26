@@ -32,7 +32,9 @@ MODULE = -mmodule
 
 LINK = gcc -mlibscl -mmodule
 
-CMHG = cmunge -32bit -tgcc
+#CMHG = cmunge -32bit -tgcc
+CMHG = cmhg
+
 else
 
 LIBS := $(LIBS) C:o.stubs
