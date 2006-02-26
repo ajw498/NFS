@@ -158,11 +158,13 @@ If you discover a bug, please report it to <a href="mailto:alex@alexwaugh.com">m
 <p>
 Each file should have a unique ID associated with it (the inode on a Unix system), but RISC OS does not provide a method for generating this, therefore it is calculated as a hash of the filename. While this will be unique in most cases, it is possible for two files to end up with the same ID. This could be an issue if a client relies on the uniqueness of the ID, but it has not yet been observed as a problem in practice.
 <p>
-NFS refers to files by an NFS filehandle, and Moonfish must be able to map an NFS filehandle onto a RISC OS filename. For filenames that are less than 64 characters (or 32 characters in NFS2) this is easy as the filename can be stored fully in the filehandle. However for filenames longer than this, Moonfish must maintain a cache of the mappings from filehandle to filename. Therefore if you access lots of different files with long filenames then this cache will grow and use more memory. The format of the cache imposes a limit on the number of directory levels supported (30 for NFS2, 62 for NFS3) but this is unlikely to be an issue.
+NFS refers to files by an NFS filehandle, and Moonfish must be able to map an NFS filehandle onto a RISC OS filename. For filenames that are less than 64 characters (or 32 characters in NFS2) this is easy as the filename can be stored fully in the filehandle. However for filenames longer than this, Moonfish must maintain a cache of the mappings from filehandle to filename. Therefore if you access lots of different files with long filenames then this cache will grow and use more memory. The format of the cache imposes a limit on the number of directory levels supported (30 for NFS2, 62 for NFS3) but this is unlikely to be an issue. Adding NFS4 support to Moonfish may help reduce or eliminate this problem.
 <p>
 NFS filehandles are supposed to be persistant, so if the server is restarted or rebooted the filehandle should remain valid and point to the same file. However because Moonfish maintains the cache to map filehandles to filenames, this cache is lost when Moonfish exits, and so the mapping is no longer valid. Most clients will reread the filehandle if it becomes stale, and so can cope with this situation.
 <p>
 Hard links, symbolic links, devices and other non regular files are not supported, as they don't map to RISC OS functionality.
+<p>
+File permissions behave slightly differently from Unix systems. For example if the client copies a file that has only user read permission onto the export then it may create the file with user read permission, then write to the file. On some systems this write is allowed, but with RISC OS the write is faulted because the file does not have user write permissions.  
 <p>
 Currently up to 5 simultaneous requests are supported. When using UDP, the requests from different client machines can be interleaved and so there is no limit on the number of simultaneous clients than can connect (although there will of course be a practical limit arising from the speed of the server and network bandwidth). However, if using TCP then the connection is retained between requests, and so only 5 clients may be connected at once, and if more try to connect then they will be ignored until one of the connections is closed or times out. Please let me know if this issue is a real problem, and I may try to improve it.
 <p>
@@ -184,7 +186,7 @@ The makefile in the src directory has several targets:
 <li><code>make debug</code> - build a version that can run in a taskwindow instead of a module (you should make clean when swapping between this build and normal module builds).
 </ul>
 <p>
-It can take a long time to compile some of the nfs3 files will full optimisation (over 10 minutes on an Iyonix for some compiler versions).
+It can take a long time to compile some of the nfs3 files with full optimisation (over 10 minutes on an Iyonix for some compiler versions).
 <p>
 
 </body>
