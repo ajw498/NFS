@@ -1,0 +1,65 @@
+#!/usr/bin/perl -w
+#
+#  $Id$
+#
+
+open(CHANGELOG, "<../!Sunfish/ChangeLog");
+$line = <CHANGELOG>;
+$line =~ /^v(.\...).*/;
+$version = $1;
+close CHANGELOG;
+
+open(CHANGELOG, "<../src/cmhg/sunfish");
+while (<CHANGELOG>) {
+  if (/help\-string\: Sunfish (.\...) .*/) {
+    die "Sunfish version mismatch" if ($version ne $1);
+  }
+}
+close CHANGELOG;
+
+open(OUT,">Sunfish/RiscPkg/Control");
+
+print OUT qq{
+Package: Sunfish
+Priority: Standard
+Section: Misc
+Maintainer: Alex Waugh <alex\@alexwaugh.com>
+Standards-Version: 0.1.0
+Source: Sunfish
+Version: $version
+Licence: Free
+Description: An NFS client.
+};
+
+close OUT;
+
+open(CHANGELOG, "<../!Moonfish/ChangeLog");
+$line = <CHANGELOG>;
+$line =~ /^v(.\...).*/;
+$version = $1;
+close CHANGELOG;
+
+open(CHANGELOG,"<../src/cmhg/moonfish");
+while (<CHANGELOG>) {
+  if (/help\-string\: Moonfish (.\...) .*/) {
+    die "Moonfish version mismatch" if ($version ne $1);
+  }
+}
+close CHANGELOG;
+
+open(OUT,">Moonfish/RiscPkg/Control");
+
+print OUT qq{
+Package: Moonfish
+Priority: Standard
+Section: Misc
+Maintainer: Alex Waugh <alex\@alexwaugh.com>
+Standards-Version: 0.1.0
+Source: Moonfish
+Version: $version
+Licence: Free
+Description: An NFS server.
+};
+
+close OUT;
+
