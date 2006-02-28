@@ -8,7 +8,7 @@ all sunfish moonfish:
 
 release: clean
 	zip -r -9 -I source/zip !Sunfish !Moonfish COPYING Makefile Regression src pkg -x *CVS* *svn*
-	$(MAKE) -C src
+	$(MAKE) -C src release
 	zip -r -9 -I sunfish/zip !Sunfish COPYING -x *CVS* *svn*
 	zip -r -9 -I moonfish/zip !Moonfish COPYING -x *CVS* *svn*
 	$(MAKE) -C pkg
