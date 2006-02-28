@@ -323,7 +323,7 @@ static osbool exports_save(bits event_code, toolbox_action *event, toolbox_block
 				xwimp_report_error((os_error*)_kernel_last_oserror(),0,"Moonfish",NULL);
 				return 1;
 			}
-			fprintf(file, "|Auto created by Moonfish\nIFThere <Moonfish$Dir>.Moonfish RMLoad <Moonfish$Dir>.Moonfish\n");
+			fprintf(file, "|Auto created by Moonfish\nIFThere <Moonfish$Dir>.Moonfish then RMLoad <Moonfish$Dir>.Moonfish\n");
 			fclose(file);
 			xosfile_set_type(AUTOLOADPATH, 0xFEB);
 		} else if (!autoload && type == fileswitch_IS_FILE) {

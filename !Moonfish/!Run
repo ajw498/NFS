@@ -24,7 +24,7 @@ RMEnsure Iconbar    1.20 Error Toolbox modules out of date (Moonfish requires Ic
 RMEnsure ProgInfo   0.00 RMLoad System:Modules.Toolbox.ProgInfo
 RMEnsure ProgInfo   0.18 Error Toolbox modules out of date (Moonfish requires ProgInfo 0.18 or later)
 RMEnsure DCS        0.00 RMLoad System:Modules.Toolbox.DCS_Quit
-RMEnsure DCS        1.08 Error Toolbox modules out of date (Moonfish requires DCS_Quit 1.08 or later)
+RMEnsure DCS        1.12 Error Toolbox modules out of date (Moonfish requires DCS_Quit 1.12 or later)
 
 RMEnsure Internet 5.00 Error Moonfish requires the Internet module 5.00 or later
 

@@ -1,3 +1,7 @@
+v1.01 28-Feb-06
+Ensure the DCS_Quit toolbox module is loaded correctly.
+Fix script generated for auto load feature.
+
 v1.00 26-Feb-06
 First Release.
 
