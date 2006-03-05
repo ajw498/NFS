@@ -28,6 +28,9 @@ my $name = "";
 my $spectype = shift @ARGV;
 my $firstcase;
 my $llcount = 0;
+my $prevstate = "none";
+my $unionfields = 0;
+my $rettype = ($spectype eq "nfs4") ? "nstat" : "enum accept_stat";
 
 open(PROCS,  ">auto/$spectype-process1.h") or die $^E;
 open(UNIONS, ">auto/$spectype-process2.h") or die $^E;
@@ -62,7 +65,7 @@ print CALLSH  "#include \"rpc.h\"\n";
 print RECV   $header;
 print RECV   "#include \"$spectype-decode.h\"\n";
 print RECV   "#include \"$spectype-decode2.h\"\n";
-print RECV   "enum accept_stat ${spectype}_decode(int proc, struct server_conn *conn)\n{\nswitch (proc) {\n";
+print RECV   "$rettype ${spectype}_decode(int proc, struct server_conn *conn)\n{\nswitch (proc) {\n";
 
 print RECV2   $header;
 print RECV2   "#include \"$spectype-procs.h\"\n\n";
@@ -79,7 +82,7 @@ print RECVPROCSH  "#include \"request-decode.h\"\n";
 print RECVH   $header;
 print RECVH  "#include \"rpc-structs.h\"\n\n";
 print RECVH  "#include \"request-decode.h\"\n";
-print RECVH  "enum accept_stat ${spectype}_decode(int proc, struct server_conn *conn);\n\n";
+print RECVH  "$rettype ${spectype}_decode(int proc, struct server_conn *conn);\n\n";
 
 print RECV2H   $header;
 print RECV2H  "#include <sys/types.h>\n";
@@ -93,7 +96,11 @@ $line = 0;
 while (<>) {
   $line++;
   #print "$state - $_";
-  if ($state =~ /(struct)|(union)|(linklist)/) {
+  if (/\/\*[^\*\/]*$/) {
+    print STRUCTS;
+    $prevstate = $state;
+    $state = "comment";
+  } elsif ($state =~ /(struct)|(union)|(linklist)/) {
     if (/\}\;*/) {
       if ($state eq "union") {
         print STRUCTS "} u;\n} $name;\n";
@@ -114,7 +121,7 @@ while (<>) {
       $state = "none";
     } elsif (/\}.+\;/) {
       die "struct/union instance: $_";
-    } elsif (/case (\w*)\:/) {
+    } elsif (/case +(\w*)\: *$/) {
       print UNIONS "break;\\\n" if (!$firstcase);
       print UNIONS "case $1:\\\n";
       print UNIONS "process_union_body_${name}_$1(input,${structbase}u);\\\n";
@@ -122,6 +129,7 @@ while (<>) {
       print PROCS "#ifndef process_union_body_${name}_$1\n";
       print PROCS "#define process_union_body_${name}_$1(input,structbase) do {\\\n";
       $firstcase = 0;
+      $unionfields = 0;
     } elsif (/default\:/) {
       print UNIONS "break;\\\n" if (!$firstcase);
       print UNIONS "default:\\\n";
@@ -130,8 +138,18 @@ while (<>) {
       print PROCS "#ifndef process_union_body_${name}_default\n";
       print PROCS "#define process_union_body_${name}_default(input,structbase) do {\\\n";
       $firstcase = 0;
+      $unionfields = 0;
     } elsif (/\s*void\;/) {
       # do nothing
+    } elsif (/(\s*)(\w+(\s+\w+)*) +(\w*)\[(\w+)\]\;/) {
+      my $ws = $1;
+      my $arraytype = $2;
+      my $opaquename = $4;
+      my $maxsize = $5;
+      $arraytype =~ s/opaque/char/;
+      print STRUCTS "${ws}$arraytype ${opaquename}[$maxsize];\n";
+      print PROCS "process_fixedarray(input,${structbase}$opaquename,$arraytype,$maxsize);\\\n";
+      die if ($unionfields++ > 1 and $state eq "union");
     } elsif (/(\s*)(\w+(\s+\w+)*) +(\w*)\<(\w*)\>\;/) {
       my $ws = $1;
       my $arraytype = $2;
@@ -141,6 +159,7 @@ while (<>) {
       $maxsize = "OPAQUE_MAX" if ($maxsize =~ /^$/);
       print STRUCTS "${ws}struct {$arraytype *data; unsigned size;} $opaquename;\n";
       print PROCS "process_array(input,${structbase}$opaquename,$arraytype,$maxsize);\\\n";
+      die if ($unionfields++ > 1 and $state eq "union");
     } elsif (/(\s*)(\w+(\s+\w+)*)\s+(\*?)(\w+)\;$/) {
       my $ws = $1;
       my $elementtype = $2;
@@ -154,6 +173,7 @@ while (<>) {
         print STRUCTS "${ws}$elementtype $element;\n";
         print PROCS "process_$elementtype(input, ${structbase}$element);\\\n";
       }
+      die if ($unionfields++ > 1 and $state eq "union");
     } elsif (/\/\*.*\*\//) {
       print STRUCTS;
     } elsif (/^\s*$/) {
@@ -171,7 +191,7 @@ while (<>) {
     }
   } elsif ($state eq "comment") {
     print STRUCTS;
-    $state = "none" if (/\*\//);
+    $state = $prevstate if (/\*\//);
   } elsif ($state eq "none") {
 
     if (/^\s*enum *(\w*)/) {
@@ -239,7 +259,7 @@ while (<>) {
       print PROCS "#ifndef process_$2\n";
       print PROCS "#define process_$2(input, structbase) process_$1(input, structbase)\n\n";
       print PROCS "#endif\n";
-    } elsif (/^\s*const (\w+) *= *(\w+)\;/) {
+    } elsif (/^\s*const +(\w+) *= *(\w+)\;/) {
       print STRUCTS "#ifndef $1\n";
       print STRUCTS "#define $1 $2\n";
       print STRUCTS "#endif\n";
@@ -290,7 +310,7 @@ while (<>) {
       print CALLS "buffer_overflow:\n";
       print CALLS "\treturn rpc_buffer_overflow();\n}\n";
 
-      print RECVPROCSH "enum accept_stat $procname(";
+      print RECVPROCSH "$rettype $procname(";
       print RECVPROCSH "$args *args, " unless ($args eq "void");
       print RECVPROCSH "$res *res, " unless ($res eq "void");
       print RECVPROCSH "struct server_conn *conn";
@@ -298,10 +318,10 @@ while (<>) {
 
       print RECV "case $procno: return decode_$procname(conn);\n";
 
-      print RECV2H "enum accept_stat decode_$procname(struct server_conn *conn);\n\n";
+      print RECV2H "$rettype decode_$procname(struct server_conn *conn);\n\n";
 
-      print RECV2 "enum accept_stat decode_$procname(struct server_conn *conn)\n{\n";
-      print RECV2 "\tenum accept_stat success;\n";
+      print RECV2 "$rettype decode_$procname(struct server_conn *conn)\n{\n";
+      print RECV2 "\t$rettype success;\n";
       print RECV2 "\t$args args;\n" unless ($args eq "void");
       print RECV2 "\t$res res;\n" unless ($res eq "void");
       print RECV2 "\tprocess_$args(INPUT, args);\n";
@@ -309,15 +329,15 @@ while (<>) {
       print RECV2 "&args, " unless ($args eq "void");
       print RECV2 "&res, " unless ($res eq "void");
       print RECV2 "conn);\n";
-      print RECV2 "\tif (success == SUCCESS) {\n";
+      print RECV2 "\tif (success == SUCCESS) {\n" unless ($procname =~ /^NFS4/);
       print RECV2 "\t\tprocess_$res(OUTPUT, res";
       print RECV2 ");\n";
-      print RECV2 "\t}\n\treturn success;\nbuffer_overflow:\n\treturn GARBAGE_ARGS;\n}\n\n";
+      print RECV2 "\t}\n" unless ($procname =~ /^NFS4/);
+      print RECV2 "\treturn success;\nbuffer_overflow:\n\treturn ";
+      print RECV2 ($procname =~ /^NFS4/) ? "NFSERR_BADXDR;" : "GARBAGE_ARGS;";
+      print RECV2 "\n}\n\n";
     } elsif (/\/\*.*\*\//) {
       print STRUCTS;
-    } elsif (/\/\*/) {
-      print STRUCTS;
-      $state = "comment";
     } elsif (/^\s*$/) {
       print STRUCTS;
     } else {
@@ -331,5 +351,8 @@ while (<>) {
 print CALLSH  "#endif\n\n";
 print STRUCTS "#endif\n\n";
 
-print RECV   "}\nreturn PROC_UNAVAIL;\n}\n";
-
+if ($spectype eq "nfs4") {
+  print RECV   "}\nreturn NFSERR_OP_ILLEGAL;\n}\n";
+} else {
+  print RECV   "}\nreturn PROC_UNAVAIL;\n}\n";
+}

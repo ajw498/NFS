@@ -248,7 +248,7 @@ enum nstat fh_to_path(char *fhandle, int fhandlelen, char **path, struct server_
 		if (conn->export == NULL) return NFSERR_STALE;
 	}
 
-	if ((conn->host & conn->export->mask) != conn->export->host) return NFSERR_ACCES;
+	if ((conn->host & conn->export->mask) != conn->export->host) return NFSERR_ACCESS;
 
 	if (conn->export->matchuid == 0) conn->uid = conn->export->uid;
 	if (conn->export->matchgid == 0) conn->gid = conn->export->gid;

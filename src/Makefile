@@ -68,6 +68,7 @@ mount1-procs.o \
 mount3-procs.o \
 nfs2-procs.o \
 nfs3-procs.o \
+nfs4-procs.o \
 portmapper-decode.o \
 portmapper-decode2.o \
 mount1-decode.o \
@@ -77,7 +78,9 @@ mount3-decode2.o \
 nfs2-decode.o \
 nfs2-decode2.o \
 nfs3-decode.o \
-nfs3-decode2.o
+nfs3-decode2.o \
+nfs4-decode.o \
+nfs4-decode2.o
 
 SUNFISHOBJS = \
 rpc.o \
@@ -151,14 +154,15 @@ sunfish-stage2: ../!Sunfish/Sunfish ../!Sunfish/!RunImage
 
 moonfish-stage2: ../!Moonfish/Moonfish ../!Moonfish/!RunImage
 
-auto: ProcessSpec rpc-spec nfs2-spec nfs3-spec mount1-spec mount3-spec portmapper-spec pcnfsd-spec @.cmhg.sunfish @.cmhg.moonfish
+auto: ProcessSpec rpc-spec nfs2-spec nfs3-spec nfs4-spec mount1-spec mount3-spec portmapper-spec pcnfsd-spec @.cmhg.sunfish @.cmhg.moonfish
 	mkdir -p auto
 	mkdir -p o
 	perl ProcessSpec rpc rpc-spec
-	perl ProcessSpec nfs2 nfs2-spec
 	perl ProcessSpec mount1 mount1-spec
-	perl ProcessSpec nfs3 nfs3-spec
 	perl ProcessSpec mount3 mount3-spec
+	perl ProcessSpec nfs2 nfs2-spec
+	perl ProcessSpec nfs3 nfs3-spec
+	perl ProcessSpec nfs4 nfs4-spec
 	perl ProcessSpec portmapper portmapper-spec
 	perl ProcessSpec pcnfsd pcnfsd-spec
 	$(CMHG) -throwback sunfish.cmhg -o sunfishhdr.o -d auto/sunfishdefs.h

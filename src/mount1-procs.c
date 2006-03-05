@@ -50,7 +50,7 @@ enum accept_stat MNTPROC_MNT(mountargs *args, struct mountres *res, struct serve
 			char *fh = res->u.mountinfo.fhandle.data;
 
 			if ((conn->host & export->mask) != export->host) {
-				res->status = NFSERR_ACCES;
+				res->status = NFSERR_ACCESS;
 				return SUCCESS;
 			}
 			conn->export = export;

@@ -67,6 +67,8 @@ static struct server_conn conns[MAXCONNS];
 
 static int udpsock = -1;
 static int tcpsock = -1;
+static int nfsudpsock = -1;
+static int nfstcpsock = -1;
 
 /* Global memory pool */
 static struct pool *gpool = NULL;
@@ -140,7 +142,7 @@ static void close_conn(struct server_conn *conn)
 }
 
 /* Returns non-zero when data was read */
-static int udp_read(void)
+static int udp_read(int sock)
 {
 	int i;
 	int activity = 0;
@@ -154,12 +156,12 @@ static int udp_read(void)
 		if (i == MAXCONNS) return activity;
 
 		conns[i].hostaddrlen = sizeof(struct sockaddr);
-		conns[i].requestlen = recvfrom(udpsock, conns[i].request, BUFFERSIZE, 0, (struct sockaddr *)&(conns[i].hostaddr), &(conns[i].hostaddrlen));
+		conns[i].requestlen = recvfrom(sock, conns[i].request, BUFFERSIZE, 0, (struct sockaddr *)&(conns[i].hostaddr), &(conns[i].hostaddrlen));
 
 		active = 0;
 		if (conns[i].requestlen > 0) {
 			conns[i].state = DECODE;
-			conns[i].socket = udpsock;
+			conns[i].socket = sock;
 			conns[i].tcp = 0;
 			conns[i].time = now;
 			conns[i].suppressreply = 0;
@@ -180,7 +182,7 @@ static void udp_write(struct server_conn *conn)
 {
 	if (conn->replylen > 0) {
 		int len;
-		len = sendto(udpsock, conn->reply, conn->replylen, 0, (struct sockaddr *)&(conn->hostaddr), conn->hostaddrlen);
+		len = sendto(conn->socket, conn->reply, conn->replylen, 0, (struct sockaddr *)&(conn->hostaddr), conn->hostaddrlen);
 		if (len > 0) {
 			conn->replysent = conn->replylen;
 		} else if (len == -1 && errno != EWOULDBLOCK) {
@@ -194,7 +196,7 @@ static void udp_write(struct server_conn *conn)
 }
 
 /* Returns non-zero when data was read */
-static int tcp_accept(void)
+static int tcp_accept(int sock)
 {
 	int i;
 
@@ -206,7 +208,7 @@ static int tcp_accept(void)
 	if (i == MAXCONNS) return 0;
 
 	conns[i].hostaddrlen = sizeof(struct sockaddr);
-	conns[i].socket = accept(tcpsock, (struct sockaddr *)&(conns[i].hostaddr), &(conns[i].hostaddrlen));
+	conns[i].socket = accept(sock, (struct sockaddr *)&(conns[i].hostaddr), &(conns[i].hostaddrlen));
 	if (conns[i].socket != -1) {
 		conns[i].state = READLEN;
 		conns[i].tcp = 1;
@@ -304,6 +306,7 @@ int conn_validsocket(int sock)
 	int i;
 
 	if (sock == udpsock || sock == tcpsock) return 1;
+	if (sock == nfsudpsock || sock == nfstcpsock) return 1;
 
 	for (i = 0; i < MAXCONNS; i++) {
 		if (conns[i].tcp && (conns[i].state != IDLE)) {
@@ -344,8 +347,10 @@ int conn_poll(void)
 	int activity = 0;
 
 	/* Accept any new connections */
-	activity |= udp_read();
-	activity |= tcp_accept();
+	activity |= udp_read(udpsock);
+	activity |= udp_read(nfsudpsock);
+	activity |= tcp_accept(tcpsock);
+	activity |= tcp_accept(nfstcpsock);
 
 	/* Read any data waiting to be read */
 	for (i = 0; i < MAXCONNS; i++) {
@@ -393,8 +398,6 @@ int conn_poll(void)
 	return activity;
 }
 
-
-
 int conn_init(void)
 {
 	int i;
@@ -416,27 +419,39 @@ int conn_init(void)
 
 	filecache_init();
 
-	BR(portmapper_set(100000, 2, IPPROTO_UDP, 111, portmapper_decode, gpool));
-	BR(portmapper_set(100000, 2, IPPROTO_TCP, 111, portmapper_decode, gpool));
-	BR(portmapper_set(100005, 1, IPPROTO_UDP, 111, mount1_decode, gpool));
-	BR(portmapper_set(100005, 1, IPPROTO_TCP, 111, mount1_decode, gpool));
-	BR(portmapper_set(100005, 3, IPPROTO_UDP, 111, mount3_decode, gpool));
-	BR(portmapper_set(100005, 3, IPPROTO_TCP, 111, mount3_decode, gpool));
-	BR(portmapper_set(100003, 2, IPPROTO_UDP, 111, nfs2_decode, gpool));
-	BR(portmapper_set(100003, 2, IPPROTO_TCP, 111, nfs2_decode, gpool));
-	BR(portmapper_set(100003, 3, IPPROTO_UDP, 111, nfs3_decode, gpool));
-	BR(portmapper_set(100003, 3, IPPROTO_TCP, 111, nfs3_decode, gpool));
+	BR(portmapper_set(100000, 2, IPPROTO_UDP, 111,  portmapper_decode, gpool));
+	BR(portmapper_set(100000, 2, IPPROTO_TCP, 111,  portmapper_decode, gpool));
+	BR(portmapper_set(100005, 1, IPPROTO_UDP, 111,  mount1_decode, gpool));
+	BR(portmapper_set(100005, 1, IPPROTO_TCP, 111,  mount1_decode, gpool));
+	BR(portmapper_set(100005, 3, IPPROTO_UDP, 111,  mount3_decode, gpool));
+	BR(portmapper_set(100005, 3, IPPROTO_TCP, 111,  mount3_decode, gpool));
+	BR(portmapper_set(100003, 2, IPPROTO_UDP, 2049, nfs2_decode, gpool));
+	BR(portmapper_set(100003, 2, IPPROTO_TCP, 2049, nfs2_decode, gpool));
+	BR(portmapper_set(100003, 3, IPPROTO_UDP, 2049, nfs3_decode, gpool));
+	BR(portmapper_set(100003, 3, IPPROTO_TCP, 2049, nfs3_decode, gpool));
+	BR(portmapper_set(100003, 4, IPPROTO_UDP, 2049, nfs4_decode_proc, gpool));
+	BR(portmapper_set(100003, 4, IPPROTO_TCP, 2049, nfs4_decode_proc, gpool));
 
 	udpsock = conn_create_socket(111, 0);
-	if (udpsock == -1) return 1;
+	if (udpsock == -1) goto error;
 
-	tcpsock = conn_create_socket(111,1);
-	if (tcpsock == -1) {
-		close(udpsock);
-		return 1;
-	}
+	tcpsock = conn_create_socket(111, 1);
+	if (tcpsock == -1) goto error;
+
+	nfsudpsock = conn_create_socket(2049, 0);
+	if (nfsudpsock == -1) goto error;
+
+	nfstcpsock = conn_create_socket(2049, 1);
+	if (nfstcpsock == -1) goto error;
 
 	return 0;
+
+error:
+	if (udpsock != -1) close(udpsock);
+	if (tcpsock != -1) close(tcpsock);
+	if (nfsudpsock != -1) close(nfsudpsock);
+	if (nfstcpsock != -1) close(nfstcpsock);
+	return 1;
 }
 
 void conn_close(void)
@@ -453,6 +468,8 @@ void conn_close(void)
 
 	if (udpsock != -1) close(udpsock);
 	if (tcpsock != -1) close(tcpsock);
+	if (nfsudpsock != -1) close(nfsudpsock);
+	if (nfstcpsock != -1) close(nfstcpsock);
 
 	if (gpool) pfree(gpool);
 }
