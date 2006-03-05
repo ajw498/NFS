@@ -215,7 +215,7 @@ static os_error *create_auth(struct conn_info *conn)
 
 	obuf = conn->auth;
 	obufend = conn->auth + conn->authsize;
-	process_struct_auth_unix(0, auth_unix, 0);
+	process_auth_unix(0, auth_unix);
 	conn->authsize = obuf - conn->auth;
 
 buffer_overflow: /* Should never occur */
@@ -226,7 +226,7 @@ static os_error *getport(int program, int version, unsigned int *progport, struc
 {
 	struct mapping map = {program, version, IPPROTO_UDP, 0};
 	os_error *err;
-	int port;
+	unsigned port;
 
 	if (conn->tcp) map.prot = IPPROTO_TCP;
 

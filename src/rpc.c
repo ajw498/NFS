@@ -379,7 +379,7 @@ void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, s
 	fifo[head].xid = call_header.xid;
 	fifo[head].rx = NULL;
 
-	process_struct_rpc_msg(OUTPUT, call_header, 0);
+	process_rpc_msg(OUTPUT, call_header);
 
 buffer_overflow: /* Should be impossible, but prevent compiler complaining */
 	return;
@@ -450,7 +450,7 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 			recordmarker = 0x80000000 | (fifo[head].tx.len - 4);
 			obuf = fifo[head].tx.buffer;
 			obufend = obuf + 4;
-			process_int(OUTPUT, recordmarker, 0);
+			process_int(OUTPUT, recordmarker);
 		}
 
 		if (enablelog) logdata(0, fifo[head].tx.buffer, fifo[head].tx.len);
@@ -495,7 +495,7 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 				   we retransmitted because of timeouts) */
 				ibuf = buffers[readbuffer].buffer;
 				ibufend = ibuf + buffers[readbuffer].len;
-				process_int(INPUT, xid, 0);
+				process_int(INPUT, xid);
 
 				for (i = 0; i < FIFOSIZE; i++) {
 					if (xid == fifo[i].xid) {
@@ -537,7 +537,7 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 	/* Setup buffers and parse header */
 	ibuf = fifo[tail].rx->buffer;
 	ibufend = ibuf + fifo[tail].rx->len;
-	process_struct_rpc_msg(INPUT, reply_header, 0);
+	process_rpc_msg(INPUT, reply_header);
 
 	/* Check that the RPC completed successfully */
 	if (reply_header.body.mtype != REPLY) return gen_error(RPCERRBASE + 10, "Unexpected response (not an RPC reply)");

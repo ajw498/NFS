@@ -40,12 +40,16 @@ default:
     void;
 }
 
-typedef string dirpath<MNTPATHLEN>;
-typedef string name<MNTNAMLEN>;
+typedef opaque dirpath<MNTPATHLEN>;
+typedef opaque name<MNTNAMLEN>;
 
 void MNTPROC_NULL(void) = 0;
 
-mountres MNTPROC_MNT(dirpath) = 1;
+struct mountargs {
+        dirpath dirpath;
+};
+
+mountres MNTPROC_MNT(mountargs) = 1;
 
 struct *mountlist {
         name hostname;
@@ -59,7 +63,7 @@ struct mountlist2 {
 
 mountlist2 MNTPROC_DUMP(void) = 2;
 
-void MNTPROC_UMNT(dirpath) = 3;
+void MNTPROC_UMNT(mountargs) = 3;
 
 void MNTPROC_UMNTALL(void) = 4;
 

@@ -1,5 +1,5 @@
 /*
-	$Id: nfs-spec 95 2003-11-02 22:41:17Z ajw $
+	$Id$
 
 	XDR Specification for the NFS V3 protocol.
 	See RFC 1813 for more details.
@@ -29,9 +29,9 @@ const NFS3_WRITEVERFSIZE = 8;
 typedef uint64_t uint64;
 typedef int uint32;
 
-typedef string filename3<>;
+typedef opaque filename3<>;
 
-typedef string nfspath3<>;
+typedef opaque nfspath3<>;
 
 typedef uint64 fileid3;
 

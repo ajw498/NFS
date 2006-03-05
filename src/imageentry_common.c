@@ -117,7 +117,7 @@ static os_error *lookup_leafname(struct commonfh *dhandle, char *leafname, int l
 
 			if (!conn->casesensitive && direntry->name.size == leafnamelen) {
 				if (strcasecmp(direntry->name.data, leafname) == 0) {
-					*found = &(direntry->name);
+					*found = (struct opaque *)&(direntry->name);
 					return NULL;
 				}
 			}
@@ -131,12 +131,12 @@ static os_error *lookup_leafname(struct commonfh *dhandle, char *leafname, int l
 				     && isxdigit(direntry->name.data[leafnamelen + 3])) {
 					if (conn->casesensitive) {
 						if (strncmp(direntry->name.data, leafname, leafnamelen) == 0) {
-							*found = &(direntry->name);
+							*found = (struct opaque *)&(direntry->name);
 							return NULL;
 						}
 					} else {
 						if (strncasecmp(direntry->name.data, leafname, leafnamelen) == 0) {
-							*found = &(direntry->name);
+							*found = (struct opaque *)&(direntry->name);
 							return NULL;
 						}
 					}
@@ -178,7 +178,8 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 			return NULL;
 		}
 
-		lookupargs.name = *file;
+		lookupargs.name.data = file->data;
+		lookupargs.name.size = file->size;
 		memcpy(leafname, file->data, file->size);
 		*len = file->size;
 		leafname[*len] = '\0';

@@ -37,14 +37,14 @@ enum accept_stat MNTPROC_NULL(struct server_conn *conn)
 }
 
 
-enum accept_stat MNTPROC_MNT(string *args, struct mountres *res, struct server_conn *conn)
+enum accept_stat MNTPROC_MNT(mountargs *args, struct mountres *res, struct server_conn *conn)
 {
 	struct export *export;
 
 	export = conn->exports;
 
 	while (export) {
-		if (strncmp(export->exportname, args->data, args->size) == 0) {
+		if (strncmp(export->exportname, args->dirpath.data, args->dirpath.size) == 0) {
 			int i;
 			unsigned int fhsize = FHSIZE;
 			char *fh = res->u.mountinfo.fhandle.data;
@@ -102,13 +102,13 @@ enum accept_stat MNTPROC_DUMP(struct mountlist2 *res, struct server_conn *conn)
 	return SUCCESS;
 }
 
-enum accept_stat MNTPROC_UMNT(string *args, struct server_conn *conn)
+enum accept_stat MNTPROC_UMNT(struct mountargs *args, struct server_conn *conn)
 {
 	int i;
 	struct export *export = conn->exports;
 
 	while (export) {
-		if (strncmp(export->exportname, args->data, args->size) == 0) {
+		if (strncmp(export->exportname, args->dirpath.data, args->dirpath.size) == 0) {
 			for (i = 0; i < MAXHOSTS; i++) {
 				if (export->hosts[i] == conn->host) {
 					export->hosts[i] = 0;

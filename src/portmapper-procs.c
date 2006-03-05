@@ -142,7 +142,7 @@ enum accept_stat PMAPPROC_UNSET(struct mapping *args, enum bool *res, struct ser
 	return SUCCESS;
 }
 
-enum accept_stat PMAPPROC_GETPORT(struct mapping *args, int *res, struct server_conn *conn)
+enum accept_stat PMAPPROC_GETPORT(struct mapping *args, unsigned *res, struct server_conn *conn)
 {
 	struct program *program = programs;
 

@@ -23,14 +23,8 @@
 #    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 
-my @states;
 my $state = "none";
-my @names;
 my $name = "";
-my %types;
-my %typessize;
-my $nextunnamed = 1;
-my @unnamed;
 my $spectype = shift @ARGV;
 my $firstcase;
 my $llcount = 0;
@@ -92,18 +86,6 @@ print RECV2H  "#include <sys/types.h>\n";
 print RECV2H  "#include \"rpc-structs.h\"\n\n";
 print RECV2H  "#include \"serverconn.h\"\n\n";
 
-$types{"unsigned int"} = "int";
-$types{"uint32"} = "int";
-$types{"uint64"} = "uint64_t";
-$types{"unsigned"} = "int";
-$types{"int"} = "int";
-$types{"void"} = "void";
-$types{"bool"} = "enum";
-$typessize{"void"} = 0;
-$typessize{"int"} = 0;
-$typessize{"unsigned"} = 0;
-$typessize{"bool"} = "bool";
-
 $structbase = "structbase.";
 
 $line = 0;
@@ -114,10 +96,10 @@ while (<>) {
   if ($state =~ /(struct)|(union)|(linklist)/) {
     if (/\}\;*/) {
       if ($state eq "union") {
-        print STRUCTS "} u;\n};\n";
+        print STRUCTS "} u;\n} $name;\n";
         print UNIONS "}} while (0)\n\n";
       } elsif ($state eq "linklist") {
-        print STRUCTS "};\n";
+        print STRUCTS "} *$name;\n";
         print PROCS "ptr$llcount = &((*ptr$llcount)->next);\\\n";
         print PROCS "}\\\n";
         print PROCS "} while (opted);\\\n";
@@ -126,7 +108,7 @@ while (<>) {
         print PROCS "}\\\n";
         $structbase = "structbase.";
       } else {
-        print STRUCTS "};\n";
+        print STRUCTS "} $name;\n";
       }
       print PROCS "} while (0)\n#endif\n\n";
       $state = "none";
@@ -150,51 +132,27 @@ while (<>) {
       $firstcase = 0;
     } elsif (/\s*void\;/) {
       # do nothing
-    } elsif (/(.*)opaque +(\w*)\<(\w*)\>\;/) {
+    } elsif (/(\s*)(\w+(\s+\w+)*) +(\w*)\<(\w*)\>\;/) {
       my $ws = $1;
-      my $opaquename = $2;
-      my $maxsize = $3;
+      my $arraytype = $2;
+      my $opaquename = $4;
+      my $maxsize = $5;
+      $arraytype =~ s/opaque/char/;
       $maxsize = "OPAQUE_MAX" if ($maxsize =~ /^$/);
-      print STRUCTS "${ws}struct opaque $opaquename;\n";
-      print PROCS "process_opaque(input,${structbase}$opaquename,$maxsize);\\\n";
-    } elsif (/(.*)unsigned int (\w*)\<(\w*)\>\;/) {
-      my $ws = $1;
-      my $opaquename = $2;
-      my $maxsize = $3;
-      $maxsize = "OPAQUE_MAX" if ($maxsize =~ /^$/);
-      print STRUCTS "${ws}struct opaqueint $opaquename;\n";
-      print PROCS "process_opaqueint(input,${structbase}$opaquename,$maxsize);\\\n";
+      print STRUCTS "${ws}struct {$arraytype *data; unsigned size;} $opaquename;\n";
+      print PROCS "process_array(input,${structbase}$opaquename,$arraytype,$maxsize);\\\n";
     } elsif (/(\s*)(\w+(\s+\w+)*)\s+(\*?)(\w+)\;$/) {
       my $ws = $1;
       my $elementtype = $2;
-      my $ptr = $4;
       my $element = $5;
-      my $type = $types{$elementtype};
-      my $typesize = $typessize{$elementtype};
-      while ($type ne "int" and exists $types{$type}) {
-        $type = $types{$type};
-      }
-      die "Unknown type \"$elementtype\"\n" unless defined $type;
+
       die "next ptr not named next (line $line)\n" if ($elementtype eq $name and $element ne "next");
-      if ($type eq "linklist" and $element eq "next") {
-        print STRUCTS "${ws}struct $elementtype $ptr$element;\n";
-      } elsif ($type eq "struct" or $type eq "union" or $type eq "linklist") {
-        print STRUCTS "${ws}struct $elementtype $ptr$element;\n";
-        print PROCS "process_${type}_$elementtype(input, ${structbase}$element, $typesize);\\\n";
-      } elsif (($type eq "opaque") || ($type eq "string")) {
-        print STRUCTS "${ws}struct opaque $element;\n";
-        print PROCS "process_${type}(input, ${structbase}$element, $typesize);\\\n";
-      } elsif (($type eq "fixed_opaque") || ($type eq "fixed_string")) {
-        print STRUCTS "${ws}char $element\[$typesize\];\n";
-        print PROCS "process_${type}(input, ${structbase}$element, $typesize);\\\n";
+
+      if ($element eq "next") {
+        print STRUCTS "${ws}struct $elementtype *next;\n";
       } else {
-        if ($type eq "enum") {
-          print STRUCTS "${ws}enum $elementtype $element;\n";
-          print PROCS "process_enum(input,${structbase}$element, $elementtype);\\\n";
-        } else {
-          print STRUCTS "${ws}$elementtype $element;\n";
-          print PROCS "process_$type(input,${structbase}$element, 0);\\\n";
-        }
+        print STRUCTS "${ws}$elementtype $element;\n";
+        print PROCS "process_$elementtype(input, ${structbase}$element);\\\n";
       }
     } elsif (/\/\*.*\*\//) {
       print STRUCTS;
@@ -204,30 +162,33 @@ while (<>) {
       die "Unknown struct field (line $line): $_\n";
     }
   } elsif ($state eq "enum") {
-    print STRUCTS;
-    $state = "none" if (/\}\;/);
+    if (/\}\;/) {
+      $state = "none";
+      print STRUCTS "} $name;\n";
+      print PROCS "#define process_$name(input,structbase) process_enum(input,structbase, $name)\n\n";
+    } else {
+      print STRUCTS;
+    }
   } elsif ($state eq "comment") {
     print STRUCTS;
     $state = "none" if (/\*\//);
   } elsif ($state eq "none") {
 
     if (/^\s*enum *(\w*)/) {
-      print STRUCTS;
+      print STRUCTS "typedef $_";
       $name = $1;
-      $types{$name} = $state = "enum";
-      $typessize{$name} = $name;
+      $state = "enum";
     } elsif (/^\s*union *(\w*) *switch *\( *(\w*) *(\w*)\)/) {
       $name = $1;
-      $types{$name} = $state = "union";
-      $typessize{$name} = 0;
-      print STRUCTS "struct ${name} {\n";
+      $state = "union";
+      print STRUCTS "typedef struct ${name} {\n";
       print STRUCTS "enum " if ($2 ne "unsigned");
       print STRUCTS "$2 $3;\n";
       print STRUCTS "union {\n";
       $firstcase = 1;
-      print UNIONS "#define process_union_${name}(input,structbase, maxsize) do {\\\n";
+      print UNIONS "#define process_${name}(input,structbase) do {\\\n";
       if ($2 eq "unsigned") {
-        print UNIONS "process_int(input,${structbase}$3, 0);\\\n";
+        print UNIONS "process_int(input,${structbase}$3);\\\n";
       } else {
         print UNIONS "process_enum(input,${structbase}$3, $2);\\\n";
       }
@@ -235,19 +196,18 @@ while (<>) {
     } elsif (/^\s*struct *\*(\w*) /) {
       # Linked list
       $name = $1;
-      $types{$name} = $state = "linklist";
-      $typessize{$name} = 0;
+      $state = "linklist";
       $llcount++;
-      print STRUCTS "struct ${name} {\n";
-      print PROCS "#ifndef process_linklist_${name}\n";
-      print PROCS "#define process_linklist_${name}(input, structbase, maxsize) do {\\\n";
+      print STRUCTS "typedef struct ${name} {\n";
+      print PROCS "#ifndef process_${name}\n";
+      print PROCS "#define process_${name}(input, structbase) do {\\\n";
       print PROCS "struct $name **ptr$llcount = &structbase;\\\n";
       print PROCS "int opted = 0;\\\n";
       print PROCS "do {\\\n";
       print PROCS "if (!input) {\\\n";
       print PROCS "opted = (*ptr$llcount) != NULL;\\\n";
       print PROCS "}\\\n";
-      print PROCS "process_int(input, opted, 0);\\\n";
+      print PROCS "process_int(input, opted);\\\n";
       print PROCS "if (opted) {\\\n";
       print PROCS "if (input) {\\\n";
       print PROCS "*ptr$llcount = palloc(sizeof(struct $name), conn->pool);\\\n";
@@ -255,28 +215,30 @@ while (<>) {
       print PROCS "}\\\n";
       $structbase = "(*ptr$llcount)->";
     } elsif (/^\s*struct *(\w*) /) {
-      print STRUCTS;
+      print STRUCTS "typedef $_";
       $name = $1;
-      $types{$name} = $state = "struct";
-      $typessize{$name} = 0;
-      print PROCS "#ifndef process_struct_${name}\n";
-      print PROCS "#define process_struct_${name}(input,structbase, maxsize) do {\\\n";
+      $state = "struct";
+      print PROCS "#ifndef process_${name}\n";
+      print PROCS "#define process_${name}(input,structbase) do {\\\n";
     } elsif (/^\s*\#((define)|(ifndef)|(if)|(ifdef)|(endif)|(pragma))/) {
       print STRUCTS;
     } elsif (/^\s*typedef (.*) (\S+)\[(\w*)\]\;/) {
-      #print STRUCTS "typedef char $2\[$3\];" if ($1 eq "opaque");
-      #print STRUCTS;
-      $types{$2} = "fixed_$1";
-      $typessize{$2} = $3;
+      print STRUCTS;
+      print PROCS "#ifndef process_$2\n";
+      print PROCS "#define process_$2(input, structbase) process_fixedarray(input, structbase, $1, $3)\n\n";
+      print PROCS "#endif\n";
     } elsif (/^\s*typedef (.*) (\S+)\<(\w*)\>\;/) {
       my $size = $3;
       $size = "OPAQUE_MAX" if ($size eq "");
-      $types{$2} = $1;
-      $typessize{$2} = $size;
+      print STRUCTS "typedef struct $2 { $1 *data; unsigned size; } $2;\n";
+      print PROCS "#ifndef process_$2\n";
+      print PROCS "#define process_$2(input, structbase) process_array(input, structbase, $1,  $size)\n\n";
+      print PROCS "#endif\n";
     } elsif (/^\s*typedef (.*) (\S+)\;/) {
       print STRUCTS;
-      $types{$2} = $1;
-      $typessize{$2} = 0;
+      print PROCS "#ifndef process_$2\n";
+      print PROCS "#define process_$2(input, structbase) process_$1(input, structbase)\n\n";
+      print PROCS "#endif\n";
     } elsif (/^\s*const (\w+) *= *(\w+)\;/) {
       print STRUCTS "#ifndef $1\n";
       print STRUCTS "#define $1 $2\n";
@@ -287,32 +249,11 @@ while (<>) {
       my $args = $3;
       my $procno = $4;
       my $prog;
-      die "type $args not defined\n" if (!defined $types{$args});
-      die "type $res not defined\n" if (!defined $types{$res});
       my $proto = "\nos_error *$procname(";
       my $calltype = "TXBLOCKING";
-      my $argtype = "";
-      if (!($args =~ /^void$/)) {
-        if (($types{$args} =~ /(struct)|(union)|(linklist)/)) {
-          $argtype = "struct $args";
-        } elsif (($types{$args} =~ /enum/)) {
-          $argtype .= "enum $args";
-        } else {
-          $argtype = "$types{$args}";
-        }
-        $proto .= "$argtype *args, ";
-      }
-      my $restype = "";
-      if (!($res =~ /^void$/)) {
-        if (($types{$res} =~ /(struct)|(union)|(linklist)/)) {
-          $restype = "struct $res";
-        } elsif (($types{$res} =~ /enum/)) {
-          $restype = "enum $res";
-        } else {
-          $restype = "$types{$res}";
-        }
-        $proto .= "$restype *res, ";
-      }
+
+      $proto .= "$args *args, " unless ($args eq "void");
+      $proto .= "$res *res, " unless ($res eq "void");
       $proto .= "struct conn_info *conn";
       if ($procname =~ m/(WRITE)|(READ)$/) {
         $proto .= ", enum callctl calltype";
@@ -340,22 +281,18 @@ while (<>) {
       print CALLS  "$proto\n";
       print CALLS "{\n\tos_error *err;\n\n";
       print CALLS "\trpc_prepare_call($prog, $vers, $procno, conn);\n";
-      print CALLS "\tprocess_$types{$args}";
-      print CALLS "_$args" if (($types{$args} =~ /(struct)|(union)|(linklist)/));
-      print CALLS "(OUTPUT, (*args), $typessize{$args});\n";
+      print CALLS "\tprocess_$args(OUTPUT, (*args));\n";
       print CALLS "\terr = rpc_do_call(conn, $calltype);\n";
       print CALLS "\trpc_resetfifo();\n" if ($procname =~ m/UMNT/);
       print CALLS "\tif (err) return err;\n";
-      print CALLS "\tprocess_$types{$res}";
-      print CALLS "_${res}" if (($types{$res} =~ /(struct)|(union)|(linklist)/));
-      print CALLS "(INPUT, (*res), $typessize{$res});\n";
+      print CALLS "\tprocess_${res}(INPUT, (*res));\n";
       print CALLS "\treturn NULL;\n";
       print CALLS "buffer_overflow:\n";
       print CALLS "\treturn rpc_buffer_overflow();\n}\n";
 
       print RECVPROCSH "enum accept_stat $procname(";
-      print RECVPROCSH "$argtype *args, " if ($argtype ne "");
-      print RECVPROCSH "$restype *res, " if ($restype ne "");
+      print RECVPROCSH "$args *args, " unless ($args eq "void");
+      print RECVPROCSH "$res *res, " unless ($res eq "void");
       print RECVPROCSH "struct server_conn *conn";
       print RECVPROCSH ");\n\n";
 
@@ -365,22 +302,16 @@ while (<>) {
 
       print RECV2 "enum accept_stat decode_$procname(struct server_conn *conn)\n{\n";
       print RECV2 "\tenum accept_stat success;\n";
-      print RECV2 "\t$argtype args;\n" if ($argtype ne "");
-      print RECV2 "\t$restype res;\n" if ($restype ne "");
-      print RECV2 "\t$restype *res2 = &res;\n" if (($types{$res} =~ /linklist/));
-      print RECV2 "\tprocess_$types{$args}";
-      print RECV2 "_${args}" if (($types{$args} =~ /(struct)|(union)|(linklist)/));
-      print RECV2 "(INPUT, args, $typessize{$args});\n";
+      print RECV2 "\t$args args;\n" unless ($args eq "void");
+      print RECV2 "\t$res res;\n" unless ($res eq "void");
+      print RECV2 "\tprocess_$args(INPUT, args);\n";
       print RECV2 "\tsuccess = $procname(";
-      print RECV2 "&args, " if ($argtype ne "");
-      print RECV2 "&res, " if ($restype ne "");
+      print RECV2 "&args, " unless ($args eq "void");
+      print RECV2 "&res, " unless ($res eq "void");
       print RECV2 "conn);\n";
       print RECV2 "\tif (success == SUCCESS) {\n";
-      print RECV2 "\t\tprocess_$types{$res}";
-      print RECV2 "_$res" if (($types{$res} =~ /(struct)|(union)|(linklist)/));
-      print RECV2 "(OUTPUT, res";
-      print RECV2 "2" if (($types{$res} =~ /linklist/));
-      print RECV2 ", $typessize{$res});\n";
+      print RECV2 "\t\tprocess_$res(OUTPUT, res";
+      print RECV2 ");\n";
       print RECV2 "\t}\n\treturn success;\nbuffer_overflow:\n\treturn GARBAGE_ARGS;\n}\n\n";
     } elsif (/\/\*.*\*\//) {
       print STRUCTS;

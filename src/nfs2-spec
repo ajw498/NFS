@@ -74,42 +74,42 @@ struct nfs_fh {
 #define NTIMEVAL
 
 struct ntimeval {
-    unsigned int seconds;
-    unsigned int useconds;
+    unsigned seconds;
+    unsigned useconds;
 };
 
 #endif
 
 struct fattr {
     ftype        type;
-    unsigned int mode;
-    unsigned int nlink;
-    unsigned int uid;
-    unsigned int gid;
-    unsigned int size;
-    unsigned int blocksize;
-    unsigned int rdev;
-    unsigned int blocks;
+    unsigned mode;
+    unsigned nlink;
+    unsigned uid;
+    unsigned gid;
+    unsigned size;
+    unsigned blocksize;
+    unsigned rdev;
+    unsigned blocks;
 
-    unsigned int fsid;
-    unsigned int fileid;
+    unsigned fsid;
+    unsigned fileid;
     ntimeval      atime;
     ntimeval      mtime;
     ntimeval      ctime;
 };
 
 struct sattr {
-    unsigned int mode;
-    unsigned int uid;
-    unsigned int gid;
-    unsigned int size;
+    unsigned mode;
+    unsigned uid;
+    unsigned gid;
+    unsigned size;
     ntimeval      atime;
     ntimeval      mtime;
 };
 
-typedef string filename<MAXNAMLEN>;
+typedef opaque filename<MAXNAMLEN>;
 
-typedef string path<MAXPATHLEN>;
+typedef opaque path<MAXPATHLEN>;
 
 
 void NFSPROC_NULL(void) = 0;

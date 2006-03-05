@@ -1,5 +1,5 @@
 /*
-	$Id: mount-spec 58 2003-10-14 19:32:25Z ajw $
+	$Id$
 
 	XDR Specification for the MOUNT V3 protocol.
 	See RFC 1813 for more details.
@@ -23,8 +23,8 @@ struct nfs_fh {
 #endif
 
 /*typedef opaque fhandle3<FHSIZE3>;*/
-typedef string dirpath<MNTPATHLEN>;
-typedef string name<MNTNAMLEN>;
+typedef opaque dirpath<MNTPATHLEN>;
+typedef opaque name<MNTNAMLEN>;
 
 enum mountstat3 {
    MNT3_OK = 0,                 /* no error */
@@ -44,7 +44,7 @@ void MOUNTPROC3_NULL(void) = 0;
 
 struct mountres3_ok {
         nfs_fh fhandle;
-        unsigned int auth_flavours<>;
+        unsigned auth_flavours<>;
 };
 
 union mountres switch (mountstat3 status) {
@@ -54,7 +54,11 @@ default:
      void;
 };
 
-mountres MOUNTPROC3_MNT(dirpath) = 1;
+struct mountargs {
+        dirpath dirpath;
+};
+
+mountres MOUNTPROC3_MNT(mountargs) = 1;
 
 
 struct *mountlist {
@@ -70,7 +74,7 @@ struct mountlist2 {
 mountlist2 MOUNTPROC3_DUMP(void) = 2;
 
 
-void MOUNTPROC3_UMNT(dirpath) = 3;
+void MOUNTPROC3_UMNT(mountargs) = 3;
 
 void MOUNTPROC3_UMNTALL(void) = 4;
 

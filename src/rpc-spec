@@ -22,11 +22,11 @@ struct opaque_auth {
 };
 
 struct auth_unix {
-	unsigned int stamp;
+	unsigned stamp;
 	opaque machinename<255>;
-	unsigned int uid;
-	unsigned int gid;
-	unsigned int gids<16>;
+	unsigned uid;
+	unsigned gid;
+	unsigned gids<16>;
 };
 
 
@@ -62,18 +62,18 @@ enum auth_stat {
 };
 
 struct call_body {
-   unsigned int rpcvers;
-   unsigned int prog;
-   unsigned int vers;
-   unsigned int proc;
+   unsigned rpcvers;
+   unsigned prog;
+   unsigned vers;
+   unsigned proc;
    opaque_auth cred;
    opaque_auth verf;
    /* procedure specific parameters start here */
 };
 
 struct mismatch_info {
-   unsigned int low;
-   unsigned int high;
+   unsigned low;
+   unsigned high;
 };
 
 union reply_data switch (accept_stat stat) {
@@ -114,7 +114,7 @@ case REPLY:
 };
 
 struct rpc_msg {
-	unsigned int xid;
+	unsigned xid;
 	body body;
 };
 

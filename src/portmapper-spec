@@ -13,10 +13,10 @@
 const PMAP_PORT = 111;
 
 struct mapping {
-   unsigned int prog;
-   unsigned int vers;
-   unsigned int prot;
-   unsigned int port;
+   unsigned prog;
+   unsigned vers;
+   unsigned prot;
+   unsigned port;
 };
 
 struct *pmaplist {
@@ -29,14 +29,14 @@ struct pmaplist2 {
 };
 
 struct call_args {
-   unsigned int prog;
-   unsigned int vers;
-   unsigned int proc;
+   unsigned prog;
+   unsigned vers;
+   unsigned proc;
    opaque args<>;
 };
 
 struct call_result {
-   unsigned int port;
+   unsigned port;
    opaque res<>;
 };
 

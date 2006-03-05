@@ -57,11 +57,11 @@ struct dir_entry {
 
 os_error *ENTRYFUNC(func_closeimage) (struct conn_info *conn)
 {
-	string dir;
+	mountargs dir;
 	os_error *err;
 
-	dir.size = strlen(conn->export);
-	dir.data = conn->export;
+	dir.dirpath.size = strlen(conn->export);
+	dir.dirpath.data = conn->export;
 	err = MNTPROC(UMNT, (&dir, conn));
 	if (err && err != ERR_WOULDBLOCK && enablelog) log_error(err);
 
@@ -79,7 +79,7 @@ os_error *ENTRYFUNC(func_closeimage) (struct conn_info *conn)
 
 os_error *ENTRYFUNC(func_newimage_mount) (struct conn_info *conn)
 {
-	string dir;
+	mountargs dir;
 	struct mountres mountres;
 	os_error *err;
 #ifdef NFS3
@@ -88,8 +88,8 @@ os_error *ENTRYFUNC(func_newimage_mount) (struct conn_info *conn)
 #endif
 
 	/* Get a filehandle for the root directory */
-	dir.size = strlen(conn->export);
-	dir.data = conn->export;
+	dir.dirpath.size = strlen(conn->export);
+	dir.dirpath.data = conn->export;
 	err = MNTPROC(MNT, (&dir, &mountres, conn));
 	if (err) return err;
 	if (mountres.status != 0) {

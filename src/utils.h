@@ -150,7 +150,7 @@ struct file_handle {
 #ifndef NSTAT
 #define NSTAT
 
-enum nstat {
+typedef enum nstat {
    NFS_OK             = 0,
    NFSERR_PERM        = 1,
    NFSERR_NOENT       = 2,
@@ -180,16 +180,16 @@ enum nstat {
    NFSERR_SERVERFAULT = 10006,
    NFSERR_BADTYPE     = 10007,
    NFSERR_JUKEBOX     = 10008
-};
+} nstat;
 #endif
 
 #ifndef NTIMEVAL
 #define NTIMEVAL
 
-struct ntimeval {
+typedef struct ntimeval {
    unsigned int seconds;
    unsigned int nseconds;
-};
+} ntimeval;
 
 #endif
 

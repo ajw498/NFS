@@ -32,14 +32,14 @@ enum accept_stat MOUNTPROC3_NULL(struct server_conn *conn)
 	return SUCCESS;
 }
 
-enum accept_stat MOUNTPROC3_MNT(string *args, struct mountres *res, struct server_conn *conn)
+enum accept_stat MOUNTPROC3_MNT(struct mountargs *args, struct mountres *res, struct server_conn *conn)
 {
 	struct export *export;
 
 	export = conn->exports;
 
 	while (export) {
-		if (strncmp(export->exportname, args->data, args->size) == 0) {
+		if (strncmp(export->exportname, args->dirpath.data, args->dirpath.size) == 0) {
 			int i;
 			static unsigned int auth = AUTH_UNIX;
 
@@ -103,13 +103,13 @@ enum accept_stat MOUNTPROC3_DUMP(struct mountlist2 *res, struct server_conn *con
 	return SUCCESS;
 }
 
-enum accept_stat MOUNTPROC3_UMNT(string *args, struct server_conn *conn)
+enum accept_stat MOUNTPROC3_UMNT(struct mountargs *args, struct server_conn *conn)
 {
 	int i;
 	struct export *export = conn->exports;
 
 	while (export) {
-		if (strncmp(export->exportname, args->data, args->size) == 0) {
+		if (strncmp(export->exportname, args->dirpath.data, args->dirpath.size) == 0) {
 			for (i = 0; i < MAXHOSTS; i++) {
 				if (export->hosts[i] == conn->host) {
 					export->hosts[i] = 0;

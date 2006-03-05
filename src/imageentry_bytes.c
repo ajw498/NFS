@@ -60,27 +60,24 @@ os_error *ENTRYFUNC(get_bytes) (struct file_handle *handle, char *buffer, unsign
 
 		err = NFSPROC(READ, (&args, &res, handle->conn, handle->conn->pipelining ? (args.count > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING));
 		if (err != ERR_WOULDBLOCK) {
-			struct opaque *data;
-
 			if (err) return err;
 			if (res.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (res.status);
 
-			data = &(res.u.resok.data);
 			outstanding--;
-			if (buffer + data->size > bufferend) {
+			if (buffer + res.u.resok.data.size > bufferend) {
 				return gen_error(BYTESERRBASE + 0,"Read returned more data than expected");
 			}
 
 #ifdef NFS3
-			if (data->size < reqsizes[0] && res.u.resok.eof == 0) {
+			if (res.u.resok.data.size < reqsizes[0] && res.u.resok.eof == 0) {
 				return gen_error(BYTESERRBASE + 1,"Read returned less data than expected");
 			}
 #endif
 			for (int i = 0; i < FIFOSIZE - 1; i++) reqsizes[i] = reqsizes[i+1];
 			reqtail--;
 
-			memcpy(buffer, data->data, data->size);
-			buffer += data->size;
+			memcpy(buffer, res.u.resok.data.data, res.u.resok.data.size);
+			buffer += res.u.resok.data.size;
 		}
 	}
 

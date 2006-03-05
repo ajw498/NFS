@@ -67,7 +67,7 @@ static void init_output(struct server_conn *conn)
 	/* Leave room for the record marker */
 	if (conn->tcp) obuf += 4;
 
-	process_struct_rpc_msg(OUTPUT, reply_header, 0);
+	process_rpc_msg(OUTPUT, reply_header);
 buffer_overflow:
 	return;
 }
@@ -76,7 +76,7 @@ void request_decode(struct server_conn *conn)
 {
 	ibuf = conn->request;
 	ibufend = ibuf + conn->requestlen;
-	process_struct_rpc_msg(INPUT, call_header, 0);
+	process_rpc_msg(INPUT, call_header);
 	reply_header.xid = call_header.xid;
 	reply_header.body.mtype = REPLY;
 
@@ -99,11 +99,11 @@ void request_decode(struct server_conn *conn)
 		if (call_header.body.u.cbody.cred.flavor == AUTH_UNIX) {
 			char *oldibuf = ibuf;
 			char *oldibufend = ibufend;
-			struct auth_unix auth;
+			auth_unix auth;
 
 			ibuf = call_header.body.u.cbody.cred.body.data;
 			ibufend = ibuf + call_header.body.u.cbody.cred.body.size;
-			process_struct_auth_unix(INPUT, auth, 0);
+			process_auth_unix(INPUT, auth);
 			ibuf = oldibuf;
 			ibufend = oldibufend;
 
@@ -136,10 +136,10 @@ void request_decode(struct server_conn *conn)
 
 	if (conn->tcp) {
 		/* Insert the record marker at the start of the buffer */
-		int recordmarker = 0x80000000 | (conn->replylen - 4);
+		unsigned recordmarker = 0x80000000 | (conn->replylen - 4);
 		obuf = conn->reply;
 		obufend = obuf + 4;
-		process_int(OUTPUT, recordmarker, 0);
+		process_unsigned(OUTPUT, recordmarker);
 	}
 
 	return;

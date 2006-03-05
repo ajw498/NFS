@@ -32,9 +32,9 @@ struct auth_args {
 
 struct auth_res {
 	arstat stat;
-	unsigned int uid;
-	unsigned int gid;
-	unsigned int gids<EXTRAGIDLEN>;
+	unsigned uid;
+	unsigned gid;
+	unsigned gids<EXTRAGIDLEN>;
 	opaque home<HOMEDIRLEN>;
 	int def_umask;
 	opaque cm<COMMENTLEN>;
