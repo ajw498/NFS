@@ -132,6 +132,32 @@ extern int logging;
 	} \
 } while (0)
 
+#define N4(x) do { \
+	res->status = (x); \
+	if (res->status != NFS_OK) return res->status; \
+} while (0)
+
+#define O4(x) do { \
+	os_error *err = (x); \
+	if (err) { \
+		res->status = oserr_to_nfserr(err->errnum); \
+		syslogf(LOGNAME, LOG_ERROR, "Error: %x %s", err->errnum, err->errmess); \
+		return res->status; \
+	} else { \
+		res->status = NFS_OK; \
+	} \
+} while (0)
+
+#define U4(x) do { \
+	if ((x) == NULL) { \
+		res->status = NFSERR_SERVERFAULT; \
+		syslogf(LOGNAME, LOG_MEM, OUTOFMEM); \
+		return res->status; \
+	} else { \
+		res->status = NFS_OK; \
+	} \
+} while (0)
+
 
 #endif
 

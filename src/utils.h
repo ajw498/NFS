@@ -330,10 +330,11 @@ void loadexec_to_timeval(unsigned int load, unsigned int exec, struct ntimeval *
 
 /* Convert a unix timestamp into a RISC OS load and execution address */
 void timeval_to_loadexec(struct ntimeval *unixtime, int filetype, unsigned int *load, unsigned int *exec, int mult);
-#ifdef NFS3
-#define timeval_to_loadexec(unixtime, filetype, load, exec) (timeval_to_loadexec)(unixtime, filetype, load, exec, 1000)
-#else
+#ifdef NFS2
+#error foo
 #define timeval_to_loadexec(unixtime, filetype, load, exec) (timeval_to_loadexec)(unixtime, filetype, load, exec, 1)
+#else
+#define timeval_to_loadexec(unixtime, filetype, load, exec) (timeval_to_loadexec)(unixtime, filetype, load, exec, 1000)
 #endif
 
 

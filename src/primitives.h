@@ -85,6 +85,8 @@ extern char *obuf, *obufend;
 
 #define process_uint32_t(input, structbase) process_unsigned(input, structbase)
 #define process_int32_t(input, structbase) process_int(input, structbase)
+#define process_uint32(input, structbase) process_unsigned(input, structbase)
+#define process_int32(input, structbase) process_int(input, structbase)
 
 
 #define process_int64_t(input, structbase) do { \
@@ -136,6 +138,9 @@ extern char *obuf, *obufend;
   output_byte((char)((structbase & 0x00000000000000FF) >> 0 )); \
  } \
 } while (0)
+
+#define process_uint64(input, structbase) process_uint64_t(input, structbase)
+#define process_int64(input, structbase) process_int64_t(input, structbase)
 
 #define process_enum(input, structbase, name) do { \
  check_bufspace(input, 4); \
