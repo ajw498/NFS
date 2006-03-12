@@ -332,7 +332,7 @@ enum nstat path_to_fh(char *path, char **fhandle, unsigned int *fhandlelen, stru
 	}
 	memset(*fhandle, 0, *fhandlelen);
 	len = strlen(path);
-	if ((len < conn->export->basedirlen) ||
+	if ((len <= conn->export->basedirlen) ||
 	    (memcmp(path, conn->export->basedir, conn->export->basedirlen) != 0) ||
 	    ((path[conn->export->basedirlen] != '.') &&
 	     (path[conn->export->basedirlen] != '\0'))) {

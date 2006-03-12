@@ -300,7 +300,10 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 char *filename_unixify(char *name, unsigned int len, unsigned int *newlen, struct pool *pool);
 
 /* Use MimeMap to lookup a filetype from an extension */
-int lookup_mimetype(char *ext, int defaultfiletype);
+int ext_to_filetype(char *ext, int defaultfiletype);
+
+/* Use MimeMap to lookup a mimetype from a filetype */
+char *filetype_to_mimetype(int filetype, struct pool *pool);
 
 /* Convert a unix mode to RISC OS attributes */
 unsigned int mode_to_attr(unsigned int mode);

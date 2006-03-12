@@ -144,7 +144,7 @@ char *filename_unixify(char *name, unsigned int len, unsigned int *newlen, struc
 #define MMM_TYPE_DOT_EXTN 3
 
 /* Use MimeMap to lookup a filetype from an extension */
-int lookup_mimetype(char *ext, int defaultfiletype)
+int ext_to_filetype(char *ext, int defaultfiletype)
 {
 	os_error *err;
 	int filetype;
@@ -156,6 +156,20 @@ int lookup_mimetype(char *ext, int defaultfiletype)
 	return filetype;
 }
 
+/* Use MimeMap to lookup a mimetype from a filetype */
+char *filetype_to_mimetype(int filetype, struct pool *pool)
+{
+	os_error *err;
+	char *buffer;
+
+	if ((buffer = palloc(128, pool)) == NULL) return NULL;
+
+	/* Try MimeMap to get a mime-type, use a default type if the call fails */
+	err = _swix(MimeMap_Translate,_INR(0,3), MMM_TYPE_RISCOS, filetype, MMM_TYPE_MIME, buffer);
+	if (err) strcpy(buffer, "application/octet-stream");
+
+	return buffer;
+}
 
 int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetype, int defaultfiletype, int xyzext)
 {
@@ -219,7 +233,7 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 		if (*filetype == -1) {
 			/* No ,xyz found */
 			if (dotext) {
-				*filetype = lookup_mimetype(dotext, defaultfiletype);
+				*filetype = ext_to_filetype(dotext, defaultfiletype);
 			} else {
 				/* No ,xyz and no extension, so use default */
 				*filetype = defaultfiletype;
@@ -291,7 +305,7 @@ char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfile
 
 				memcpy(newleafname, ext + 1, extlen);
 				newleafname[extlen] = '\0';
-				mimefiletype = lookup_mimetype(newleafname, defaultfiletype);
+				mimefiletype = ext_to_filetype(newleafname, defaultfiletype);
 
 				if (mimefiletype == newfiletype) {
 					/* Don't need an extension */

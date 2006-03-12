@@ -1129,7 +1129,7 @@
            bitmap4         attr_request;
    };
 
-   struct entry4 {
+   struct *entry4 {
            nfs_cookie4     cookie;
            component4      name;
            fattr4          attrs;
@@ -1663,3 +1663,4 @@ GETFH4res NFS4_GETFH(void) = 10;
 PUTFH4res NFS4_PUTFH(PUTFH4args) = 22;
 LOOKUP4res NFS4_LOOKUP(LOOKUP4args) = 15;
 RENEW4res NFS4_RENEW(RENEW4args) = 30;
+READDIR4res NFS4_READDIR(READDIR4args) = 26;

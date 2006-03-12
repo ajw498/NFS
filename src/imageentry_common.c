@@ -413,7 +413,7 @@ os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, stru
 				while (lastdot > 0 && segmentname[lastdot] != '.') lastdot--;
 	
 				if (lastdot) {
-					*filetype = lookup_mimetype(segmentname + lastdot + 1, conn->defaultfiletype);
+					*filetype = ext_to_filetype(segmentname + lastdot + 1, conn->defaultfiletype);
 				} else {
 					/* No ,xyz and no extension, so use the default */
 					*filetype = conn->defaultfiletype;

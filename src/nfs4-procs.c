@@ -73,10 +73,12 @@ enum accept_stat nfs4_decode_proc(int proc, struct server_conn *conn)
 				res.numres++;
 			}
 			if (stat != NFS_OK) {
+				char *endobuf = obuf;
 				res.status = stat;
 				obuf = initobuf;
 				process_COMPOUND4res(OUTPUT, res);
 				args.numargs = 0;
+				obuf = endobuf;
 			}
 		}
 		return SUCCESS;
@@ -91,9 +93,32 @@ buffer_overflow:
 
 nstat NFS4_ACCESS(ACCESS4args *args, ACCESS4res *res, struct server_conn *conn)
 {
-	(void)conn;
+	unsigned int type;
+	unsigned int load;
+	unsigned int exec;
+	unsigned int len;
+	unsigned int attr;
+	int cached;
 
-	return NFS_OK;
+	res->u.resok4.supported = args->access & 0x1F;
+	res->u.resok4.access = args->access & 0x1F;
+	if (conn->export->ro) res->u.resok4.access &= ACCESS4_READ | ACCESS4_LOOKUP;
+
+	N4(filecache_getattr(currentfh, &load, &exec, &len, &attr, &cached));
+	if (cached) {
+		type = OBJ_FILE;
+	} else {
+		O4(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, currentfh, &type, &load, &exec, &len, &attr));
+		if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
+	}
+	if (type == OBJ_NONE) return res->status = NFSERR_NOENT;
+
+	if (type == OBJ_FILE) {
+		if ((attr & 0x1) == 0) res->u.resok4.access &= ~ACCESS4_READ;
+		if ((attr & 0x2) == 0) res->u.resok4.access &= ~(ACCESS4_MODIFY | ACCESS4_EXTEND);
+	}
+
+	return res->status = NFS_OK;
 }
 
 nstat NFS4_SETCLIENTID(SETCLIENTID4args *args, SETCLIENTID4res *res, struct server_conn *conn)
@@ -128,7 +153,7 @@ nstat NFS4_PUTROOTFH(PUTROOTFH4res *res, struct server_conn *conn)
 {
 	(void)conn;
 
-	currentfh = "ADFS::4.$"; /**/
+	currentfh = conn->export->basedir; /**/
 
 	res->status = NFS_OK;
 
@@ -154,81 +179,80 @@ nstat NFS4_LOOKUP(LOOKUP4args *args, LOOKUP4res *res, struct server_conn *conn)
 	int cfhlen = strlen(currentfh);
 	char *newcfh;
 	int type;
+	char buffer[MAX_PATHNAME];
+	int leaflen;
+	int filetype;/**/
 
-	/*FIXME UTF8-ness and sanity check input */
+	/*FIXME UTF8-ness */
 	if (args->objname.size == 0) return res->status = NFSERR_INVAL;
 
-	U4(newcfh = palloc(cfhlen + args->objname.size + 2, conn->pool));
+	leaflen = filename_riscosify(args->objname.data, args->objname.size, buffer, sizeof(buffer), &filetype, conn->export->defaultfiletype, conn->export->xyzext);
+
+	U4(newcfh = palloc(cfhlen + leaflen + 2, conn->pool));
 	memcpy(newcfh, currentfh, cfhlen);
 	newcfh[cfhlen++] = '.';
-	memcpy(newcfh + cfhlen, args->objname.data, args->objname.size);
+	memcpy(newcfh + cfhlen, buffer, leaflen);
+	newcfh[cfhlen + args->objname.size] = '\0';
 
 	O4(_swix(OS_File, _INR(0,1) | _OUT(0), 17, newcfh, &type));
 	if (type == OBJ_NONE) return res->status = NFSERR_NOENT;
+
+	currentfh = newcfh;
 
 	return NFS_OK;
 }
 
 #define setattrmask() do { \
   int attr = j + 32 * i; \
-  res->u.resok4.obj_attributes.attrmask.data[attr > 31 ? 1 : 0] |= 1 << (attr & 0x1F); \
+  res->attrmask.data[attr > 31 ? 1 : 0] |= 1 << (attr & 0x1F); \
 } while (0)
 
-nstat NFS4_GETATTR(GETATTR4args *args, GETATTR4res *res, struct server_conn *conn)
+static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, unsigned len, unsigned attr, bitmap4 *args, fattr4 *res, struct server_conn *conn)
 {
-	static char attrdata[1024]; /*FIXME - needs to be palloced */
+	char *attrdata;
 	char *oldobuf = obuf;
 	char *oldobufend = obufend;
-	unsigned int type;
-	unsigned int load;
-	unsigned int exec;
-	unsigned int len;
-	unsigned int attr;
-	int cached;
 	unsigned int freelo;
 	unsigned int freehi;
 	unsigned int sizelo;
 	unsigned int sizehi;
 	int i;
 	int j;
+	int filetype;
 
+	UR(attrdata = palloc(1024, conn->pool));
 	obuf = attrdata;
 	obufend = attrdata + 1024;/*FIXME*/
 
+	filetype = (load & 0xFFF00000) ? ((load & 0x000FFF00) >> 8) : 0xFFD;
 
-	N4(filecache_getattr(currentfh, &load, &exec, &len, &attr, &cached));
-	if (cached) {
-		type = OBJ_FILE;
-	} else {
-		O4(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, currentfh, &type, &load, &exec, &len, &attr));
-	}
 	if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
 	if (type == OBJ_NONE) {
-		return res->status = NFSERR_NOENT;
+		return NFSERR_NOENT;
 /*	} else {
 		int ftype = (load & 0x000FFF00) >> 8;
 		if ((type == OBJ_FILE) && (filetype != -1) && (filetype != ftype)) return NFSERR_NOENT;*/
 	}
 
-	if ((args->attr_request.size >= 2) && (args->attr_request.data[1] &
-	                                  ((1LL << FATTR4_SPACE_AVAIL) |
-	                                   (1LL << FATTR4_SPACE_FREE) |
-	                                   (1LL << FATTR4_SPACE_TOTAL) |
-	                                   (1LL << FATTR4_SPACE_USED)))) {
-		if (_swix(OS_FSControl, _INR(0,1) | _OUTR(0,1) | _OUTR(3,4), 55, currentfh, &freelo, &freehi, &sizelo, &sizehi)) {
-			O4(_swix(OS_FSControl, _INR(0,1) | _OUT(0) | _OUT(2), 49, currentfh, &freelo, &sizelo));
+	if ((args->size >= 2) && (args->data[1] &
+	                          ((1LL << FATTR4_SPACE_AVAIL) |
+	                           (1LL << FATTR4_SPACE_FREE) |
+	                           (1LL << FATTR4_SPACE_TOTAL) |
+	                           (1LL << FATTR4_SPACE_USED)))) {
+		if (_swix(OS_FSControl, _INR(0,1) | _OUTR(0,1) | _OUTR(3,4), 55, path, &freelo, &freehi, &sizelo, &sizehi)) {
+			OR(_swix(OS_FSControl, _INR(0,1) | _OUT(0) | _OUT(2), 49, path, &freelo, &sizelo));
 			freehi = 0;
 			sizehi = 0;
 		}
 	}
 
-	U4(res->u.resok4.obj_attributes.attrmask.data = palloc(2 * sizeof(unsigned), conn->pool));
-	res->u.resok4.obj_attributes.attrmask.size = 2;
-	memset(res->u.resok4.obj_attributes.attrmask.data, 0, 2 * sizeof(unsigned));
+	UR(res->attrmask.data = palloc(2 * sizeof(unsigned), conn->pool));
+	res->attrmask.size = 2;
+	memset(res->attrmask.data, 0, 2 * sizeof(unsigned));
 
-	for (i = 0; i < args->attr_request.size; i++) {
+	for (i = 0; i < args->size; i++) {
 		for (j = 0; j < 32; j++) {
-			if (args->attr_request.data[i] & (1 << j)) {
+			if (args->data[i] & (1 << j)) {
 				bool false = FALSE;
 				bool true = TRUE;
 				switch (j + 32 * i) {
@@ -238,10 +262,10 @@ nstat NFS4_GETATTR(GETATTR4args *args, GETATTR4res *res, struct server_conn *con
 					bitmap4 bitmap;
 					setattrmask();
 					list[0] = ((1U << FATTR4_SUPPORTED_ATTRS) | (1U << FATTR4_TYPE) | (1U << FATTR4_FH_EXPIRE_TYPE) | (1U << FATTR4_CHANGE) | (1U << FATTR4_SIZE) | (1U << FATTR4_LINK_SUPPORT) | (1U << FATTR4_SYMLINK_SUPPORT) |
-					           (1U << FATTR4_NAMED_ATTR) | (1U << FATTR4_FSID) | (1U << FATTR4_UNIQUE_HANDLES) | (1U << FATTR4_LEASE_TIME) | (1U << FATTR4_RDATTR_ERROR) | (1U << FATTR4_FILEHANDLE) | (1U << FATTR4_ACLSUPPORT) |
+					           (1U << FATTR4_NAMED_ATTR) | (1U << FATTR4_FSID) | (1U << FATTR4_UNIQUE_HANDLES) | (1U << FATTR4_LEASE_TIME) | (1U << FATTR4_FILEHANDLE) | (1U << FATTR4_ACLSUPPORT) |
 					           (1U << FATTR4_CANSETTIME) | (1U << FATTR4_CASE_INSENSITIVE) | (1U << FATTR4_CASE_PRESERVING) | (1U << FATTR4_CHOWN_RESTRICTED) | (1U << FATTR4_HOMOGENEOUS) | (1U << FATTR4_MAXFILESIZE) |
 					           (1U << FATTR4_MAXNAME) | (1U << FATTR4_MAXREAD) | (1U << FATTR4_MAXWRITE));
-					list[1] = (uint32_t)((/*(1ULL << FATTR4_MIMETYPE) |*/ (1ULL << FATTR4_MODE) | (1ULL << FATTR4_NO_TRUNC) | /*(1ULL << FATTR4_OWNER) | (1ULL << FATTR4_OWNER_GROUP) |*/ (1ULL << FATTR4_SPACE_AVAIL) | (1ULL << FATTR4_SPACE_FREE) |
+					list[1] = (uint32_t)(((1ULL << FATTR4_MIMETYPE) | (1ULL << FATTR4_MODE) | (1ULL << FATTR4_NO_TRUNC) | (1ULL << FATTR4_OWNER) | (1ULL << FATTR4_OWNER_GROUP) | (1ULL << FATTR4_SPACE_AVAIL) | (1ULL << FATTR4_SPACE_FREE) |
 					                     (1ULL << FATTR4_SPACE_TOTAL) | (1ULL << FATTR4_SPACE_USED) | (1ULL << FATTR4_TIME_DELTA) | (1ULL << FATTR4_TIME_MODIFY)) >> 32);
 					bitmap.data = list;
 					bitmap.size = 2;
@@ -302,14 +326,10 @@ nstat NFS4_GETATTR(GETATTR4args *args, GETATTR4res *res, struct server_conn *con
 					process_uint32(OUTPUT, lease);/*FIXME*/
 					break;
 				}
-				case FATTR4_RDATTR_ERROR:
-					setattrmask();
-					process_bool(OUTPUT, false); /*FIXME - what is this? */
-					break;
 				case FATTR4_FILEHANDLE: {
 					nfs_fh4 fh = {NULL, NFS4_FHSIZE};
 					setattrmask();
-					N4(path_to_fh(currentfh, &(fh.data), &(fh.size), conn));
+					NR(path_to_fh(path, &(fh.data), &(fh.size), conn));
 					process_nfs_fh4(OUTPUT, fh);
 					break;
 				}
@@ -364,9 +384,14 @@ nstat NFS4_GETATTR(GETATTR4args *args, GETATTR4res *res, struct server_conn *con
 					process_uint64(OUTPUT, size);
 					break;
 				}
-/*				case FATTR4_MIMETYPE:
+				case FATTR4_MIMETYPE: {
+					fattr4_mimetype mimetype;
 					setattrmask();
-					break;*/
+					UR(mimetype.data = filetype_to_mimetype(filetype, conn->pool));
+					mimetype.size = strlen(mimetype.data);
+					process_array(OUTPUT, mimetype, char, mimetype.size);
+					break;
+				}
 				case FATTR4_MODE: {
 					mode4 mode = 0;
 					setattrmask();
@@ -387,12 +412,26 @@ nstat NFS4_GETATTR(GETATTR4args *args, GETATTR4res *res, struct server_conn *con
 					setattrmask();
 					process_bool(OUTPUT, true);
 					break;
-/*				case FATTR4_OWNER:
+				case FATTR4_OWNER: {
+					char str[10];
+					fattr4_owner owner;
 					setattrmask();
+					snprintf(str, sizeof(str), "%d", conn->uid);
+					owner.data = str;
+					owner.size = strlen(str);
+					process_array(OUTPUT, owner, char, owner.size);
 					break;
-				case FATTR4_OWNER_GROUP:
+				}
+				case FATTR4_OWNER_GROUP: {
+					char str[10];
+					fattr4_owner_group group;
 					setattrmask();
-					break;*/
+					snprintf(str, sizeof(str), "%d", conn->gid);
+					group.data = str;
+					group.size = strlen(str);
+					process_array(OUTPUT, group, char, group.size);
+					break;
+				}
 				case FATTR4_SPACE_AVAIL:
 				case FATTR4_SPACE_FREE: {
 					uint64_t space = ((uint64_t)freehi << 32) | freelo;
@@ -432,15 +471,117 @@ nstat NFS4_GETATTR(GETATTR4args *args, GETATTR4res *res, struct server_conn *con
 		}
 	}
 
-	res->u.resok4.obj_attributes.attr_vals.data = attrdata;
-	res->u.resok4.obj_attributes.attr_vals.size = obuf - attrdata;
+	res->attr_vals.data = attrdata;
+	res->attr_vals.size = obuf - attrdata;
 
 	obuf = oldobuf;
 	obufend = oldobufend;
 
-	return res->status = NFS_OK;
+	return NFS_OK;
 
 buffer_overflow:
-	return res->status = NFSERR_RESOURCE;
+	return NFSERR_RESOURCE;
 }
 
+nstat NFS4_GETATTR(GETATTR4args *args, GETATTR4res *res, struct server_conn *conn)
+{
+	unsigned int type;
+	unsigned int load;
+	unsigned int exec;
+	unsigned int len;
+	unsigned int attr;
+	int cached;
+
+	N4(filecache_getattr(currentfh, &load, &exec, &len, &attr, &cached));
+	if (cached) {
+		type = OBJ_FILE;
+	} else {
+		O4(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, currentfh, &type, &load, &exec, &len, &attr));
+	}
+	if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
+	if (type == OBJ_NONE) {
+		return res->status = NFSERR_NOENT;
+/*	} else {
+		int ftype = (load & 0x000FFF00) >> 8;
+		if ((type == OBJ_FILE) && (filetype != -1) && (filetype != ftype)) return NFSERR_NOENT;*/
+	}
+
+	N4(get_fattr(currentfh, type, load, exec, len, attr, &(args->attr_request), &(res->u.resok4.obj_attributes), conn));
+
+	return res->status = NFS_OK;
+}
+
+nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *conn)
+{
+	int cookie = (int)(args->cookie >> 2);
+	int bytes = 0;
+	int tbytes = 0;
+	int pathlen;
+	char pathbuffer[MAX_PATHNAME];
+	struct entry4 **lastentry = &(res->u.resok4.reply.entries);
+
+	pathlen = strlen(currentfh);
+	if (pathlen + 2 > MAX_PATHNAME) N4(NFSERR_NAMETOOLONG);
+	memcpy(pathbuffer, currentfh, pathlen);
+	pathbuffer[pathlen] = '.';
+
+	res->u.resok4.reply.entries = NULL;
+	res->u.resok4.reply.eof = FALSE;
+	memset(res->u.resok4.cookieverf, 0, NFS4_VERIFIER_SIZE);
+
+	while (cookie != -1) {
+		int read;
+		char buffer[MAX_PATHNAME + 20];
+
+		/* We have to read one entry at a time, which is less
+		   efficient than reading several, as we need to return
+		   a cookie for every entry. */
+		O4(_swix(OS_GBPB, _INR(0,6) | _OUTR(3,4), 10, currentfh, buffer, 1, cookie, sizeof(buffer), 0, &read, &cookie));
+		if (read > 0) {
+			struct entry4 *entry;
+			char *leaf = buffer + 20;
+			unsigned int leaflen;
+			int filetype;
+			unsigned int load = ((unsigned int *)buffer)[0];
+			unsigned int exec = ((unsigned int *)buffer)[1];
+			unsigned int len  = ((unsigned int *)buffer)[2];
+			unsigned int attr = ((unsigned int *)buffer)[3];
+			unsigned int type = ((unsigned int *)buffer)[4];
+
+			if ((load & 0xFFF00000) == 0xFFF00000) {
+				filetype = (load & 0x000FFF00) >> 8;
+			} else {
+				filetype = conn->export->defaultfiletype;
+			}
+			U4(entry = palloc(sizeof(struct entry4), conn->pool));
+
+			leaflen = strlen(leaf);
+			if (pathlen + 2 + leaflen > MAX_PATHNAME) N4(NFSERR_NAMETOOLONG);
+			memcpy(pathbuffer + pathlen + 1, leaf, leaflen + 1);
+			U4(leaf = filename_unixify(leaf, leaflen, &leaflen, conn->pool));
+			if (type == OBJ_FILE || (type == OBJ_IMAGE && conn->export->imagefs == 0)) {
+				U4(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, conn->pool));
+			}
+
+			entry->name.data = leaf; /*FIXME - UTF8*/
+			entry->name.size = leaflen;
+			entry->cookie = ((uint64_t)cookie) << 2;
+			N4(get_fattr(pathbuffer, type, load, exec, len, attr, &(args->attr_request), &(entry->attrs), conn));
+
+			bytes += 4 + ((leaflen + 3) & ~3);
+			if (bytes > args->dircount) {
+				return res->status = NFS_OK;
+			}
+			tbytes += 168 + ((leaflen + 3) & ~3);
+			if (tbytes > args->maxcount) {
+				return res->status = NFS_OK;
+			}
+			entry->next = NULL;
+			*lastentry = entry;
+			lastentry = &(entry->next);
+		}
+		if (cookie == -1) res->u.resok4.reply.eof = TRUE;
+	}
+
+	return res->status = NFS_OK;
+}
