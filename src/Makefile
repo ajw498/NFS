@@ -32,8 +32,7 @@ MODULE = -mmodule
 
 LINK = gcc -mlibscl -mmodule
 
-#CMHG = cmunge -32bit -tgcc
-CMHG = cmhg
+CMHG = cmunge -32bit -tgcc
 
 else
 
