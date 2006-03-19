@@ -483,6 +483,133 @@ buffer_overflow:
 	return NFSERR_RESOURCE;
 }
 
+#define setfattrmask() do { \
+  int attr2 = j + 32 * i; \
+  if (res) res->data[attr2 > 31 ? 1 : 0] |= 1 << (attr2 & 0x1F); \
+} while (0)
+
+static void foo(struct server_conn *conn)
+{
+					fattr4_acl acltmp;
+					process_array2(INPUT, acltmp, nfsace4, OPAQUE_MAX);
+buffer_overflow:
+	return;
+}
+
+static nstat set_fattr(char *path, fattr4 *args, bitmap4 *res, int sizeonly, int filetype, struct server_conn *conn)
+{
+	char *oldibuf = ibuf;
+	char *oldibufend = ibufend;
+	int i;
+	int j;
+	unsigned int load;
+	unsigned int exec;
+	int type;
+	int attr;
+	int size;
+	int setsize = 0;
+
+	ibuf = args->attr_vals.data;
+	ibufend = ibuf + args->attr_vals.size; /* FIXME - restore on error */
+
+	OR(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, path, &type, &load, &exec, &size, &attr));
+	if (type == 0) return NFSERR_NOENT;
+	filetype = (load & 0x000FFF00) >> 8;
+
+	for (i = 0; i < args->attrmask.size; i++) {
+		for (j = 0; j < 32; j++) {
+			if (args->attrmask.data[i] & (1 << j)) {
+				switch (j + 32 * i) {
+				/* Mandatory attributes */
+				case FATTR4_SIZE: {
+					uint64_t fsize;
+					setfattrmask();
+					process_uint64(INPUT, fsize);
+					if (fsize > 0x7FFFFFFFULL) return NFSERR_FBIG;
+					setsize = 1;
+					size = (int)fsize;
+					break;
+				}
+				/* Recommended attributes */
+				case FATTR4_ACL: {
+					foo(conn);
+					break;
+				}
+				case FATTR4_ARCHIVE:
+				case FATTR4_HIDDEN:
+				case FATTR4_SYSTEM: {
+					bool flagtmp;
+					process_bool(INPUT, flagtmp);
+					break;
+				}
+				case FATTR4_MIMETYPE:
+				case FATTR4_OWNER:
+				case FATTR4_OWNER_GROUP: {
+					fattr4_owner_group grptmp;
+					process_array2(INPUT, grptmp, char, OPAQUE_MAX);
+					break;
+				}
+				case FATTR4_TIME_ACCESS_SET: {
+					nfstime4 timetmp;
+					process_nfstime4(INPUT, timetmp);
+					break;
+				}
+				case FATTR4_TIME_BACKUP: {
+					settime4 timetmp;
+					process_settime4(INPUT, timetmp);
+					break;
+				}
+				case FATTR4_MODE: {
+					mode4 mode;
+					setfattrmask();
+					process_mode4(INPUT, mode);
+					if (!sizeonly) attr = mode_to_attr(mode);
+					break;
+				}
+				case FATTR4_TIME_CREATE: {
+					nfstime4 mtime;
+					setfattrmask();
+					process_nfstime4(INPUT, mtime);
+					if (!sizeonly) timeval_to_loadexec((struct ntimeval *)&mtime, filetype, &load, &exec);
+					break;
+				}
+				case FATTR4_TIME_MODIFY_SET: {
+					settime4 settime;
+					setfattrmask();
+					process_settime4(INPUT, settime);
+					if (!sizeonly) {
+						if (settime.set_it == SET_TO_CLIENT_TIME4) {
+							timeval_to_loadexec((struct ntimeval *)&(settime.u.time), filetype, &load, &exec);
+						} else {
+							unsigned int block[2];
+							block[0] = 3;
+							OR(_swix(OS_Word, _INR(0, 1), 14, block));
+							exec = block[0];
+							load = (load & 0xFFFFFF00) | (block[1] & 0xFF);
+						}
+					}
+					break;
+				}
+				}
+			}
+		}
+	}
+
+	ibuf = oldibuf;
+	ibufend = oldibufend;
+
+	if (type == OBJ_FILE) {
+		/* Write through the cache to ensure consistency */
+		NR(filecache_setattr(path, load, exec, attr, size, setsize));
+	}
+	OR(_swix(OS_File, _INR(0,3) | _IN(5), 1, path, load, exec, attr));
+
+	return NFS_OK;
+
+buffer_overflow:
+	return NFSERR_RESOURCE;
+}
+
 nstat NFS4_GETATTR(GETATTR4args *args, GETATTR4res *res, struct server_conn *conn)
 {
 	unsigned int type;
@@ -585,3 +712,135 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 
 	return res->status = NFS_OK;
 }
+
+nstat NFS4_RESTOREFH(RESTOREFH4res *res, struct server_conn *conn)
+{
+	if (savedfh[0] == '\0') return res->status = NFSERR_RESTOREFH;
+
+	currentfh = savedfh;
+
+	return res->status = NFS_OK;
+}
+
+nstat NFS4_SAVEFH(SAVEFH4res *res, struct server_conn *conn)
+{
+	savedfh = currentfh;
+
+	return res->status = NFS_OK;
+}
+
+static uint64_t changeid = 0;
+
+nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
+{
+	char *path;
+	int cfhlen = strlen(currentfh);
+	int filetype = 0xFFF;/**/
+	int verf;
+
+	switch (args->claim.claim) {
+	case CLAIM_NULL:
+		U4(path = palloc(cfhlen + args->claim.u.file.size + 2, conn->pool));
+		memcpy(path, currentfh, cfhlen);
+		path[cfhlen++] = '.'; /* FIXME unixify */
+		memcpy(path + cfhlen, args->claim.u.file.data, args->claim.u.file.size);
+		path[cfhlen + args->claim.u.file.size] = '\0';
+		break;
+	default:
+		N4(NFSERR_IO); /*FIXME*/
+	}
+
+	U4(res->u.resok4.attrset.data = palloc(2 * sizeof(unsigned), conn->pool));
+	res->u.resok4.attrset.size = 2;
+	memset(res->u.resok4.attrset.data, 0, 2 * sizeof(unsigned));
+
+	res->u.resok4.rflags = 0;
+	res->u.resok4.stateid.seqid = 0; /*FIXME*/
+	memset(res->u.resok4.stateid.other, 0, 12);
+	res->u.resok4.cinfo.atomic = TRUE;
+	res->u.resok4.cinfo.before = changeid;
+	changeid++;
+	res->u.resok4.cinfo.after = changeid;
+	changeid++;
+	res->u.resok4.delegation.delegation_type = OPEN_DELEGATE_NONE;
+
+
+	if (args->openhow.opentype == OPEN4_CREATE) {
+		/* Create the file */
+		int type;
+		unsigned exec;
+		if (conn->export->ro) N4(NFSERR_ROFS);
+
+		O4(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUT(3), 17, path, &type, &exec));
+
+		switch (args->openhow.u.how.mode) {
+		case GUARDED4:
+			if (type != OBJ_NONE) N4(NFSERR_EXIST);
+			/* Fallthrough */
+		case UNCHECKED4:
+			if (type == OBJ_NONE) {
+				O4(_swix(OS_File, _INR(0,5), 11, path, filetype, 0, 0, 0));
+				N4(set_fattr(path, &(args->openhow.u.how.u.createattrs), &(res->u.resok4.attrset), 1, filetype, conn));
+			} else {
+				N4(set_fattr(path, &(args->openhow.u.how.u.createattrs), &(res->u.resok4.attrset), 0, filetype, conn));
+			}
+			break;
+		case EXCLUSIVE4:
+			verf  = ((int *)args->openhow.u.how.u.createverf)[0];
+			verf ^= ((int *)args->openhow.u.how.u.createverf)[1];
+			if (type != OBJ_NONE) {
+				if (exec != verf) N4(NFSERR_EXIST);
+			} else {
+				O4(_swix(OS_File, _INR(0,5), 11, path, filetype, 0, 0, 0));
+				O4(_swix(OS_File, _INR(0,1) | _IN(3), 3, path, verf));
+			}
+			res->u.resok4.attrset.data[1] |= 1 << (FATTR4_TIME_MODIFY & 0x1F);
+		}
+
+	}
+
+	currentfh = path;
+
+	return res->status = NFS_OK;
+}
+
+nstat NFS4_CLOSE(CLOSE4args *args, CLOSE4res *res, struct server_conn *conn)
+{
+	res->u.open_stateid = args->open_stateid;
+	return res->status = NFS_OK;
+}
+
+
+nstat NFS4_READ(READ4args *args, READ4res *res, struct server_conn *conn)
+{
+	unsigned int read;
+	int eof;
+	char *data;
+
+	if (args->offset > 0x7FFFFFFFULL) N4(NFSERR_FBIG);
+
+	N4(filecache_read(currentfh, args->count, (unsigned int)args->offset, &data, &read, &eof));
+	res->u.resok4.data.data = data;
+	res->u.resok4.data.size = read;
+	res->u.resok4.eof = eof ? TRUE : FALSE;
+
+	return res->status = NFS_OK;
+}
+
+nstat NFS4_WRITE(WRITE4args *args, WRITE4res *res, struct server_conn *conn)
+{
+	int sync = args->stable != UNSTABLE4;
+
+	if (conn->export->ro) N4(NFSERR_ROFS);
+
+	if (args->offset > 0x7FFFFFFFULL) N4(NFSERR_FBIG);
+	if (args->offset + args->data.size > 0x7FFFFFFFULL) N4(NFSERR_FBIG);
+
+	N4(filecache_write(currentfh, args->data.size, (unsigned int)args->offset, args->data.data, sync, res->u.resok4.writeverf));
+
+	res->u.resok4.count = args->data.size;
+	res->u.resok4.committed = sync ? FILE_SYNC4 : UNSTABLE4;
+
+	return res->status = NFS_OK;
+}
+

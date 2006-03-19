@@ -835,8 +835,9 @@
 
    union createhow4 switch (createmode4 mode) {
     case UNCHECKED4:
-    case GUARDED4:
             fattr4         createattrs;
+    case GUARDED4:
+            fattr4         createattrs2;
     case EXCLUSIVE4:
             verifier4      createverf;
    };
@@ -999,8 +1000,7 @@
            change_info4    cinfo;          /* Directory Change Info */
            uint32_t        rflags;         /* Result flags */
            bitmap4         attrset;        /* attribute set for create*/
-           open_delegation4 delegation;    /* Info on any open
-                                              delegation */
+           open_delegation4 delegation;    /* Info on any open delegation */
    };
 
    union OPEN4res switch (nstat status) {
@@ -1664,3 +1664,9 @@ PUTFH4res NFS4_PUTFH(PUTFH4args) = 22;
 LOOKUP4res NFS4_LOOKUP(LOOKUP4args) = 15;
 RENEW4res NFS4_RENEW(RENEW4args) = 30;
 READDIR4res NFS4_READDIR(READDIR4args) = 26;
+RESTOREFH4res NFS4_RESTOREFH(void) = 31;
+SAVEFH4res NFS4_SAVEFH(void) = 32;
+OPEN4res NFS4_OPEN(OPEN4args) = 18;
+CLOSE4res NFS4_CLOSE(CLOSE4args) = 4;
+READ4res NFS4_READ(READ4args) = 25;
+WRITE4res NFS4_WRITE(WRITE4args) = 38;

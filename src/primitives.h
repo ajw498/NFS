@@ -9,7 +9,7 @@
 
 #include <string.h>
 
-#define OPAQUE_MAX 0xFFFFFFFF
+#define OPAQUE_MAX 0x7FFFFFFF
 
 #define OUTPUT 0
 #define INPUT 1
@@ -210,6 +210,38 @@ extern char *obuf, *obufend;
       } \
       for (i = 0; i < structbase.size; i++) { \
         process_##type(input, structbase.data[i]); \
+      } \
+    } \
+  } \
+} while (0)
+
+/* Duplicate to avoid macro recursion */
+#define process_array2(input, structbase, type, maxsize) do { \
+  process_int(input, structbase.size); \
+  if (structbase.size > maxsize) goto buffer_overflow; \
+  if (structbase.size > 0) { \
+    int ii; \
+    check_bufspace(input, (structbase.size * sizeof(type) + 3) & ~3); \
+    if (sizeof(type) == 1) { \
+      if (input) { \
+        structbase.data = (type *)input_bytes(structbase.size); \
+      } else { \
+        output_bytes(structbase.data, structbase.size); \
+      } \
+      for (ii = (structbase.size & 3); ii < 4 && ii != 0; ii++) { \
+        if (input) { \
+         (void)input_byte(); \
+        } else { \
+         output_byte(0); \
+        } \
+      } \
+    } else { \
+      if (input) { \
+        structbase.data = palloc(structbase.size * sizeof(type), conn->pool); \
+        if (structbase.data == NULL) goto buffer_overflow; \
+      } \
+      for (ii = 0; ii < structbase.size; ii++) { \
+        process_##type(input, structbase.data[ii]); \
       } \
     } \
   } \
