@@ -523,6 +523,7 @@ static nstat set_fattr(char *path, fattr4 *args, bitmap4 *res, int sizeonly, int
 				/* Mandatory attributes */
 				case FATTR4_SIZE: {
 					uint64_t fsize;
+					if (type == OBJ_DIR) break;
 					setfattrmask();
 					process_uint64(INPUT, fsize);
 					if (fsize > 0x7FFFFFFFULL) return NFSERR_FBIG;
@@ -715,6 +716,8 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 
 nstat NFS4_RESTOREFH(RESTOREFH4res *res, struct server_conn *conn)
 {
+	(void)conn;
+
 	if (savedfh[0] == '\0') return res->status = NFSERR_RESTOREFH;
 
 	currentfh = savedfh;
@@ -724,6 +727,8 @@ nstat NFS4_RESTOREFH(RESTOREFH4res *res, struct server_conn *conn)
 
 nstat NFS4_SAVEFH(SAVEFH4res *res, struct server_conn *conn)
 {
+	(void)conn;
+
 	savedfh = currentfh;
 
 	return res->status = NFS_OK;
@@ -806,6 +811,7 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 
 nstat NFS4_CLOSE(CLOSE4args *args, CLOSE4res *res, struct server_conn *conn)
 {
+	(void)conn;
 	res->u.open_stateid = args->open_stateid;
 	return res->status = NFS_OK;
 }
@@ -816,6 +822,8 @@ nstat NFS4_READ(READ4args *args, READ4res *res, struct server_conn *conn)
 	unsigned int read;
 	int eof;
 	char *data;
+
+	(void)conn;
 
 	if (args->offset > 0x7FFFFFFFULL) N4(NFSERR_FBIG);
 
@@ -831,6 +839,8 @@ nstat NFS4_WRITE(WRITE4args *args, WRITE4res *res, struct server_conn *conn)
 {
 	int sync = args->stable != UNSTABLE4;
 
+	(void)conn;
+
 	if (conn->export->ro) N4(NFSERR_ROFS);
 
 	if (args->offset > 0x7FFFFFFFULL) N4(NFSERR_FBIG);
@@ -842,5 +852,82 @@ nstat NFS4_WRITE(WRITE4args *args, WRITE4res *res, struct server_conn *conn)
 	res->u.resok4.committed = sync ? FILE_SYNC4 : UNSTABLE4;
 
 	return res->status = NFS_OK;
+}
+
+nstat NFS4_COMMIT(COMMIT4args *args, COMMIT4res *res, struct server_conn *conn)
+{
+	(void)args;
+	(void)conn;
+
+	N4(filecache_commit(currentfh, res->u.resok4.writeverf));
+
+	return res->status = NFS_OK;
+}
+
+static nstat lookup_filename(component4 *leafname, int *filetype, struct server_conn *conn)
+{
+	int leaflen;
+	int cfhlen = strlen(currentfh);
+	static char buffer[FILENAME_MAX];
+	char *filename;
+
+	/*FIXME UTF8-ness */
+	if (leafname->size == 0) return NFSERR_INVAL;
+
+	leaflen = filename_riscosify(leafname->data, leafname->size, buffer, sizeof(buffer), filetype, conn->export->defaultfiletype, conn->export->xyzext);
+
+	UR(filename = palloc(cfhlen + leaflen + 2, conn->pool));
+	memcpy(filename, currentfh, cfhlen);
+	filename[cfhlen++] = '.';
+	memcpy(filename + cfhlen, buffer, leaflen);
+	filename[cfhlen + leafname->size] = '\0';
+
+	currentfh = filename;
+
+	return NFS_OK;
+}
+
+nstat NFS4_CREATE(CREATE4args *args, CREATE4res *res, struct server_conn *conn)
+{
+	int filetype;
+	int type;
+
+	N4(lookup_filename(&(args->objname), &filetype, conn));
+
+	O4(_swix(OS_File, _INR(0,1) | _OUT(0), 17, currentfh, &type));
+	if (type != OBJ_NONE) N4(NFSERR_EXIST);
+
+	if (args->objtype.type != NF4DIR) return res->status = NFSERR_NOTSUPP;
+
+	O4(_swix(OS_File, _INR(0,1) | _IN(4), 8, currentfh, 0));
+
+	U4(res->u.resok4.attrset.data = palloc(2 * sizeof(unsigned), conn->pool));
+	res->u.resok4.attrset.size = 2;
+	memset(res->u.resok4.attrset.data, 0, 2 * sizeof(unsigned));
+	N4(set_fattr(currentfh, &(args->createattrs), &(res->u.resok4.attrset), 0, filetype, conn));
+
+	res->u.resok4.cinfo.atomic = TRUE;
+	res->u.resok4.cinfo.before = changeid;
+	changeid++;
+	res->u.resok4.cinfo.after = changeid;
+	changeid++;
+
+	return res->status = NFS_OK;
+}
+
+nstat NFS4_DELEGPURGE(DELEGPURGE4args *args, DELEGPURGE4res *res, struct server_conn *conn)
+{
+	(void)args;
+	(void)res;
+	(void)conn;
+	return res->status = NFSERR_NOTSUPP;
+}
+
+nstat NFS4_DELEGRETURN(DELEGRETURN4args *args, DELEGRETURN4res *res, struct server_conn *conn)
+{
+	(void)args;
+	(void)res;
+	(void)conn;
+	return res->status = NFSERR_NOTSUPP;
 }
 
