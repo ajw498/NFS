@@ -149,10 +149,17 @@ nstat NFS4_RENEW(RENEW4args *args, RENEW4res *res, struct server_conn *conn)
 	return res->status = NFS_OK;
 }
 
+nstat NFS4_PUTPUBFH(PUTPUBFH4res *res, struct server_conn *conn)
+{
+	currentfh = conn->export->basedir; /**/
+
+	res->status = NFS_OK;
+
+	return NFS_OK;
+}
+
 nstat NFS4_PUTROOTFH(PUTROOTFH4res *res, struct server_conn *conn)
 {
-	(void)conn;
-
 	currentfh = conn->export->basedir; /**/
 
 	res->status = NFS_OK;
@@ -174,32 +181,58 @@ nstat NFS4_PUTFH(PUTFH4args *args, PUTFH4res *res, struct server_conn *conn)
 	return NFS_OK;
 }
 
-nstat NFS4_LOOKUP(LOOKUP4args *args, LOOKUP4res *res, struct server_conn *conn)
+static nstat lookup_filename(component4 *leafname, int *filetype, struct server_conn *conn)
 {
-	int cfhlen = strlen(currentfh);
-	char *newcfh;
-	int type;
-	char buffer[MAX_PATHNAME];
 	int leaflen;
-	int filetype;/**/
+	int cfhlen = strlen(currentfh);
+	static char buffer[FILENAME_MAX];
+	char *filename;
 
 	/*FIXME UTF8-ness */
-	if (args->objname.size == 0) return res->status = NFSERR_INVAL;
+	if (leafname->size == 0) return NFSERR_INVAL;
 
-	leaflen = filename_riscosify(args->objname.data, args->objname.size, buffer, sizeof(buffer), &filetype, conn->export->defaultfiletype, conn->export->xyzext);
+	leaflen = filename_riscosify(leafname->data, leafname->size, buffer, sizeof(buffer), filetype, conn->export->defaultfiletype, conn->export->xyzext);
 
-	U4(newcfh = palloc(cfhlen + leaflen + 2, conn->pool));
-	memcpy(newcfh, currentfh, cfhlen);
-	newcfh[cfhlen++] = '.';
-	memcpy(newcfh + cfhlen, buffer, leaflen);
-	newcfh[cfhlen + args->objname.size] = '\0';
+	UR(filename = palloc(cfhlen + leaflen + 2, conn->pool));
+	memcpy(filename, currentfh, cfhlen);
+	filename[cfhlen++] = '.';
+	memcpy(filename + cfhlen, buffer, leaflen);
+	filename[cfhlen + leafname->size] = '\0';
 
-	O4(_swix(OS_File, _INR(0,1) | _OUT(0), 17, newcfh, &type));
-	if (type == OBJ_NONE) return res->status = NFSERR_NOENT;
-
-	currentfh = newcfh;
+	currentfh = filename;
 
 	return NFS_OK;
+}
+
+nstat NFS4_LOOKUP(LOOKUP4args *args, LOOKUP4res *res, struct server_conn *conn)
+{
+	int type;
+	int filetype;
+	unsigned load;
+
+	N4(lookup_filename(&(args->objname), &filetype, conn));
+
+	O4(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUT(2), 17, currentfh, &type, &load));
+	if (type == OBJ_NONE) return res->status = NFSERR_NOENT;
+	if ((type != OBJ_DIR) && (filetype != -1) &&
+	    (load & 0xFFFFFF00 != 0xFFF00000 | (filetype << 8))) return res->status = NFSERR_NOENT;
+
+	return res->status = NFS_OK;
+}
+
+nstat NFS4_LOOKUPP(LOOKUPP4res *res, struct server_conn *conn)
+{
+	int type;
+	char *lastdot;
+
+	O4(_swix(OS_File, _INR(0,1) | _OUT(0), 17, currentfh, &type));
+	if ((type != OBJ_DIR) && (type != OBJ_IMAGE)) return res->status = NFSERR_NOTDIR;
+
+	lastdot = strrchr(currentfh, '.');
+	if ((lastdot == NULL) || (lastdot - currentfh < conn->export->basedirlen)) return res->status = NFSERR_NOENT;
+	*lastdot = '\0';
+
+	return res->status = NFS_OK;
 }
 
 #define setattrmask() do { \
@@ -738,18 +771,12 @@ static uint64_t changeid = 0;
 
 nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 {
-	char *path;
-	int cfhlen = strlen(currentfh);
 	int filetype = 0xFFF;/**/
 	int verf;
 
 	switch (args->claim.claim) {
 	case CLAIM_NULL:
-		U4(path = palloc(cfhlen + args->claim.u.file.size + 2, conn->pool));
-		memcpy(path, currentfh, cfhlen);
-		path[cfhlen++] = '.'; /* FIXME unixify */
-		memcpy(path + cfhlen, args->claim.u.file.data, args->claim.u.file.size);
-		path[cfhlen + args->claim.u.file.size] = '\0';
+		N4(lookup_filename(&(args->claim.u.file), &filetype, conn));
 		break;
 	default:
 		N4(NFSERR_IO); /*FIXME*/
@@ -776,7 +803,7 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 		unsigned exec;
 		if (conn->export->ro) N4(NFSERR_ROFS);
 
-		O4(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUT(3), 17, path, &type, &exec));
+		O4(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUT(3), 17, currentfh, &type, &exec));
 
 		switch (args->openhow.u.how.mode) {
 		case GUARDED4:
@@ -784,10 +811,10 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 			/* Fallthrough */
 		case UNCHECKED4:
 			if (type == OBJ_NONE) {
-				O4(_swix(OS_File, _INR(0,5), 11, path, filetype, 0, 0, 0));
-				N4(set_fattr(path, &(args->openhow.u.how.u.createattrs), &(res->u.resok4.attrset), 1, filetype, conn));
+				O4(_swix(OS_File, _INR(0,5), 11, currentfh, filetype, 0, 0, 0));
+				N4(set_fattr(currentfh, &(args->openhow.u.how.u.createattrs), &(res->u.resok4.attrset), 1, filetype, conn));
 			} else {
-				N4(set_fattr(path, &(args->openhow.u.how.u.createattrs), &(res->u.resok4.attrset), 0, filetype, conn));
+				N4(set_fattr(currentfh, &(args->openhow.u.how.u.createattrs), &(res->u.resok4.attrset), 0, filetype, conn));
 			}
 			break;
 		case EXCLUSIVE4:
@@ -796,15 +823,13 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 			if (type != OBJ_NONE) {
 				if (exec != verf) N4(NFSERR_EXIST);
 			} else {
-				O4(_swix(OS_File, _INR(0,5), 11, path, filetype, 0, 0, 0));
-				O4(_swix(OS_File, _INR(0,1) | _IN(3), 3, path, verf));
+				O4(_swix(OS_File, _INR(0,5), 11, currentfh, filetype, 0, 0, 0));
+				O4(_swix(OS_File, _INR(0,1) | _IN(3), 3, currentfh, verf));
 			}
 			res->u.resok4.attrset.data[1] |= 1 << (FATTR4_TIME_MODIFY & 0x1F);
 		}
 
 	}
-
-	currentfh = path;
 
 	return res->status = NFS_OK;
 }
@@ -864,29 +889,6 @@ nstat NFS4_COMMIT(COMMIT4args *args, COMMIT4res *res, struct server_conn *conn)
 	return res->status = NFS_OK;
 }
 
-static nstat lookup_filename(component4 *leafname, int *filetype, struct server_conn *conn)
-{
-	int leaflen;
-	int cfhlen = strlen(currentfh);
-	static char buffer[FILENAME_MAX];
-	char *filename;
-
-	/*FIXME UTF8-ness */
-	if (leafname->size == 0) return NFSERR_INVAL;
-
-	leaflen = filename_riscosify(leafname->data, leafname->size, buffer, sizeof(buffer), filetype, conn->export->defaultfiletype, conn->export->xyzext);
-
-	UR(filename = palloc(cfhlen + leaflen + 2, conn->pool));
-	memcpy(filename, currentfh, cfhlen);
-	filename[cfhlen++] = '.';
-	memcpy(filename + cfhlen, buffer, leaflen);
-	filename[cfhlen + leafname->size] = '\0';
-
-	currentfh = filename;
-
-	return NFS_OK;
-}
-
 nstat NFS4_CREATE(CREATE4args *args, CREATE4res *res, struct server_conn *conn)
 {
 	int filetype;
@@ -920,6 +922,7 @@ nstat NFS4_DELEGPURGE(DELEGPURGE4args *args, DELEGPURGE4res *res, struct server_
 	(void)args;
 	(void)res;
 	(void)conn;
+
 	return res->status = NFSERR_NOTSUPP;
 }
 
@@ -928,6 +931,33 @@ nstat NFS4_DELEGRETURN(DELEGRETURN4args *args, DELEGRETURN4res *res, struct serv
 	(void)args;
 	(void)res;
 	(void)conn;
+
+	return res->status = NFSERR_NOTSUPP;
+}
+
+nstat NFS4_LINK(LINK4args *args, LINK4res *res, struct server_conn *conn)
+{
+	(void)args;
+	(void)res;
+	(void)conn;
+
+	return res->status = NFSERR_NOTSUPP;
+}
+
+nstat NFS4_OPENATTR(OPENATTR4args *args, OPENATTR4res *res, struct server_conn *conn)
+{
+	(void)args;
+	(void)res;
+	(void)conn;
+
+	return res->status = NFSERR_NOTSUPP;
+}
+
+nstat NFS4_READLINK(READLINK4res *res, struct server_conn *conn)
+{
+	(void)res;
+	(void)conn;
+
 	return res->status = NFSERR_NOTSUPP;
 }
 
