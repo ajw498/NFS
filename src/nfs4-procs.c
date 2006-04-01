@@ -588,8 +588,8 @@ static nstat set_fattr(char *path, fattr4 *args, bitmap4 *res, int sizeonly, int
 					break;
 				}
 				case FATTR4_TIME_ACCESS_SET: {
-					nfstime4 timetmp;
-					process_nfstime4(INPUT, timetmp);
+					settime4 timetmp;
+					process_settime4(INPUT, timetmp);
 					break;
 				}
 				case FATTR4_TIME_BACKUP: {
@@ -1031,3 +1031,18 @@ nstat NFS4_RENAME(RENAME4args *args, RENAME4res *res, struct server_conn *conn)
 	return res->status = NFS_OK;
 }
 
+
+nstat NFS4_SETATTR(SETATTR4args *args, SETATTR4res *res, struct server_conn *conn)
+{
+	res->attrsset.size = 0;
+
+	if (conn->export->ro) N4(NFSERR_ROFS);
+
+	/* FIXME - should return error for unsupported attrs? */
+	U4(res->attrsset.data = palloc(2 * sizeof(unsigned), conn->pool));
+	res->attrsset.size = 2;
+	memset(res->attrsset.data, 0, 2 * sizeof(unsigned));
+	N4(set_fattr(currentfh, &(args->obj_attributes), &(res->attrsset), 0, -1, conn));
+
+	return res->status = NFS_OK;
+}
