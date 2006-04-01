@@ -171,13 +171,12 @@ char *filetype_to_mimetype(int filetype, struct pool *pool)
 	return buffer;
 }
 
-int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetype, int defaultfiletype, int xyzext)
+int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetyperet, int defaultfiletype, int xyzext)
 {
 	int i;
 	int j;
 	char *dotext = NULL;
-
-	*filetype = -1;
+	int filetype = -1;
 
 	for (i = 0, j = 0; (i < namelen) && (j + 3 < buflen); i++) {
 		if (name[i] == '.') {
@@ -196,7 +195,7 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 				tmp[1] = name[i+2];
 				tmp[2] = name[i+3];
 				tmp[3] = '\0';
-				*filetype = (int)strtol(tmp, NULL, 16);
+				filetype = (int)strtol(tmp, NULL, 16);
 				namelen -= sizeof(",xyz") - 1;
 			} else {
 				buffer[j++] = name[i];
@@ -225,22 +224,26 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 		}
 	}
 
+	if (filetyperet) *filetyperet = filetype;
+
 	if (i < namelen) return 0; /* Buffer overflow */
 
 	buffer[j++] = '\0';
 
-	if (xyzext != NEVER) {
-		if (*filetype == -1) {
-			/* No ,xyz found */
-			if (dotext) {
-				*filetype = ext_to_filetype(dotext, defaultfiletype);
-			} else {
-				/* No ,xyz and no extension, so use default */
-				*filetype = defaultfiletype;
+	if (filetyperet) {
+		if (xyzext != NEVER) {
+			if (*filetyperet == -1) {
+				/* No ,xyz found */
+				if (dotext) {
+					*filetyperet = ext_to_filetype(dotext, defaultfiletype);
+				} else {
+					/* No ,xyz and no extension, so use default */
+					*filetyperet = defaultfiletype;
+				}
 			}
+		} else {
+			*filetyperet = defaultfiletype;
 		}
-	} else {
-		*filetype = defaultfiletype;
 	}
 
 	return j;

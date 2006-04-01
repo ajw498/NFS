@@ -181,10 +181,10 @@ nstat NFS4_PUTFH(PUTFH4args *args, PUTFH4res *res, struct server_conn *conn)
 	return NFS_OK;
 }
 
-static nstat lookup_filename(component4 *leafname, int *filetype, struct server_conn *conn)
+static nstat lookup_filename(char *base, component4 *leafname, char **res, int *filetype, struct server_conn *conn)
 {
 	int leaflen;
-	int cfhlen = strlen(currentfh);
+	int cfhlen = strlen(base);
 	static char buffer[FILENAME_MAX];
 	char *filename;
 
@@ -194,12 +194,12 @@ static nstat lookup_filename(component4 *leafname, int *filetype, struct server_
 	leaflen = filename_riscosify(leafname->data, leafname->size, buffer, sizeof(buffer), filetype, conn->export->defaultfiletype, conn->export->xyzext);
 
 	UR(filename = palloc(cfhlen + leaflen + 2, conn->pool));
-	memcpy(filename, currentfh, cfhlen);
+	memcpy(filename, base, cfhlen);
 	filename[cfhlen++] = '.';
 	memcpy(filename + cfhlen, buffer, leaflen);
 	filename[cfhlen + leafname->size] = '\0';
 
-	currentfh = filename;
+	*res = filename;
 
 	return NFS_OK;
 }
@@ -210,12 +210,12 @@ nstat NFS4_LOOKUP(LOOKUP4args *args, LOOKUP4res *res, struct server_conn *conn)
 	int filetype;
 	unsigned load;
 
-	N4(lookup_filename(&(args->objname), &filetype, conn));
+	N4(lookup_filename(currentfh, &(args->objname), &currentfh, &filetype, conn));
 
 	O4(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUT(2), 17, currentfh, &type, &load));
 	if (type == OBJ_NONE) return res->status = NFSERR_NOENT;
 	if ((type != OBJ_DIR) && (filetype != -1) &&
-	    (load & 0xFFFFFF00 != 0xFFF00000 | (filetype << 8))) return res->status = NFSERR_NOENT;
+	    ((load & 0xFFFFFF00) != (0xFFF00000 | (filetype << 8)))) return res->status = NFSERR_NOENT;
 
 	return res->status = NFS_OK;
 }
@@ -239,6 +239,8 @@ nstat NFS4_LOOKUPP(LOOKUPP4res *res, struct server_conn *conn)
   int attr = j + 32 * i; \
   res->attrmask.data[attr > 31 ? 1 : 0] |= 1 << (attr & 0x1F); \
 } while (0)
+
+static uint64_t changeid = 0;
 
 static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, unsigned len, unsigned attr, bitmap4 *args, fattr4 *res, struct server_conn *conn)
 {
@@ -318,13 +320,14 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					break;
 				}
 				case FATTR4_CHANGE: {
-					uint64_t change = ((uint64_t)load << 32) | exec;
+					uint64_t change = (((uint64_t)load & 0x000FFFFFULL) << 32) | exec;
 					setattrmask();
 					process_uint64(OUTPUT, change);/*FIXME - fakedirtimes */
 					break;
 				}
 				case FATTR4_SIZE: {
 					uint64_t size = (uint64_t)len;
+					if (type == OBJ_DIR) break;
 					setattrmask();
 					process_uint64(OUTPUT, size);
 					break;
@@ -480,6 +483,7 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 				}
 				case FATTR4_SPACE_USED: {
 					uint64_t size = (uint64_t)len;
+					if (type == OBJ_DIR) break;
 					setattrmask();
 					process_uint64(OUTPUT, size);
 					break;
@@ -546,7 +550,7 @@ static nstat set_fattr(char *path, fattr4 *args, bitmap4 *res, int sizeonly, int
 	ibufend = ibuf + args->attr_vals.size; /* FIXME - restore on error */
 
 	OR(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, path, &type, &load, &exec, &size, &attr));
-	if (type == 0) return NFSERR_NOENT;
+	if (type == OBJ_NONE) return NFSERR_NOENT;
 	filetype = (load & 0x000FFF00) >> 8;
 
 	for (i = 0; i < args->attrmask.size; i++) {
@@ -767,8 +771,6 @@ nstat NFS4_SAVEFH(SAVEFH4res *res, struct server_conn *conn)
 	return res->status = NFS_OK;
 }
 
-static uint64_t changeid = 0;
-
 nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 {
 	int filetype = 0xFFF;/**/
@@ -776,7 +778,7 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 
 	switch (args->claim.claim) {
 	case CLAIM_NULL:
-		N4(lookup_filename(&(args->claim.u.file), &filetype, conn));
+		N4(lookup_filename(currentfh, &(args->claim.u.file), &currentfh, &filetype, conn));
 		break;
 	default:
 		N4(NFSERR_IO); /*FIXME*/
@@ -894,7 +896,7 @@ nstat NFS4_CREATE(CREATE4args *args, CREATE4res *res, struct server_conn *conn)
 	int filetype;
 	int type;
 
-	N4(lookup_filename(&(args->objname), &filetype, conn));
+	N4(lookup_filename(currentfh, &(args->objname), &currentfh, &filetype, conn));
 
 	O4(_swix(OS_File, _INR(0,1) | _OUT(0), 17, currentfh, &type));
 	if (type != OBJ_NONE) N4(NFSERR_EXIST);
@@ -959,5 +961,73 @@ nstat NFS4_READLINK(READLINK4res *res, struct server_conn *conn)
 	(void)conn;
 
 	return res->status = NFSERR_NOTSUPP;
+}
+
+nstat NFS4_REMOVE(REMOVE4args *args, REMOVE4res *res, struct server_conn *conn)
+{
+	char *path;
+
+	/* FIXME don't delete if open with share deny */
+	if (conn->export->ro) N4(NFSERR_ROFS);
+
+	N4(lookup_filename(currentfh, &(args->target), &path, NULL, conn));
+	O4(_swix(OS_File, _INR(0,1), 6, path));
+
+	res->u.resok4.cinfo.atomic = TRUE;
+	res->u.resok4.cinfo.before = changeid;
+	changeid++;
+	res->u.resok4.cinfo.after = changeid;
+	changeid++;
+
+	return res->status = NFS_OK;
+}
+
+nstat NFS4_RENAME(RENAME4args *args, RENAME4res *res, struct server_conn *conn)
+{
+	char *from;
+	char *to;
+	int oldfiletype;
+	int newfiletype;
+	int oldtype;
+	int newtype;
+
+	if (conn->export->ro) N4(NFSERR_ROFS);
+
+	N4(lookup_filename(savedfh, &(args->oldname), &from, &oldfiletype, conn));
+	N4(lookup_filename(currentfh, &(args->newname), &to, &newfiletype, conn));
+
+	O4(_swix(OS_File, _INR(0,1) | _OUT(0), 17, from, &oldtype));
+	O4(_swix(OS_File, _INR(0,1) | _OUT(0), 17, to, &newtype));
+
+	if (oldtype == OBJ_NONE) N4(NFSERR_NOENT);
+	if (oldtype == OBJ_IMAGE) oldtype = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
+	if (newtype == OBJ_IMAGE) newtype = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
+
+	if ((newtype != OBJ_NONE) && (oldtype != newtype)) N4(NFSERR_EXIST);
+
+	if (strcmp(from, to) != 0) {
+		if (newtype != OBJ_NONE) {
+			/* FIXME check share deny stuff as for delete */
+			O4(_swix(OS_File, _INR(0,1), 6, to));
+		}
+		O4(_swix(OS_FSControl, _INR(0,2), 25, from, to));
+	}
+	if (newfiletype != oldfiletype) {
+		O4(_swix(OS_File, _INR(0,2), 18, to, newfiletype));
+	}
+
+	res->u.resok4.source_cinfo.atomic = TRUE;
+	res->u.resok4.source_cinfo.before = changeid;
+	changeid++;
+	res->u.resok4.source_cinfo.after = changeid;
+	changeid++;
+
+	res->u.resok4.target_cinfo.atomic = TRUE;
+	res->u.resok4.target_cinfo.before = changeid;
+	changeid++;
+	res->u.resok4.target_cinfo.after = changeid;
+	changeid++;
+
+	return res->status = NFS_OK;
 }
 
