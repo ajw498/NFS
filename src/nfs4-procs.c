@@ -520,6 +520,161 @@ buffer_overflow:
 	return NFSERR_RESOURCE;
 }
 
+
+static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn *conn)
+{
+	char *oldibuf = ibuf;
+	char *oldibufend = ibufend;
+	int differ = 0;
+	int i;
+	int j;
+	int filetype;
+	unsigned int load;
+	unsigned int exec;
+	int type;
+	int attr;
+	int len;
+
+	ibuf = args->attr_vals.data;
+	ibufend = ibuf + args->attr_vals.size; /* FIXME - restore on error */
+
+	OR(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, path, &type, &load, &exec, &len, &attr));
+	if (type == OBJ_NONE) return NFSERR_NOENT;
+
+	if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
+
+	filetype = (load & 0xFFF00000) ? ((load & 0x000FFF00) >> 8) : 0xFFD;
+
+	for (i = 0; i < args->attrmask.size; i++) {
+		for (j = 0; j < 32; j++) {
+			if (args->attrmask.data[i] & (1 << j)) {
+				switch (j + 32 * i) {
+				/* Mandatory attributes */
+				case FATTR4_TYPE: {
+					nfs_ftype4 ftype;
+					process_nfs_ftype4(INPUT, ftype);
+					differ |= ftype != (type == OBJ_FILE ? NF4REG : NF4DIR);
+					break;
+				}
+				case FATTR4_CHANGE: {
+					uint64_t change;
+					process_uint64(INPUT, change);/*FIXME - fakedirtimes? */
+					differ |= change != (((uint64_t)load & 0x000FFFFFULL) << 32) | exec;
+					break;
+				}
+				case FATTR4_SPACE_USED:
+				case FATTR4_SIZE: {
+					uint64_t size;
+					process_uint64(INPUT, size);
+					differ |= (uint64_t)len != size;
+					break;
+				}
+				case FATTR4_NAMED_ATTR: {
+					bool attr;
+					process_bool(INPUT, attr);
+					differ |= attr != FALSE;
+					break;
+				}
+				case FATTR4_FSID: {
+					fsid4 id;
+					process_fsid4(INPUT, id);
+					differ |= id.major != conn->export->exportnum;
+					differ |= id.minor != 0;
+					break;
+				}
+				case FATTR4_FILEHANDLE: {
+					nfs_fh4 fh = {NULL, NFS4_FHSIZE};
+					nfs_fh4 fh2 = {NULL, NFS4_FHSIZE};
+					NR(path_to_fh(path, &(fh.data), &(fh.size), conn));
+					process_nfs_fh4(INPUT, fh2);
+					if (fh.size == fh2.size) {
+						differ |= memcmp(fh.data, fh2.data, fh.size);
+					} else {
+						differ |= 1;
+					}
+					break;
+				}
+				/* Recommended attributes */
+				case FATTR4_MIMETYPE: {
+					fattr4_mimetype mimetype;
+					char *mimetype2 = filetype_to_mimetype(filetype, conn->pool);
+					process_array(INPUT, mimetype, char, mimetype.size);
+					if (mimetype.size == strlen(mimetype2)) {
+						differ |= memcmp(mimetype2, mimetype.data, mimetype.size);
+					} else {
+						differ |= 1;
+					}
+					break;
+				}
+				case FATTR4_MODE: {
+					mode4 mode = 0;
+					mode4 mode2 = 0;
+					if (attr & 0x01) mode |= MODE4_RUSR;
+					if (attr & 0x02) mode |= MODE4_WUSR;
+					if (attr & 0x10) mode |= MODE4_RGRP | MODE4_ROTH;
+					if (attr & 0x20) mode |= MODE4_WGRP | MODE4_WOTH;
+					/* Apply the unumask to force access */
+					mode |= conn->export->unumask;
+					/* Set executable permissions for directories if they have read permission */
+					if (type == OBJ_DIR) mode |= (mode & 0444) >> 2;
+					/* Remove bits requested by the umask */
+					mode &= ~conn->export->umask;
+					process_mode4(INPUT, mode2);
+					differ |= mode != mode2;
+					break;
+				}
+				case FATTR4_OWNER: {
+					char str[10];
+					fattr4_owner owner;
+					snprintf(str, sizeof(str), "%d", conn->uid);
+					process_array(INPUT, owner, char, owner.size);
+					if (owner.size == strlen(str)) {
+						differ |= memcmp(str, owner.data, owner.size);
+					} else {
+						differ |= 1;
+					}
+					break;
+				}
+				case FATTR4_OWNER_GROUP: {
+					char str[10];
+					fattr4_owner_group group;
+					snprintf(str, sizeof(str), "%d", conn->gid);
+					process_array(INPUT, group, char, group.size);
+					if (group.size == strlen(str)) {
+						differ |= memcmp(str, group.data, group.size);
+					} else {
+						differ |= 1;
+					}
+					break;
+				}
+				case FATTR4_TIME_MODIFY: {
+					nfstime4 mtime;
+					nfstime4 mtime2;
+					loadexec_to_timeval(load, exec, ((struct ntimeval *)&mtime));
+					process_nfstime4(INPUT, mtime2);
+					differ |= mtime.seconds != mtime2.seconds;
+					differ |= mtime.nseconds != mtime2.nseconds;
+					break;
+				}
+				default:
+					/*FIXME: NFS4ERR_INVAL for write only attrs */
+					return NFSERR_ATTRNOTSUPP;
+				}
+			}
+		}
+	}
+
+	ibuf = oldibuf;
+	ibufend = oldibufend;
+
+	if (same && differ) return NFSERR_NOT_SAME;
+	if (!same && !differ) return NFSERR_SAME;
+	return NFS_OK;
+
+buffer_overflow:
+	return NFSERR_RESOURCE;
+}
+
 #define setfattrmask() do { \
   int attr2 = j + 32 * i; \
   if (res) res->data[attr2 > 31 ? 1 : 0] |= 1 << (attr2 & 0x1F); \
@@ -1045,4 +1200,14 @@ nstat NFS4_SETATTR(SETATTR4args *args, SETATTR4res *res, struct server_conn *con
 	N4(set_fattr(currentfh, &(args->obj_attributes), &(res->attrsset), 0, -1, conn));
 
 	return res->status = NFS_OK;
+}
+
+nstat NFS4_NVERIFY(NVERIFY4args *args, NVERIFY4res *res, struct server_conn *conn)
+{
+	return res->status = verify_fattr(currentfh, 0, &(args->obj_attributes), conn);
+}
+
+nstat NFS4_VERIFY(VERIFY4args *args, VERIFY4res *res, struct server_conn *conn)
+{
+	return res->status = verify_fattr(currentfh, 1, &(args->obj_attributes), conn);
 }
