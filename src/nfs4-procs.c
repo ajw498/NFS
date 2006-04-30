@@ -559,7 +559,7 @@ static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn
 				case FATTR4_CHANGE: {
 					uint64_t change;
 					process_uint64(INPUT, change);/*FIXME - fakedirtimes? */
-					differ |= change != (((uint64_t)load & 0x000FFFFFULL) << 32) | exec;
+					differ |= change != ((((uint64_t)load & 0x000FFFFFULL) << 32) | exec);
 					break;
 				}
 				case FATTR4_SPACE_USED:
