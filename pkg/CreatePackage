@@ -21,11 +21,10 @@ open(OUT,">Sunfish/RiscPkg/Control");
 
 print OUT qq{
 Package: Sunfish
-Priority: Standard
+Priority: Optional
 Section: Misc
 Maintainer: Alex Waugh <alex\@alexwaugh.com>
-Standards-Version: 0.1.0
-Source: Sunfish
+Standards-Version: 0.0.0
 Version: $version
 Licence: Free
 Description: An NFS client.
@@ -51,11 +50,10 @@ open(OUT,">Moonfish/RiscPkg/Control");
 
 print OUT qq{
 Package: Moonfish
-Priority: Standard
+Priority: Optional
 Section: Misc
 Maintainer: Alex Waugh <alex\@alexwaugh.com>
-Standards-Version: 0.1.0
-Source: Moonfish
+Standards-Version: 0.0.0
 Version: $version
 Licence: Free
 Description: An NFS server.
