@@ -38,10 +38,6 @@
 
 #include "rpc.h"
 
-#if CMHG_VERSION < 542
-#error cmhg out of date
-#endif
-
 
 extern int module_base_address;
 
