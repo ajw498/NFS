@@ -445,8 +445,9 @@ enum accept_stat NFSPROC3_MKNOD(struct MKNOD3args *args, struct MKNOD3res *res, 
 enum accept_stat NFSPROC3_REMOVE(struct diropargs *args, struct removeres *res, struct server_conn *conn)
 {
 	char *path;
+	int filetype;
 
-	NF(diropargs_to_path(args, &path, NULL, conn));
+	NF(diropargs_to_path(args, &path, &filetype, conn));
 	if (conn->export->ro) NF(NFSERR_ROFS);
 	OF(_swix(OS_File, _INR(0,1), 6, path));
 
@@ -465,8 +466,9 @@ failure:
 enum accept_stat NFSPROC3_RMDIR(struct diropargs *args, struct removeres *res, struct server_conn *conn)
 {
 	char *path;
+	int filetype;
 
-	NF(diropargs_to_path(args, &path, NULL, conn));
+	NF(diropargs_to_path(args, &path, &filetype, conn));
 	if (conn->export->ro) NF(NFSERR_ROFS);
 	OF(_swix(OS_File, _INR(0,1), 6, path));
 
