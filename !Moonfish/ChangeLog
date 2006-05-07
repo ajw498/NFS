@@ -1,3 +1,6 @@
+v1.02  7-May-06
+Fix bug that could cause a data abort when deleting files or directories.
+
 v1.01 28-Feb-06
 Ensure the correct toolbox modules are loaded.
 Fix script generated for auto load feature.
