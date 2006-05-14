@@ -219,6 +219,8 @@ The RISC OS attributes are first converted to unix mode bits, with the private a
 <h4>ShowHidden</h4>
 If set to 1, all files will be shown, if set to 0 then all files beginning with a . will be hidden from filer views. If set to 2 then all files beginning with a . in the root directory of the mount will be hidden, but those in other directories will still be shown. If not specified, then it defaults to 1.
 <p>
+Note that while you can read and write hidden files explicitly if you know their name, they won't show up in directory lists, and if you copy a directory any hidden files inside will not get copied.
+<p>
 <h4>FollowSymLinks</h4>
 The number of levels of symlinks to follow. If set to zero or a sequence of symlinks greater than the number is encountered then the link will be shown as a text file that you cannot read or write. If not specified, then it defaults to 5. Symlinks can only be followed if they point to a file within the mount directory or its children.
 <p>
