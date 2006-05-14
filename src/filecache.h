@@ -32,6 +32,8 @@ enum nstat filecache_write(char *path, unsigned int count, unsigned int offset, 
 
 enum nstat filecache_commit(char *path, char *verf);
 
+enum nstat filecache_close(char *path);
+
 enum nstat filecache_getattr(char *path, unsigned int *load, unsigned int *exec, unsigned int *size, unsigned int *attr, int *cached);
 
 enum nstat filecache_setattr(char *path, unsigned int load, unsigned int exec, unsigned int attr, unsigned int size, int setsize);

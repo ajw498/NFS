@@ -449,6 +449,7 @@ enum accept_stat NFSPROC3_REMOVE(struct diropargs *args, struct removeres *res, 
 
 	NF(diropargs_to_path(args, &path, &filetype, conn));
 	if (conn->export->ro) NF(NFSERR_ROFS);
+	NF(filecache_close(path));
 	OF(_swix(OS_File, _INR(0,1), 6, path));
 
 	res->u.resok.dir_wcc.before.attributes_follow = FALSE;
@@ -493,6 +494,7 @@ enum accept_stat NFSPROC3_RENAME(struct renameargs *args, struct renameres *res,
 
 	NF(diropargs_to_path(&(args->from), &from, &oldfiletype, conn));
 	if (conn->export->ro) NF(NFSERR_ROFS);
+	NF(filecache_close(from));
 	NF(diropargs_to_path(&(args->to), &to, &newfiletype, conn));
 	if (strcmp(from, to) != 0) {
 		OF(_swix(OS_FSControl, _INR(0,2), 25, from, to));

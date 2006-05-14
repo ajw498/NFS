@@ -308,6 +308,17 @@ enum nstat filecache_commit(char *path, char *verf)
 	return ret;
 }
 
+enum nstat filecache_close(char *path)
+{
+	int index;
+
+	NR(filecache_open(path, &index, 1));
+
+	if (index != -1) filecache_evict(index);
+
+	return NFS_OK;
+}
+
 enum nstat filecache_getattr(char *path, unsigned int *load, unsigned int *exec, unsigned int *size, unsigned int *attr, int *cached)
 {
 	int index;
