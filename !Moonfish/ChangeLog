@@ -1,3 +1,6 @@
+v1.03 21-May-06
+Fix problems with renaming or deleting files shortly after reading or writing their contents.
+
 v1.02  7-May-06
 Fix bug that could cause a data abort when deleting files or directories.
 
