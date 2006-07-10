@@ -145,7 +145,7 @@ static enum nstat set_attr(char *path, struct sattr *sattr, struct server_conn *
 
 	if (type == OBJ_FILE) {
 		/* Write through the cache to ensure consistency */
-		NR(filecache_setattr(path, load, exec, attr, size, setsize));
+		NR(filecache_setattr(path, STATEID_NONE, load, exec, attr, size, setsize));
 	}
 	OR(_swix(OS_File, _INR(0,3) | _IN(5), 1, path, load, exec, attr));
 
@@ -268,7 +268,7 @@ enum accept_stat NFSPROC_READ(struct readargs *args, struct readres *res, struct
 	unsigned int attr;
 
 	NE(nfs2fh_to_path(&(args->file), &path, conn));
-	NE(filecache_read(path, args->count, args->offset, &data, &read, NULL));
+	NE(filecache_read(path, STATEID_NONE, args->count, args->offset, &data, &read, NULL));
 	res->u.resok.data.data = data;
 	res->u.resok.data.size = read;
 	NE(filecache_getattr(path, &load, &exec, &size, &attr, NULL));
@@ -287,7 +287,7 @@ enum accept_stat NFSPROC_WRITE(struct writeargs *args, struct attrstat *res, str
 	NE(nfs2fh_to_path(&(args->file), &path, conn));
 	if (conn->export->ro) NE(NFSERR_ROFS);
 
-	NE(filecache_write(path, args->data.size, args->offset, args->data.data, 1, NULL));
+	NE(filecache_write(path, STATEID_NONE, args->data.size, args->offset, args->data.data, 1, NULL));
 
 	NE(filecache_getattr(path, &load, &exec, &size, &attr, NULL));
 	parse_fattr(path, OBJ_FILE, load, exec, size, attr, &(res->u.attributes), conn);

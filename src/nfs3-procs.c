@@ -181,7 +181,7 @@ static enum nstat set_attr(char *path, struct sattrguard3 *guard, struct sattr3 
 
 	if (type == OBJ_FILE) {
 		/* Write through the cache to ensure consistency */
-		NR(filecache_setattr(path, load, exec, attr, size, setsize));
+		NR(filecache_setattr(path, STATEID_NONE, load, exec, attr, size, setsize));
 	}
 	OR(_swix(OS_File, _INR(0,3) | _IN(5), 1, path, load, exec, attr));
 
@@ -289,7 +289,7 @@ enum accept_stat NFSPROC3_READ(struct readargs *args, struct readres *res, struc
 
 	NF(nfs3fh_to_path(&(args->file), &path, conn));
 	if (args->offset > 0x7FFFFFFFLL) NF(NFSERR_FBIG);
-	NF(filecache_read(path, args->count, (unsigned int)args->offset, &data, &read, &eof));
+	NF(filecache_read(path, STATEID_NONE, args->count, (unsigned int)args->offset, &data, &read, &eof));
 	res->u.resok.data.data = data;
 	res->u.resok.data.size = read;
 	res->u.resok.count = read;
@@ -324,7 +324,7 @@ enum accept_stat NFSPROC3_WRITE(struct writeargs *args, struct writeres *res, st
 	if (amount > args->data.size) amount = args->data.size;
 
 	if (args->offset > 0x7FFFFFFFLL) NF(NFSERR_FBIG);
-	NF(filecache_write(path, amount, (unsigned int)args->offset, args->data.data, sync, res->u.resok.verf));
+	NF(filecache_write(path, STATEID_NONE, amount, (unsigned int)args->offset, args->data.data, sync, res->u.resok.verf));
 
 	res->u.resok.file_wcc.after.attributes_follow = TRUE;
 	NF(filecache_getattr(path, &load, &exec, &size, &attr, NULL));

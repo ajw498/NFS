@@ -35,11 +35,47 @@
 #include "filecache.h"
 
 
-#define MAXOPENFILES 3
+#define MAXCACHEDFILES 3
 
 #define DATABUFFER 128*1024
 
-static struct openfile {
+/*union owner_details {
+	struct {
+		int clientid;
+		char *owner;
+		int ownerlen;
+	} owner;
+	union owner_details *next;
+};
+
+static union owner_details *owners = NULL;*/
+
+/* Have to be per lock_owner per file */
+struct open_owner {
+	unsigned access;
+	unsigned deny;
+	unsigned stateid;
+	/*struct lock *locks;*/
+	int clientid;
+	char *owner;
+	int ownerlen;
+	struct open_owner *next;
+};
+
+struct openfile {
+	char name[MAX_PATHNAME]; /* Could make this dynamic? */
+	int handle;
+	unsigned int filesize;
+	unsigned int load;
+	unsigned int exec;
+	unsigned int attr;
+	struct open_owner *owners;
+	struct openfile *next;
+};
+
+static struct openfile *openfiles = NULL;
+
+static struct cachedfile {
 	char name[MAX_PATHNAME];
 	int handle;
 	clock_t time;
@@ -52,7 +88,9 @@ static struct openfile {
 	unsigned int load;
 	unsigned int exec;
 	unsigned int attr;
-} openfiles[MAXOPENFILES];
+	struct openfile *file;
+} cachedfiles[MAXCACHEDFILES];
+
 
 static unsigned int verifier[2];
 
@@ -61,7 +99,7 @@ void filecache_init(void)
 	int i;
 
 	/* Initialise all entries */
-	for (i = 0; i < MAXOPENFILES; i++) openfiles[i].handle = 0;
+	for (i = 0; i < MAXCACHEDFILES; i++) cachedfiles[i].handle = 0;
 
 	/* Get the time we are initialised to use as a verifier */
 	verifier[0] = (unsigned int)time(NULL);
@@ -73,100 +111,306 @@ static enum nstat filecache_flush(int index)
 	enum nstat ret = NFS_OK;
 
 	/* Write out any cached data */
-	if (openfiles[index].write && openfiles[index].buffercount > 0) {
+	if (cachedfiles[index].write && cachedfiles[index].buffercount > 0) {
 		os_error *err;
 
-		if (openfiles[index].buffercount > DATABUFFER) return NFSERR_SERVERFAULT;
+		if (cachedfiles[index].buffercount > DATABUFFER) return NFSERR_SERVERFAULT;
 
-		err = _swix(OS_GBPB, _INR(0,4), 1, openfiles[index].handle,
-		                                   openfiles[index].buffer,
-		                                   openfiles[index].buffercount,
-		                                   openfiles[index].bufferoffset);
+		err = _swix(OS_GBPB, _INR(0,4), 1, cachedfiles[index].handle,
+		                                   cachedfiles[index].buffer,
+		                                   cachedfiles[index].buffercount,
+		                                   cachedfiles[index].bufferoffset);
 		if (err) {
 			syslogf(LOGNAME, LOG_SERIOUS, "Error writing cached data for file %s (%s)",
-			        openfiles[index].name, err->errmess);
-			ret = openfiles[index].writeerror = oserr_to_nfserr(err->errnum);
+			        cachedfiles[index].name, err->errmess);
+			ret = cachedfiles[index].writeerror = oserr_to_nfserr(err->errnum);
 		}
 	}
-	openfiles[index].buffercount = 0;
+	cachedfiles[index].buffercount = 0;
 
 	return ret;
 }
 
-static void filecache_evict(int index)
+static void filecache_evict(int index, struct openfile *file)
 {
 	os_error *err;
 
 	/* Write out any cached data */
 	filecache_flush(index);
 
-	/* Close the file */
-	err = _swix(OS_Find, _INR(0,1), 0, openfiles[index].handle);
-	if (err) syslogf(LOGNAME, LOG_SERIOUS, "Error closing cached file %s (%s)",
-	                 openfiles[index].name, err->errmess);
-
-	if (err || (openfiles[index].writeerror != NFS_OK)) {
-		/* An error occured that hasn't been returned to the client,
-		   change the verifier as this is the only way it will now
-		   be able to detect it. */
-		verifier[1]++;
+	if (file) {
+		/* do something with writeerror? */
+	} else {
+		/* Close the file */
+		err = _swix(OS_Find, _INR(0,1), 0, cachedfiles[index].handle);
+		if (err) syslogf(LOGNAME, LOG_SERIOUS, "Error closing cached file %s (%s)",
+		                 cachedfiles[index].name, err->errmess);
+	
+		if (err || (cachedfiles[index].writeerror != NFS_OK)) {
+			/* An error occured that hasn't been returned to the client,
+			   change the verifier as this is the only way it will now
+			   be able to detect it. */
+			verifier[1]++;
+		}
 	}
 
 	/* Invalidate entry */
-	openfiles[index].handle = 0;
+	cachedfiles[index].handle = 0;
 }
 
-static enum nstat filecache_open(char *path, int *index, int dontopen)
+static enum nstat filecache_opencached(char *path, unsigned stateid, int *index, struct openfile **openfile, int dontopen)
 {
 	int i;
 	clock_t now = clock();
 	clock_t lasttime = 0;
 	int earliest = 0;
 	int available = -1;
-	int handle;
+	struct openfile *file;
 
 	/* Search all entries for a matching filename */
-	for (i = 0; i < MAXOPENFILES; i++) {
-		if (openfiles[i].handle == 0) {
+	for (i = 0; i < MAXCACHEDFILES; i++) {
+		if (cachedfiles[i].handle == 0) {
 			available = i;
-		} else if (strcmp(path, openfiles[i].name) == 0) {
-			*index = i;
-			openfiles[i].time = now;
+		} else if (strcmp(path, cachedfiles[i].name) == 0) {
+			if (index) *index = i;
+			if (openfile) *openfile = cachedfiles[i].file;
+			cachedfiles[i].time = now;
 
 			return NFS_OK;
-		} else if (now - openfiles[i].time > lasttime) {
-			lasttime = now - openfiles[i].time;
+		} else if (now - cachedfiles[i].time > lasttime) {
+			lasttime = now - cachedfiles[i].time;
 			earliest = i;
 		}
 	}
 	if (available != -1) earliest = available;
 
+	/* Search all NFS4 open files for a match */
+	file = openfiles;
+	while (file) {
+		if (strcmp(path, file->name) == 0) break;
+		file = file->next;
+	}
+
+	if (openfile) *openfile = file;
+
 	if (dontopen) {
-		*index = -1;
+		if (index) *index = -1;
 		return NFS_OK;
 	}
 
 	/* Evict the oldest existing entry */
-	if (openfiles[earliest].handle) filecache_evict(earliest);
+	if (cachedfiles[earliest].handle) filecache_evict(earliest, file);
 
 	/* Open the file and cache the attributes */
-	openfiles[earliest].time = now;
-	openfiles[earliest].buffercount = 0;
-	openfiles[earliest].bufferoffset = 0;
-	openfiles[earliest].write = 0;
-	openfiles[earliest].writeerror = NFS_OK;
-	snprintf(openfiles[earliest].name, MAX_PATHNAME, "%s", path);
-	OR(_swix(OS_File, _INR(0,1) | _OUTR(2,5), 17, path, &(openfiles[earliest].load),
-	                                                    &(openfiles[earliest].exec),
-	                                                    &(openfiles[earliest].filesize),
-	                                                    &(openfiles[earliest].attr)));
-	OR(_swix(OS_Find, _INR(0,1) | _OUT(0), 0xC3, path, &handle));
+	cachedfiles[earliest].time = now;
+	cachedfiles[earliest].buffercount = 0;
+	cachedfiles[earliest].bufferoffset = 0;
+	cachedfiles[earliest].write = 0;
+	cachedfiles[earliest].writeerror = NFS_OK;
+	snprintf(cachedfiles[earliest].name, MAX_PATHNAME, "%s", path);
+	if (file) {
+		/* Take attributes from already cached info */
+		cachedfiles[earliest].load = file->load;
+		cachedfiles[earliest].exec = file->exec;
+		cachedfiles[earliest].filesize = file->filesize;
+		cachedfiles[earliest].attr = file->attr;
+		cachedfiles[earliest].handle = file->handle;
+		cachedfiles[earliest].file = file;
+	} else {
+		int handle;
 
-	/* Everything went OK, so mark the entry as valid */
-	openfiles[earliest].handle = handle;
+		OR(_swix(OS_File, _INR(0,1) | _OUTR(2,5), 17, path, &(cachedfiles[earliest].load),
+	                                                            &(cachedfiles[earliest].exec),
+	                                                            &(cachedfiles[earliest].filesize),
+	                                                            &(cachedfiles[earliest].attr)));
+		OR(_swix(OS_Find, _INR(0,1) | _OUT(0), 0xC3, path, &handle));
 
-	*index = earliest;
+		/* Everything went OK, so mark the entry as valid */
+		cachedfiles[earliest].handle = handle;
+	}
+
+
+	if (index) *index = earliest;
 	return NFS_OK;
+}
+
+enum nstat filecache_open(char *path, int clientid, char *owner, int ownerlen, unsigned access, unsigned deny, unsigned *stateid)
+{
+	int index;
+	struct openfile *file;
+
+	NR(filecache_opencached(path, STATEID_ANY, &index, &file, 1));
+	if (file) {
+		struct open_owner *current = file->owners;
+		struct open_owner *matching = NULL;
+		unsigned currentaccess = 0;
+		unsigned currentdeny = 0;
+
+		while (current) {
+			if ((current->clientid == clientid) &&
+			    (current->ownerlen == ownerlen) &&
+			    (memcmp(current->owner, owner, ownerlen) == 0)) {
+				matching = current;
+			}
+			currentaccess |= current->access;
+			currentdeny |= current->deny;
+			current = current->next;
+		}
+		/* Check share status etc. */
+		if (access == 0) return NFSERR_INVAL;
+		if ((access & currentdeny) || (deny & currentaccess)) return NFSERR_DENIED;
+		if (matching) {
+			matching->access |= access;
+			matching->deny |= deny;
+			*stateid = (unsigned)matching;
+		} else {
+			struct open_owner *newowner;
+			UR(newowner = malloc(sizeof(struct open_owner)));
+			newowner->owner = malloc(ownerlen);
+			if (newowner->owner == NULL) {
+				free(newowner);
+				UR(NULL);
+			}
+			memcpy(file->owners->owner, owner, ownerlen);
+			newowner->ownerlen = ownerlen;
+			newowner->clientid = clientid;
+			newowner->access = access;
+			newowner->deny = deny;
+			newowner->next = file->owners;
+			file->owners = newowner;
+			*stateid = (unsigned)newowner;
+		}
+	} else {
+		os_error *err2;
+
+		UR(file = malloc(sizeof(struct openfile)));
+
+		file->owners = malloc(sizeof(struct open_owner));
+		if (file->owners == NULL) {
+			free(file);
+			UR(NULL);
+		}
+
+		*stateid = (unsigned)(file->owners);
+
+		file->owners->owner = malloc(ownerlen);
+		if (file->owners->owner == NULL) {
+			free(file);
+			UR(NULL);
+		}
+		memcpy(file->owners->owner, owner, ownerlen);
+		file->owners->ownerlen = ownerlen;
+		file->owners->clientid = clientid;
+		file->owners->access = access;
+		file->owners->deny = deny;
+		file->owners->next = NULL;
+
+		snprintf(file->name, MAX_PATHNAME, "%s", path);
+
+		err2 = _swix(OS_File, _INR(0,1) | _OUTR(2,5), 17, path, &(file->load),
+	                                                                &(file->exec),
+	                                                                &(file->filesize),
+	                                                                &(file->attr));
+		if (err2 == NULL) err2 = _swix(OS_Find, _INR(0,1) | _OUT(0), 0xC3, path, &(file->handle));
+
+
+		/*FIXME if can't open file because it is already open then return the share denied error NFS4ERR_SHARE_DENIED */
+
+		if (err2) {
+			free(file->owners->owner);
+			free(file->owners);
+			free(file);
+			OR(err2);
+		}
+
+		/* Add to linked list */
+		file->next = openfiles;
+		openfiles = file;
+	}
+	return NFS_OK;
+}
+
+enum nstat filecache_opendowngrade(char *path, unsigned stateid, unsigned access, unsigned deny)
+{
+	int index;
+	struct openfile *file;
+	struct open_owner *current;
+
+	NR(filecache_opencached(path, STATEID_ANY, &index, &file, 1));
+	if (file == NULL) {
+		return NFSERR_BAD_STATEID;
+	}
+
+	current = file->owners;
+
+	while (current) {
+		if ((unsigned)current == stateid) {
+			/* Upgrading access is not permitted */
+			if ((access & ~current->access) ||
+			    (deny & ~current->deny)) {
+				return NFSERR_INVAL;
+			}
+			current->access = access;
+			current->deny = deny;
+			return NFS_OK;
+		}
+		current = current->next;
+	}
+	return NFSERR_BAD_STATEID;
+}
+
+enum nstat filecache_close(char *path, unsigned stateid)
+{
+	int index;
+	struct openfile *file;
+	enum nstat ret = NFS_OK;
+	int handle;
+	struct open_owner *current;
+	struct open_owner **prev;
+
+	NR(filecache_opencached(path, stateid, &index, &file, 1));
+
+	if (file == NULL) return NFSERR_BAD_STATEID;
+
+	prev = &(file->owners);
+	current = file->owners;
+
+	while (current) {
+		if ((unsigned)current == stateid) break;
+		prev = &(current->next);
+		current = current->next;
+	}
+	if (current == NULL) return NFSERR_BAD_STATEID;
+
+	/* Remove from list */
+	*prev = current->next;
+
+	free(current->owner);
+	free(current);
+
+	/* If last client with this file open, then close the file */
+	if (file->owners == NULL) {
+		if (index != -1) {
+			filecache_evict(index, file);
+			ret = cachedfiles[index].writeerror;
+		}
+	
+		/* Remove from linked list */
+		if (openfiles == file) {
+			openfiles = file->next;
+		} else {
+			struct openfile *thisfile = openfiles;
+			while (thisfile->next != file) thisfile = thisfile->next;
+			thisfile->next = file->next;
+		}
+	
+		/* Close the file */
+		handle = file->handle;
+		free(file);
+		OR(_swix(OS_Find, _INR(0,1), 0, handle));
+	}
+
+	return ret;
 }
 
 void filecache_reap(int all)
@@ -174,58 +418,74 @@ void filecache_reap(int all)
 	int i;
 	clock_t now = clock();
 
-	for (i = 0; i < MAXOPENFILES; i++) {
+	for (i = 0; i < MAXCACHEDFILES; i++) {
 		/* Close a file if there has been no activity for a while */
-		if (openfiles[i].handle != 0 && (all || (now - openfiles[i].time > 5 * CLOCKS_PER_SEC))) {
-			filecache_evict(i);
+		if (cachedfiles[i].handle != 0 && (all || (now - cachedfiles[i].time > 5 * CLOCKS_PER_SEC))) {
+			filecache_evict(i, cachedfiles[i].file);
+		}
+	}
+	if (all) {
+		/* Close all open files as well */
+		struct openfile *thisfile = openfiles;
+		openfiles = NULL;
+		while (thisfile) {
+			struct openfile *file = thisfile;
+			os_error *err;
+
+			thisfile = thisfile->next;
+			err = _swix(OS_Find, _INR(0,1), 0, file->handle);
+			/* Can't do much about errors at this stage */
+			if (err) syslogf(LOGNAME, LOG_SERIOUS, "Error closing cached file %s (%s)",
+			                 file->name, err->errmess);
+			free(file);
 		}
 	}
 }
 
-enum nstat filecache_read(char *path, unsigned int count, unsigned int offset, char **data, unsigned int *read, int *eof)
+enum nstat filecache_read(char *path, unsigned stateid, unsigned int count, unsigned int offset, char **data, unsigned int *read, int *eof)
 {
 	int index;
 	unsigned int bufferread;
 	unsigned int bufferoffset;
 
-	NR(filecache_open(path, &index, 0));
+	NR(filecache_opencached(path, stateid, &index, NULL, 0));
 
 	/* If the previous access was a write we need to flush any buffered
 	   data before overwriting it */
-	if (openfiles[index].write) filecache_flush(index);
-	openfiles[index].write = 0;
+	if (cachedfiles[index].write) filecache_flush(index);
+	cachedfiles[index].write = 0;
 
 	if (count > DATABUFFER) count = DATABUFFER;
 
 	/* Ensure offset and count lie within the file */
-	if (offset > openfiles[index].filesize) {
+	if (offset > cachedfiles[index].filesize) {
 		count = 0;
 		offset = 0;
 	}
-	if (offset + count > openfiles[index].filesize) count = openfiles[index].filesize - offset;
+	if (offset + count > cachedfiles[index].filesize) count = cachedfiles[index].filesize - offset;
 
-	if (offset < openfiles[index].bufferoffset) {
+	if (offset < cachedfiles[index].bufferoffset) {
 		/* Buffer is too high */
 		bufferoffset = 0;
 		bufferread = DATABUFFER;
-		openfiles[index].bufferoffset = offset;
-	} else if (offset > openfiles[index].bufferoffset + openfiles[index].buffercount) {
+		cachedfiles[index].bufferoffset = offset;
+	} else if (offset > cachedfiles[index].bufferoffset + cachedfiles[index].buffercount) {
 		/* Buffer is too low */
 		bufferoffset = 0;
 		bufferread = DATABUFFER;
-		openfiles[index].bufferoffset = offset;
-	} else if (offset + count > openfiles[index].bufferoffset + openfiles[index].buffercount) {
+		cachedfiles[index].bufferoffset = offset;
+	} else if (offset + count > cachedfiles[index].bufferoffset + cachedfiles[index].buffercount) {
 		/* Buffer contains partial results */
-		bufferoffset = offset - openfiles[index].bufferoffset;
-		bufferread = openfiles[index].buffercount - bufferoffset;
+		bufferoffset = offset - cachedfiles[index].bufferoffset;
+		bufferread = cachedfiles[index].buffercount - bufferoffset;
 
 		if ((bufferread > DATABUFFER) || (bufferoffset > DATABUFFER)) return NFSERR_SERVERFAULT;
-		memmove(openfiles[index].buffer, openfiles[index].buffer + bufferoffset, bufferread);
+		memmove(cachedfiles[index].buffer, cachedfiles[index].buffer + bufferoffset, bufferread);
 
 		bufferoffset = bufferread;
 		bufferread = DATABUFFER - bufferoffset;
-		openfiles[index].bufferoffset = offset;
-		openfiles[index].buffercount = bufferoffset;
+		cachedfiles[index].bufferoffset = offset;
+		cachedfiles[index].buffercount = bufferoffset;
 	} else {
 		/* Buffer contains full results */
 		bufferoffset = 0;
@@ -235,57 +495,63 @@ enum nstat filecache_read(char *path, unsigned int count, unsigned int offset, c
 	/* Fill the buffer if we need */
 	if (bufferread > 0) {
 		if (bufferoffset + bufferread > DATABUFFER) return NFSERR_SERVERFAULT;
-		OR(_swix(OS_GBPB, _INR(0,4) | _OUT(3), 3, openfiles[index].handle, openfiles[index].buffer + bufferoffset, bufferread, offset + bufferoffset, &bufferread));
-		openfiles[index].buffercount = DATABUFFER - bufferread;
+		OR(_swix(OS_GBPB, _INR(0,4) | _OUT(3), 3, cachedfiles[index].handle, cachedfiles[index].buffer + bufferoffset, bufferread, offset + bufferoffset, &bufferread));
+		cachedfiles[index].buffercount = DATABUFFER - bufferread;
 	}
 
 	/* Return data from the buffer */
-	bufferoffset = (offset - openfiles[index].bufferoffset);
+	bufferoffset = (offset - cachedfiles[index].bufferoffset);
 	if (bufferoffset > DATABUFFER) return NFSERR_SERVERFAULT;
 
-	*data = openfiles[index].buffer + bufferoffset;
-	*read = openfiles[index].buffercount - bufferoffset;
+	*data = cachedfiles[index].buffer + bufferoffset;
+	*read = cachedfiles[index].buffercount - bufferoffset;
 	if (*read > count) *read = count;
-	if (eof) *eof = offset + *read >= openfiles[index].filesize;
+	if (eof) *eof = offset + *read >= cachedfiles[index].filesize;
 
 	return NFS_OK;
 }
 
-enum nstat filecache_write(char *path, unsigned int count, unsigned int offset, char *data, int sync, char *verf)
+enum nstat filecache_write(char *path, unsigned stateid, unsigned int count, unsigned int offset, char *data, int sync, char *verf)
 {
 	int index;
+	struct openfile *file;
 
 	if (verf) memcpy(verf, verifier, 8);
 
-	NR(filecache_open(path, &index, 0));
+	if (stateid == STATEID_ANY) stateid = STATEID_NONE;
+
+	NR(filecache_opencached(path, stateid, &index, &file, 0));
 
 	/* If the data in the buffer is from a read then discard it */
-	if (openfiles[index].write == 0) {
-		openfiles[index].write = 1;
-		openfiles[index].bufferoffset = 0;
-		openfiles[index].buffercount = 0;
+	if (cachedfiles[index].write == 0) {
+		cachedfiles[index].write = 1;
+		cachedfiles[index].bufferoffset = 0;
+		cachedfiles[index].buffercount = 0;
 	}
 
 	/* Check for data that would be non-contiguous, or overflow the buffer */
-	if ((openfiles[index].buffercount > 0) &&
-	    (((openfiles[index].bufferoffset + openfiles[index].buffercount) != offset) ||
-	     ((openfiles[index].buffercount + count) > DATABUFFER))) {
+	if ((cachedfiles[index].buffercount > 0) &&
+	    (((cachedfiles[index].bufferoffset + cachedfiles[index].buffercount) != offset) ||
+	     ((cachedfiles[index].buffercount + count) > DATABUFFER))) {
 		NR(filecache_flush(index));
 	}
 
 	if (sync || count > DATABUFFER) {
 		/* Write directly to disc */
-		OR(_swix(OS_GBPB, _INR(0,4), 1, openfiles[index].handle, data, count, offset));
-		if (sync) OR(_swix(OS_Args, _INR(0,1), 255, openfiles[index].handle));
+		OR(_swix(OS_GBPB, _INR(0,4), 1, cachedfiles[index].handle, data, count, offset));
+		if (sync) OR(_swix(OS_Args, _INR(0,1), 255, cachedfiles[index].handle));
 	} else {
 		/* Write to the buffer */
-		if (openfiles[index].buffercount + count > DATABUFFER) return NFSERR_SERVERFAULT;
-		memcpy(openfiles[index].buffer + openfiles[index].buffercount, data, count);
-		if (openfiles[index].buffercount == 0) openfiles[index].bufferoffset = offset;
-		openfiles[index].buffercount += count;
+		if (cachedfiles[index].buffercount + count > DATABUFFER) return NFSERR_SERVERFAULT;
+		memcpy(cachedfiles[index].buffer + cachedfiles[index].buffercount, data, count);
+		if (cachedfiles[index].buffercount == 0) cachedfiles[index].bufferoffset = offset;
+		cachedfiles[index].buffercount += count;
 	}
 
-	if (openfiles[index].filesize < offset + count) openfiles[index].filesize = offset + count;
+	if (cachedfiles[index].filesize < offset + count) {
+		cachedfiles[index].filesize = offset + count;
+		if (file) file->filesize = offset + count;
+	}
 
 	return NFS_OK;
 }
@@ -297,12 +563,12 @@ enum nstat filecache_commit(char *path, char *verf)
 
 	if (verf) memcpy(verf, verifier, 8);
 
-	NR(filecache_open(path, &index, 1));
+	NR(filecache_opencached(path, STATEID_ANY, &index, NULL, 1));
 
 	if (index != -1) {
 		filecache_flush(index);
-		ret = openfiles[index].writeerror;
-		openfiles[index].writeerror = NFS_OK;
+		ret = cachedfiles[index].writeerror;
+		cachedfiles[index].writeerror = NFS_OK;
 	}
 
 	return ret;
@@ -311,35 +577,52 @@ enum nstat filecache_commit(char *path, char *verf)
 enum nstat filecache_getattr(char *path, unsigned int *load, unsigned int *exec, unsigned int *size, unsigned int *attr, int *cached)
 {
 	int index;
+	struct openfile *file;
 
-	NR(filecache_open(path, &index, 1));
+	NR(filecache_opencached(path, STATEID_ANY, &index, &file, 1));
 
-	if (index == -1) {
-		if (cached) *cached = 0;
-	} else {
+	if (index != -1) {
 		if (cached) *cached = 1;
 
-		*load = openfiles[index].load;
-		*exec = openfiles[index].exec;
-		*size = openfiles[index].filesize;
-		*attr = openfiles[index].attr;
+		*load = cachedfiles[index].load;
+		*exec = cachedfiles[index].exec;
+		*size = cachedfiles[index].filesize;
+		*attr = cachedfiles[index].attr;
+	} else if (file) {
+		if (cached) *cached = 1;
+
+		*load = file->load;
+		*exec = file->exec;
+		*size = file->filesize;
+		*attr = file->attr;
+	} else {
+		if (cached) *cached = 0;
 	}
 
 	return NFS_OK;
 }
 
-enum nstat filecache_setattr(char *path, unsigned int load, unsigned int exec, unsigned int attr, unsigned int size, int setsize)
+enum nstat filecache_setattr(char *path, unsigned stateid, unsigned int load, unsigned int exec, unsigned int attr, unsigned int size, int setsize)
 {
 	int index;
+	struct openfile *file;
 
-	NR(filecache_open(path, &index, !setsize));
+	if (!setsize) stateid = STATEID_ANY;
+
+	NR(filecache_opencached(path, stateid, &index, &file, !setsize));
 
 	if (index != -1) {
-		openfiles[index].load = load;
-		openfiles[index].exec = exec;
-		openfiles[index].filesize = size;
-		openfiles[index].attr = attr;
-		if (setsize) OR(_swix(OS_Args, _INR(0,2), 3, openfiles[index].handle, size));
+		cachedfiles[index].load = load;
+		cachedfiles[index].exec = exec;
+		cachedfiles[index].filesize = size;
+		cachedfiles[index].attr = attr;
+		if (setsize) OR(_swix(OS_Args, _INR(0,2), 3, cachedfiles[index].handle, size));
+	}
+	if (file) {
+		file->load = load;
+		file->exec = exec;
+		file->filesize = size;
+		file->attr = attr;
 	}
 
 	return NFS_OK;

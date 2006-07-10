@@ -121,12 +121,44 @@ nstat NFS4_ACCESS(ACCESS4args *args, ACCESS4res *res, struct server_conn *conn)
 	return res->status = NFS_OK;
 }
 
+
+#define CLIENTLISTSIZE 16
+
+union cliententry {
+	struct {
+		int valid;
+		time_t lastactivity;
+	} client;
+	union cliententry *next;
+};
+
+static union cliententry *cliententries = NULL;
+
 nstat NFS4_SETCLIENTID(SETCLIENTID4args *args, SETCLIENTID4res *res, struct server_conn *conn)
 {
-	(void)conn;
+	union cliententry *entry = cliententries;
+	int i;
+
+	/*FIXME - search for exisiting IDs, and remove them and any locks if confirmed */
+	if (entry == NULL) {
+		U4(entry = palloc(sizeof(union cliententry) * (CLIENTLISTSIZE + 1), conn->gpool));
+		memset(entry, 0, sizeof(union cliententry) * (CLIENTLISTSIZE + 1));
+	}
+
+	for (i = 0; i < CLIENTLISTSIZE; i++) {
+		if (!entry[i].client.valid) break;
+	}
+	if (i == CLIENTLISTSIZE) {
+		U4(entry[i].next = palloc(sizeof(union cliententry) * (CLIENTLISTSIZE + 1), conn->gpool));
+		entry = entry[i].next;
+		i = 0;
+		memset(entry, 0, sizeof(union cliententry) * (CLIENTLISTSIZE + 1));
+	}
+	entry[i].client.valid = 1;
+	entry[i].client.lastactivity = clock();
 
 	res->status = NFS_OK;
-	res->u.resok4.clientid = 0;
+	res->u.resok4.clientid = i;
 	memset(res->u.resok4.setclientid_confirm, 0, NFS4_VERIFIER_SIZE);
 
 	return NFS_OK;
@@ -143,8 +175,22 @@ nstat NFS4_SETCLIENTID_CONFIRM(SETCLIENTID_CONFIRM4args *args, SETCLIENTID_CONFI
 
 nstat NFS4_RENEW(RENEW4args *args, RENEW4res *res, struct server_conn *conn)
 {
+	union cliententry *entry = cliententries;
+
 	(void)conn;
-	(void)args;
+
+	if (entry == NULL) return res->status = NFSERR_STALE_CLIENTID;
+
+	while (args->clientid > CLIENTLISTSIZE) {
+		entry = entry[CLIENTLISTSIZE].next;
+		args->clientid -= CLIENTLISTSIZE;
+		if (entry == NULL) return res->status = NFSERR_STALE_CLIENTID;
+	}
+	if (entry[args->clientid].client.valid) {
+		entry[args->clientid].client.lastactivity = clock();
+	} else {
+		return res->status = NFSERR_STALE_CLIENTID;
+	}
 
 	return res->status = NFS_OK;
 }
@@ -688,7 +734,7 @@ buffer_overflow:
 	return;
 }
 
-static nstat set_fattr(char *path, fattr4 *args, bitmap4 *res, int sizeonly, int filetype, struct server_conn *conn)
+static nstat set_fattr(char *path, unsigned stateid, fattr4 *args, bitmap4 *res, int sizeonly, int filetype, struct server_conn *conn)
 {
 	char *oldibuf = ibuf;
 	char *oldibufend = ibufend;
@@ -793,7 +839,7 @@ static nstat set_fattr(char *path, fattr4 *args, bitmap4 *res, int sizeonly, int
 
 	if (type == OBJ_FILE) {
 		/* Write through the cache to ensure consistency */
-		NR(filecache_setattr(path, load, exec, attr, size, setsize));
+		NR(filecache_setattr(path, stateid, load, exec, attr, size, setsize));
 	}
 	OR(_swix(OS_File, _INR(0,3) | _IN(5), 1, path, load, exec, attr));
 
@@ -928,8 +974,13 @@ nstat NFS4_SAVEFH(SAVEFH4res *res, struct server_conn *conn)
 
 nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 {
-	int filetype = 0xFFF;/**/
+	int filetype = 0xFFF;/*FIXME*/
 	int verf;
+	unsigned stateid;
+
+	if ((args->share_access == 0) ||
+	    (args->share_access & ~OPEN4_SHARE_ACCESS_BOTH) ||
+	    (args->share_deny   & ~OPEN4_SHARE_ACCESS_BOTH)) return NFSERR_INVAL;
 
 	switch (args->claim.claim) {
 	case CLAIM_NULL:
@@ -944,8 +995,6 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 	memset(res->u.resok4.attrset.data, 0, 2 * sizeof(unsigned));
 
 	res->u.resok4.rflags = 0;
-	res->u.resok4.stateid.seqid = 0; /*FIXME*/
-	memset(res->u.resok4.stateid.other, 0, 12);
 	res->u.resok4.cinfo.atomic = TRUE;
 	res->u.resok4.cinfo.before = changeid;
 	changeid++;
@@ -969,9 +1018,9 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 		case UNCHECKED4:
 			if (type == OBJ_NONE) {
 				O4(_swix(OS_File, _INR(0,5), 11, currentfh, filetype, 0, 0, 0));
-				N4(set_fattr(currentfh, &(args->openhow.u.how.u.createattrs), &(res->u.resok4.attrset), 1, filetype, conn));
+				N4(set_fattr(currentfh, STATEID_NONE, &(args->openhow.u.how.u.createattrs), &(res->u.resok4.attrset), 1, filetype, conn));
 			} else {
-				N4(set_fattr(currentfh, &(args->openhow.u.how.u.createattrs), &(res->u.resok4.attrset), 0, filetype, conn));
+				N4(set_fattr(currentfh, STATEID_NONE, &(args->openhow.u.how.u.createattrs), &(res->u.resok4.attrset), 0, filetype, conn));
 			}
 			break;
 		case EXCLUSIVE4:
@@ -988,13 +1037,35 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 
 	}
 
+	N4(filecache_open(currentfh, (unsigned)(args->owner.clientid), args->owner.owner.data, args->owner.owner.size, args->share_access, args->share_deny, &stateid));
+	res->u.resok4.stateid.seqid = 0; /*FIXME*/
+	memset(res->u.resok4.stateid.other, 0, 12);
+	*((unsigned *)res->u.resok4.stateid.other) = stateid;
+
+	return res->status = NFS_OK;
+}
+
+#define stateid4tostateid(id4) (*((unsigned *)id4.other))
+
+nstat NFS4_OPEN_DOWNGRADE(OPEN_DOWNGRADE4args *args, OPEN_DOWNGRADE4res *res, struct server_conn *conn)
+{
+	(void)conn;
+
+	N4(filecache_opendowngrade(currentfh, stateid4tostateid(args->open_stateid), args->share_access, args->share_deny));
+
+	res->u.resok4.open_stateid = args->open_stateid; /*FIXME?*/
+
 	return res->status = NFS_OK;
 }
 
 nstat NFS4_CLOSE(CLOSE4args *args, CLOSE4res *res, struct server_conn *conn)
 {
 	(void)conn;
-	res->u.open_stateid = args->open_stateid;
+
+	N4(filecache_close(currentfh, stateid4tostateid(args->open_stateid)));
+
+	res->u.open_stateid = args->open_stateid; /*FIXME?*/
+
 	return res->status = NFS_OK;
 }
 
@@ -1009,7 +1080,7 @@ nstat NFS4_READ(READ4args *args, READ4res *res, struct server_conn *conn)
 
 	if (args->offset > 0x7FFFFFFFULL) N4(NFSERR_FBIG);
 
-	N4(filecache_read(currentfh, args->count, (unsigned int)args->offset, &data, &read, &eof));
+	N4(filecache_read(currentfh, stateid4tostateid(args->stateid), args->count, (unsigned int)args->offset, &data, &read, &eof));
 	res->u.resok4.data.data = data;
 	res->u.resok4.data.size = read;
 	res->u.resok4.eof = eof ? TRUE : FALSE;
@@ -1028,7 +1099,7 @@ nstat NFS4_WRITE(WRITE4args *args, WRITE4res *res, struct server_conn *conn)
 	if (args->offset > 0x7FFFFFFFULL) N4(NFSERR_FBIG);
 	if (args->offset + args->data.size > 0x7FFFFFFFULL) N4(NFSERR_FBIG);
 
-	N4(filecache_write(currentfh, args->data.size, (unsigned int)args->offset, args->data.data, sync, res->u.resok4.writeverf));
+	N4(filecache_write(currentfh, stateid4tostateid(args->stateid), args->data.size, (unsigned int)args->offset, args->data.data, sync, res->u.resok4.writeverf));
 
 	res->u.resok4.count = args->data.size;
 	res->u.resok4.committed = sync ? FILE_SYNC4 : UNSTABLE4;
@@ -1063,7 +1134,7 @@ nstat NFS4_CREATE(CREATE4args *args, CREATE4res *res, struct server_conn *conn)
 	U4(res->u.resok4.attrset.data = palloc(2 * sizeof(unsigned), conn->pool));
 	res->u.resok4.attrset.size = 2;
 	memset(res->u.resok4.attrset.data, 0, 2 * sizeof(unsigned));
-	N4(set_fattr(currentfh, &(args->createattrs), &(res->u.resok4.attrset), 0, filetype, conn));
+	N4(set_fattr(currentfh, STATEID_NONE, &(args->createattrs), &(res->u.resok4.attrset), 0, filetype, conn));
 
 	res->u.resok4.cinfo.atomic = TRUE;
 	res->u.resok4.cinfo.before = changeid;
@@ -1197,7 +1268,7 @@ nstat NFS4_SETATTR(SETATTR4args *args, SETATTR4res *res, struct server_conn *con
 	U4(res->attrsset.data = palloc(2 * sizeof(unsigned), conn->pool));
 	res->attrsset.size = 2;
 	memset(res->attrsset.data, 0, 2 * sizeof(unsigned));
-	N4(set_fattr(currentfh, &(args->obj_attributes), &(res->attrsset), 0, -1, conn));
+	N4(set_fattr(currentfh, stateid4tostateid(args->stateid), &(args->obj_attributes), &(res->attrsset), 0, -1, conn));
 
 	return res->status = NFS_OK;
 }
@@ -1210,4 +1281,28 @@ nstat NFS4_NVERIFY(NVERIFY4args *args, NVERIFY4res *res, struct server_conn *con
 nstat NFS4_VERIFY(VERIFY4args *args, VERIFY4res *res, struct server_conn *conn)
 {
 	return res->status = verify_fattr(currentfh, 1, &(args->obj_attributes), conn);
+}
+
+nstat NFS4_LOCK(LOCK4args *args, LOCK4res *res, struct server_conn *conn)
+{
+	(void)args;
+	(void)conn;
+
+	return res->status = NFSERR_NOTSUPP;
+}
+
+nstat NFS4_LOCKT(LOCKT4args *args, LOCKT4res *res, struct server_conn *conn)
+{
+	(void)args;
+	(void)conn;
+
+	return res->status = NFSERR_NOTSUPP;
+}
+
+nstat NFS4_LOCKU(LOCKU4args *args, LOCKU4res *res, struct server_conn *conn)
+{
+	(void)args;
+	(void)conn;
+
+	return res->status = NFSERR_NOTSUPP;
 }

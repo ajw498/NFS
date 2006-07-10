@@ -38,6 +38,9 @@
 
 extern int logging;
 
+#define STATEID_NONE 0x00000000
+#define STATEID_ANY  0xFFFFFFFF
+
 
 #define EXPORTSREAD  "Choices:Moonfish.exports"
 #define EXPORTSWRITE "<Choices$Write>.Moonfish.exports"
