@@ -21,24 +21,34 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+struct stateid {
+	unsigned clientid;
+	char *owner;
+	int ownerlen;
+	int refcount;
+	int ownerseq;
+	struct stateid *next;
+};
 
 void filecache_init(void);
 
 void filecache_reap(int all);
 
-enum nstat filecache_open(char *path, int clientid, char *owner, int ownerlen, unsigned access, unsigned deny, unsigned *stateid);
+enum nstat filecache_getstateid(unsigned seqid, char *other, struct stateid **stateid);
 
-enum nstat filecache_opendowngrade(char *path, unsigned stateid, unsigned access, unsigned deny);
+enum nstat filecache_open(char *path, unsigned clientid, char *owner, int ownerlen, unsigned access, unsigned deny, int *seqid, char *other);
 
-enum nstat filecache_close(char *path, unsigned stateid);
+enum nstat filecache_opendowngrade(char *path, struct stateid *stateid, unsigned access, unsigned deny);
 
-enum nstat filecache_read(char *path, unsigned stateid, unsigned int count, unsigned int offset, char **data, unsigned int *read, int *eof);
+enum nstat filecache_close(char *path, struct stateid *stateid);
 
-enum nstat filecache_write(char *path, unsigned stateid, unsigned int count, unsigned int offset, char *data, int sync, char *verf);
+enum nstat filecache_read(char *path, struct stateid *stateid, unsigned int count, unsigned int offset, char **data, unsigned int *read, int *eof);
+
+enum nstat filecache_write(char *path, struct stateid *stateid, unsigned int count, unsigned int offset, char *data, int sync, char *verf);
 
 enum nstat filecache_commit(char *path, char *verf);
 
 enum nstat filecache_getattr(char *path, unsigned int *load, unsigned int *exec, unsigned int *size, unsigned int *attr, int *cached);
 
-enum nstat filecache_setattr(char *path, unsigned stateid, unsigned int load, unsigned int exec, unsigned int attr, unsigned int size, int setsize);
+enum nstat filecache_setattr(char *path, struct stateid *stateid, unsigned int load, unsigned int exec, unsigned int attr, unsigned int size, int setsize);
 

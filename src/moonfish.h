@@ -38,8 +38,8 @@
 
 extern int logging;
 
-#define STATEID_NONE 0x00000000
-#define STATEID_ANY  0xFFFFFFFF
+#define STATEID_NONE NULL
+#define STATEID_ANY  ((struct stateid *)0xFFFFFFFF)
 
 
 #define EXPORTSREAD  "Choices:Moonfish.exports"

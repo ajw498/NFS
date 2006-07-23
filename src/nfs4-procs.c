@@ -734,7 +734,7 @@ buffer_overflow:
 	return;
 }
 
-static nstat set_fattr(char *path, unsigned stateid, fattr4 *args, bitmap4 *res, int sizeonly, int filetype, struct server_conn *conn)
+static nstat set_fattr(char *path, struct stateid *stateid, fattr4 *args, bitmap4 *res, int sizeonly, int filetype, struct server_conn *conn)
 {
 	char *oldibuf = ibuf;
 	char *oldibufend = ibufend;
@@ -976,7 +976,8 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 {
 	int filetype = 0xFFF;/*FIXME*/
 	int verf;
-	unsigned stateid;
+	char other[12];
+	int ownerseqid;
 
 	if ((args->share_access == 0) ||
 	    (args->share_access & ~OPEN4_SHARE_ACCESS_BOTH) ||
@@ -1037,34 +1038,35 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 
 	}
 
-	N4(filecache_open(currentfh, (unsigned)(args->owner.clientid), args->owner.owner.data, args->owner.owner.size, args->share_access, args->share_deny, &stateid));
-	res->u.resok4.stateid.seqid = 0; /*FIXME*/
-	memset(res->u.resok4.stateid.other, 0, 12);
-	*((unsigned *)res->u.resok4.stateid.other) = stateid;
+	N4(filecache_open(currentfh, (unsigned)(args->owner.clientid), args->owner.owner.data, args->owner.owner.size, args->share_access, args->share_deny, &ownerseqid, other));
+	res->u.resok4.stateid.seqid = ownerseqid;
+	memcpy(res->u.resok4.stateid.other, other, 12);
 
 	return res->status = NFS_OK;
 }
 
-#define stateid4tostateid(id4) (*((unsigned *)id4.other))
-
 nstat NFS4_OPEN_DOWNGRADE(OPEN_DOWNGRADE4args *args, OPEN_DOWNGRADE4res *res, struct server_conn *conn)
 {
+	struct stateid *stateid;
 	(void)conn;
 
-	N4(filecache_opendowngrade(currentfh, stateid4tostateid(args->open_stateid), args->share_access, args->share_deny));
+	N4(filecache_getstateid(args->open_stateid.seqid, args->open_stateid.other, &stateid));
+	N4(filecache_opendowngrade(currentfh, stateid, args->share_access, args->share_deny));
 
-	res->u.resok4.open_stateid = args->open_stateid; /*FIXME?*/
+	res->u.resok4.open_stateid = args->open_stateid;
 
 	return res->status = NFS_OK;
 }
 
 nstat NFS4_CLOSE(CLOSE4args *args, CLOSE4res *res, struct server_conn *conn)
 {
+	struct stateid *stateid;
 	(void)conn;
 
-	N4(filecache_close(currentfh, stateid4tostateid(args->open_stateid)));
+	N4(filecache_getstateid(args->open_stateid.seqid, args->open_stateid.other, &stateid));
+	N4(filecache_close(currentfh, stateid));
 
-	res->u.open_stateid = args->open_stateid; /*FIXME?*/
+	res->u.open_stateid = args->open_stateid;
 
 	return res->status = NFS_OK;
 }
@@ -1075,12 +1077,14 @@ nstat NFS4_READ(READ4args *args, READ4res *res, struct server_conn *conn)
 	unsigned int read;
 	int eof;
 	char *data;
+	struct stateid *stateid;
 
 	(void)conn;
 
 	if (args->offset > 0x7FFFFFFFULL) N4(NFSERR_FBIG);
 
-	N4(filecache_read(currentfh, stateid4tostateid(args->stateid), args->count, (unsigned int)args->offset, &data, &read, &eof));
+	N4(filecache_getstateid(args->stateid.seqid, args->stateid.other, &stateid));
+	N4(filecache_read(currentfh, stateid, args->count, (unsigned int)args->offset, &data, &read, &eof));
 	res->u.resok4.data.data = data;
 	res->u.resok4.data.size = read;
 	res->u.resok4.eof = eof ? TRUE : FALSE;
@@ -1091,6 +1095,7 @@ nstat NFS4_READ(READ4args *args, READ4res *res, struct server_conn *conn)
 nstat NFS4_WRITE(WRITE4args *args, WRITE4res *res, struct server_conn *conn)
 {
 	int sync = args->stable != UNSTABLE4;
+	struct stateid *stateid;
 
 	(void)conn;
 
@@ -1099,7 +1104,8 @@ nstat NFS4_WRITE(WRITE4args *args, WRITE4res *res, struct server_conn *conn)
 	if (args->offset > 0x7FFFFFFFULL) N4(NFSERR_FBIG);
 	if (args->offset + args->data.size > 0x7FFFFFFFULL) N4(NFSERR_FBIG);
 
-	N4(filecache_write(currentfh, stateid4tostateid(args->stateid), args->data.size, (unsigned int)args->offset, args->data.data, sync, res->u.resok4.writeverf));
+	N4(filecache_getstateid(args->stateid.seqid, args->stateid.other, &stateid));
+	N4(filecache_write(currentfh, stateid, args->data.size, (unsigned int)args->offset, args->data.data, sync, res->u.resok4.writeverf));
 
 	res->u.resok4.count = args->data.size;
 	res->u.resok4.committed = sync ? FILE_SYNC4 : UNSTABLE4;
@@ -1260,6 +1266,8 @@ nstat NFS4_RENAME(RENAME4args *args, RENAME4res *res, struct server_conn *conn)
 
 nstat NFS4_SETATTR(SETATTR4args *args, SETATTR4res *res, struct server_conn *conn)
 {
+	struct stateid *stateid;
+
 	res->attrsset.size = 0;
 
 	if (conn->export->ro) N4(NFSERR_ROFS);
@@ -1268,7 +1276,8 @@ nstat NFS4_SETATTR(SETATTR4args *args, SETATTR4res *res, struct server_conn *con
 	U4(res->attrsset.data = palloc(2 * sizeof(unsigned), conn->pool));
 	res->attrsset.size = 2;
 	memset(res->attrsset.data, 0, 2 * sizeof(unsigned));
-	N4(set_fattr(currentfh, stateid4tostateid(args->stateid), &(args->obj_attributes), &(res->attrsset), 0, -1, conn));
+	N4(filecache_getstateid(args->stateid.seqid, args->stateid.other, &stateid));
+	N4(set_fattr(currentfh, stateid, &(args->obj_attributes), &(res->attrsset), 0, -1, conn));
 
 	return res->status = NFS_OK;
 }
