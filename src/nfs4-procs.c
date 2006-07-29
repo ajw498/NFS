@@ -978,27 +978,44 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 	int verf;
 	char other[12];
 	int ownerseqid;
-	union duplicate *duplicate;
+	int duplicate;
 	int confirmrequired;
-
-	N4(filecache_checkseqid(NULL, (unsigned)(args->owner.clientid), args->owner.owner.data, args->owner.owner.size, args->seqid, 0, &duplicate));
-	if (duplicate) {
-		/*FIXME*/
-	}
+	struct stateid *stateid;
 
 	if ((args->share_access == 0) ||
 	    (args->share_access & ~OPEN4_SHARE_ACCESS_BOTH) ||
 	    (args->share_deny   & ~OPEN4_SHARE_ACCESS_BOTH)) return NFSERR_INVAL;
 
-	switch (args->claim.claim) {
-	case CLAIM_NULL:
-		N4(lookup_filename(currentfh, &(args->claim.u.file), &currentfh, &filetype, conn));
-		break;
-	default:
-		N4(NFSERR_IO); /*FIXME*/
+	NR(filecache_createstateid((unsigned)(args->owner.clientid), args->owner.owner.data, args->owner.owner.size, args->seqid, &stateid, &confirmrequired));
+
+	if (!confirmrequired) {
+		N4(filecache_checkseqid(stateid, args->seqid, 0, &duplicate));
+		if (duplicate) {
+			res->status = stateid->duplicate.open.status;
+			res->u.resok4.stateid.seqid = stateid->duplicate.open.stateidseq;
+			memcpy(res->u.resok4.stateid.other, stateid->duplicate.open.stateidother, 12);
+			res->u.resok4.rflags = stateid->duplicate.open.rflags;
+			res->u.resok4.attrset.data = stateid->duplicate.open.attrset;
+			res->u.resok4.attrset.size = 2;
+			res->u.resok4.cinfo.atomic = TRUE;
+			res->u.resok4.cinfo.before = changeid;
+			changeid++;
+			res->u.resok4.cinfo.after = changeid;
+			changeid++;
+			res->u.resok4.delegation.delegation_type = OPEN_DELEGATE_NONE;
+			return res->status;
+		}
 	}
 
-	U4(res->u.resok4.attrset.data = palloc(2 * sizeof(unsigned), conn->pool));
+	switch (args->claim.claim) {
+	case CLAIM_NULL:
+		NF(lookup_filename(currentfh, &(args->claim.u.file), &currentfh, &filetype, conn));
+		break;
+	default:
+		NF(NFSERR_IO); /*FIXME*/
+	}
+
+	UF(res->u.resok4.attrset.data = palloc(2 * sizeof(unsigned), conn->pool));
 	res->u.resok4.attrset.size = 2;
 	memset(res->u.resok4.attrset.data, 0, 2 * sizeof(unsigned));
 
@@ -1015,56 +1032,64 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 		/* Create the file */
 		int type;
 		unsigned exec;
-		if (conn->export->ro) N4(NFSERR_ROFS);
+		if (conn->export->ro) NF(NFSERR_ROFS);
 
-		O4(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUT(3), 17, currentfh, &type, &exec));
+		OF(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUT(3), 17, currentfh, &type, &exec));
 
 		switch (args->openhow.u.how.mode) {
 		case GUARDED4:
-			if (type != OBJ_NONE) N4(NFSERR_EXIST);
+			if (type != OBJ_NONE) NF(NFSERR_EXIST);
 			/* Fallthrough */
 		case UNCHECKED4:
 			if (type == OBJ_NONE) {
-				O4(_swix(OS_File, _INR(0,5), 11, currentfh, filetype, 0, 0, 0));
-				N4(set_fattr(currentfh, STATEID_NONE, &(args->openhow.u.how.u.createattrs), &(res->u.resok4.attrset), 1, filetype, conn));
+				OF(_swix(OS_File, _INR(0,5), 11, currentfh, filetype, 0, 0, 0));
+				NF(set_fattr(currentfh, STATEID_NONE, &(args->openhow.u.how.u.createattrs), &(res->u.resok4.attrset), 1, filetype, conn));
 			} else {
-				N4(set_fattr(currentfh, STATEID_NONE, &(args->openhow.u.how.u.createattrs), &(res->u.resok4.attrset), 0, filetype, conn));
+				NF(set_fattr(currentfh, STATEID_NONE, &(args->openhow.u.how.u.createattrs), &(res->u.resok4.attrset), 0, filetype, conn));
 			}
 			break;
 		case EXCLUSIVE4:
 			verf  = ((int *)args->openhow.u.how.u.createverf)[0];
 			verf ^= ((int *)args->openhow.u.how.u.createverf)[1];
 			if (type != OBJ_NONE) {
-				if (exec != verf) N4(NFSERR_EXIST);
+				if (exec != verf) NF(NFSERR_EXIST);
 			} else {
-				O4(_swix(OS_File, _INR(0,5), 11, currentfh, filetype, 0, 0, 0));
-				O4(_swix(OS_File, _INR(0,1) | _IN(3), 3, currentfh, verf));
+				OF(_swix(OS_File, _INR(0,5), 11, currentfh, filetype, 0, 0, 0));
+				OF(_swix(OS_File, _INR(0,1) | _IN(3), 3, currentfh, verf));
 			}
 			res->u.resok4.attrset.data[1] |= 1 << (FATTR4_TIME_MODIFY & 0x1F);
 		}
 
 	}
 
-	N4(filecache_open(currentfh, (unsigned)(args->owner.clientid), args->owner.owner.data, args->owner.owner.size, args->share_access, args->share_deny, args->seqid, &ownerseqid, other, &confirmrequired));
+	NF(filecache_open(currentfh, stateid, args->share_access, args->share_deny, &ownerseqid, other));
 	if (confirmrequired) res->u.resok4.rflags |= OPEN4_RESULT_CONFIRM;
 	res->u.resok4.stateid.seqid = ownerseqid;
 	memcpy(res->u.resok4.stateid.other, other, 12);
 
-	/*FIXME - store results in duplicate */
-	return res->status = NFS_OK;
+	stateid->duplicate.open.stateidseq = res->u.resok4.stateid.seqid;
+	memcpy(stateid->duplicate.open.stateidother, res->u.resok4.stateid.other, 12);
+	stateid->duplicate.open.rflags = res->u.resok4.rflags;
+	memcpy(stateid->duplicate.open.attrset, res->u.resok4.attrset.data, 8);
+	return stateid->duplicate.open.status = res->status = NFS_OK;
+
+failure:
+	return stateid->duplicate.open.status = res->status;
 }
 
 nstat NFS4_OPEN_CONFIRM(OPEN_CONFIRM4args *args, OPEN_CONFIRM4res *res, struct server_conn *conn)
 {
 	struct stateid *stateid;
-	union duplicate *duplicate;
+	int duplicate;
+
 	(void)conn;
 
 	N4(filecache_getstateid(args->open_stateid.seqid, args->open_stateid.other, &stateid));
-	N4(filecache_checkseqid(stateid, 0, NULL, 0, args->seqid, 1, &duplicate));
-	if (duplicate) {
-		/*FIXME (is this possible?) */
-	}
+	N4(filecache_checkseqid(stateid, args->seqid, 1, &duplicate));
+
+	/* It isn't possible for the confirm to fail other than for bad
+	   stateid or bad seqid, therefore we do not need to save the
+	   response in case of a duplicate request */
 	res->u.resok4.open_stateid = args->open_stateid;
 	return res->status = NFS_OK;
 }
@@ -1072,30 +1097,41 @@ nstat NFS4_OPEN_CONFIRM(OPEN_CONFIRM4args *args, OPEN_CONFIRM4res *res, struct s
 nstat NFS4_OPEN_DOWNGRADE(OPEN_DOWNGRADE4args *args, OPEN_DOWNGRADE4res *res, struct server_conn *conn)
 {
 	struct stateid *stateid;
+	int duplicate;
+
 	(void)conn;
 
 	N4(filecache_getstateid(args->open_stateid.seqid, args->open_stateid.other, &stateid));
-	N4(filecache_opendowngrade(currentfh, stateid, args->share_access, args->share_deny));
+	N4(filecache_checkseqid(stateid, args->seqid, 0, &duplicate));
+	if (duplicate) {
+		res->status = stateid->duplicate.status;
+	} else {
+		res->status = stateid->duplicate.status = filecache_opendowngrade(currentfh, stateid, args->share_access, args->share_deny);
+	}
 
 	res->u.resok4.open_stateid = args->open_stateid;
 
-	return res->status = NFS_OK;
+	return res->status;
 }
 
 nstat NFS4_CLOSE(CLOSE4args *args, CLOSE4res *res, struct server_conn *conn)
 {
 	struct stateid *stateid;
+	int duplicate;
+
 	(void)conn;
 
-	if (filecache_getstateid(args->open_stateid.seqid, args->open_stateid.other, &stateid) == NFS_OK) {
-		/* If stateid is not found then don't return an error, to
-		   prevent errors on duplicate transmissions. */
-		N4(filecache_close(currentfh, stateid));
+	N4(filecache_getstateid(args->open_stateid.seqid, args->open_stateid.other, &stateid));
+	N4(filecache_checkseqid(stateid, args->seqid, 0, &duplicate));
+	if (duplicate) {
+		res->status = stateid->duplicate.status;
+	} else {
+		res->status = stateid->duplicate.status = filecache_close(currentfh, stateid);
 	}
 
 	res->u.open_stateid = args->open_stateid;
 
-	return res->status = NFS_OK;
+	return res->status;
 }
 
 

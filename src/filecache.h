@@ -22,7 +22,14 @@
 */
 
 union duplicate {
-	int misc[2];
+	enum nstat status;
+	struct {
+		enum nstat status;
+		int stateidseq;
+		char stateidother[12];
+		unsigned rflags;
+		unsigned attrset[2];
+	} open;
 };
 
 struct stateid {
@@ -34,7 +41,7 @@ struct stateid {
 	unsigned seqid;
 	int unconfirmed;
 	union duplicate duplicate;
-	time_t timeout;
+	time_t time;
 	struct stateid *next;
 };
 
@@ -42,11 +49,13 @@ void filecache_init(void);
 
 void filecache_reap(int all);
 
-enum nstat filecache_checkseqid(struct stateid *stateid, unsigned clientid, char *owner, int ownerlen, unsigned seqid, int confirm, union duplicate **duplicate);
+enum nstat filecache_createstateid(unsigned clientid, char *owner, int ownerlen, unsigned seqid, struct stateid **stateid, int *confirmrequired);
+
+enum nstat filecache_checkseqid(struct stateid *stateid, unsigned seqid, int confirm, int *duplicate);
 
 enum nstat filecache_getstateid(unsigned seqid, char *other, struct stateid **stateid);
 
-enum nstat filecache_open(char *path, unsigned clientid, char *owner, int ownerlen, unsigned access, unsigned deny, unsigned seqid, int *ownerseqid, char *other, int *confirmrequired);
+enum nstat filecache_open(char *path, struct stateid *stateid, unsigned access, unsigned deny, int *ownerseqid, char *other);
 
 enum nstat filecache_opendowngrade(char *path, struct stateid *stateid, unsigned access, unsigned deny);
 

@@ -41,6 +41,7 @@ extern int logging;
 #define STATEID_NONE NULL
 #define STATEID_ANY  ((struct stateid *)0xFFFFFFFF)
 
+#define LEASE_TIMEOUT (30 * CLOCKS_PER_SEC)
 
 #define EXPORTSREAD  "Choices:Moonfish.exports"
 #define EXPORTSWRITE "<Choices$Write>.Moonfish.exports"
