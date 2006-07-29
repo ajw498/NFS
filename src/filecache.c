@@ -87,7 +87,7 @@ static struct cachedfile {
 
 static unsigned int verifier[2];
 
-static enum nstat filecache_createstateid(unsigned clientid, char *owner, int ownerlen, struct stateid **stateid)
+static enum nstat filecache_createstateid(unsigned clientid, char *owner, int ownerlen, unsigned seqid, struct stateid **stateid, int *confirmrequired)
 {
 	struct stateid *id = owners;
 
@@ -95,8 +95,10 @@ static enum nstat filecache_createstateid(unsigned clientid, char *owner, int ow
 		if ((id->clientid == clientid) &&
 		    (id->ownerlen == ownerlen) &&
 		    (memcmp(id->owner, owner, ownerlen) == 0)) {
+			*confirmrequired = 0;
 			id->refcount++;
 			*stateid = id;
+			id->seqid = seqid;
 			return NFS_OK;
 		}
 		id = id->next;
@@ -112,10 +114,14 @@ static enum nstat filecache_createstateid(unsigned clientid, char *owner, int ow
 	id->clientid = clientid;
 	id->refcount = 1;
 	id->ownerseq = ownerseq++;
+	id->seqid = seqid;
+	id->unconfirmed = 1;
+	id->timeout = clock();
 	id->next = owners;
 	owners = id;
 
 	*stateid = id;
+	*confirmrequired = 1;
 	return NFS_OK;
 }
 
@@ -140,6 +146,42 @@ static enum nstat filecache_removestateid(struct stateid *stateid)
 		free(stateid->owner);
 		free(stateid);
 	}
+	/*FIXME set timeout and leave? */
+	return NFS_OK;
+}
+
+
+enum nstat filecache_checkseqid(struct stateid *stateid, unsigned clientid, char *owner, int ownerlen, unsigned seqid, int confirm, union duplicate **duplicate)
+{
+	if (stateid == NULL) {
+		stateid = owners;
+		while (stateid) {
+			if ((stateid->clientid == clientid) &&
+			    (stateid->ownerlen == ownerlen) &&
+			    (memcmp(stateid->owner, owner, ownerlen) == 0)) break;
+			stateid = stateid->next;
+		}
+	}
+	if (stateid == NULL) {
+		*duplicate = NULL;
+		return NFS_OK;
+	}
+
+	if (seqid < stateid->seqid) return NFSERR_BAD_SEQID;
+	if (seqid > stateid->seqid + 1) return NFSERR_BAD_SEQID;
+	if (seqid == stateid->seqid) {
+		*duplicate = &(stateid->duplicate);
+	} else {
+		*duplicate = NULL;
+	}
+	if (stateid->unconfirmed) {
+		if (confirm) {
+			stateid->unconfirmed = 0;
+		} else {
+			return NFSERR_BAD_SEQID;
+		}
+	}
+
 	return NFS_OK;
 }
 
@@ -338,7 +380,7 @@ static enum nstat filecache_opencached(char *path, struct stateid *stateid, int 
 	return NFS_OK;
 }
 
-enum nstat filecache_open(char *path, unsigned clientid, char *owner, int ownerlen, unsigned access, unsigned deny, int *seqid, char *other)
+enum nstat filecache_open(char *path, unsigned clientid, char *owner, int ownerlen, unsigned access, unsigned deny, unsigned seqid, int *ownerseqid, char *other, int *confirmrequired)
 {
 	int index;
 	struct openfile *file;
@@ -346,7 +388,7 @@ enum nstat filecache_open(char *path, unsigned clientid, char *owner, int ownerl
 	unsigned *other2 = (unsigned *)(other);
 
 	NR(filecache_opencached(path, STATEID_ANY, 0, &index, &file, 1));
-	NR(filecache_createstateid(clientid, owner, ownerlen, &stateid));
+	NR(filecache_createstateid(clientid, owner, ownerlen, seqid, &stateid, confirmrequired));
 
 	if (file) {
 		struct open_owner *current = file->owners;
@@ -408,7 +450,7 @@ enum nstat filecache_open(char *path, unsigned clientid, char *owner, int ownerl
 	                                                                &(file->exec),
 	                                                                &(file->filesize),
 	                                                                &(file->attr));
-		if (err2 == NULL) err2 = _swix(OS_Find, _INR(0,1) | _OUT(0), 0xC3, path, &(file->handle));
+		if (err2 == NULL) err2 = _swix(OS_Find, _INR(0,1) | _OUT(0), 0xCF, path, &(file->handle));
 
 		if (err2) {
 			free(file->owners);
@@ -423,7 +465,7 @@ enum nstat filecache_open(char *path, unsigned clientid, char *owner, int ownerl
 		file->next = openfiles;
 		openfiles = file;
 	}
-	*seqid = stateid->ownerseq;
+	*ownerseqid = stateid->ownerseq;
 	other2[0] = (unsigned)stateid;
 	other2[1] = verifier[0];
 	other2[2] = verifier[1];

@@ -21,12 +21,20 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+union duplicate {
+	int misc[2];
+};
+
 struct stateid {
 	unsigned clientid;
 	char *owner;
 	int ownerlen;
 	int refcount;
 	int ownerseq;
+	unsigned seqid;
+	int unconfirmed;
+	union duplicate duplicate;
+	time_t timeout;
 	struct stateid *next;
 };
 
@@ -34,9 +42,11 @@ void filecache_init(void);
 
 void filecache_reap(int all);
 
+enum nstat filecache_checkseqid(struct stateid *stateid, unsigned clientid, char *owner, int ownerlen, unsigned seqid, int confirm, union duplicate **duplicate);
+
 enum nstat filecache_getstateid(unsigned seqid, char *other, struct stateid **stateid);
 
-enum nstat filecache_open(char *path, unsigned clientid, char *owner, int ownerlen, unsigned access, unsigned deny, int *seqid, char *other);
+enum nstat filecache_open(char *path, unsigned clientid, char *owner, int ownerlen, unsigned access, unsigned deny, unsigned seqid, int *ownerseqid, char *other, int *confirmrequired);
 
 enum nstat filecache_opendowngrade(char *path, struct stateid *stateid, unsigned access, unsigned deny);
 

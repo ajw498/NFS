@@ -141,7 +141,7 @@ nstat NFS4_SETCLIENTID(SETCLIENTID4args *args, SETCLIENTID4res *res, struct serv
 
 	/*FIXME - search for exisiting IDs, and remove them and any locks if confirmed */
 	if (entry == NULL) {
-		U4(entry = palloc(sizeof(union cliententry) * (CLIENTLISTSIZE + 1), conn->gpool));
+		U4(entry = cliententries = palloc(sizeof(union cliententry) * (CLIENTLISTSIZE + 1), conn->gpool));
 		memset(entry, 0, sizeof(union cliententry) * (CLIENTLISTSIZE + 1));
 	}
 
@@ -978,6 +978,13 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 	int verf;
 	char other[12];
 	int ownerseqid;
+	union duplicate *duplicate;
+	int confirmrequired;
+
+	N4(filecache_checkseqid(NULL, (unsigned)(args->owner.clientid), args->owner.owner.data, args->owner.owner.size, args->seqid, 0, &duplicate));
+	if (duplicate) {
+		/*FIXME*/
+	}
 
 	if ((args->share_access == 0) ||
 	    (args->share_access & ~OPEN4_SHARE_ACCESS_BOTH) ||
@@ -1038,10 +1045,27 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 
 	}
 
-	N4(filecache_open(currentfh, (unsigned)(args->owner.clientid), args->owner.owner.data, args->owner.owner.size, args->share_access, args->share_deny, &ownerseqid, other));
+	N4(filecache_open(currentfh, (unsigned)(args->owner.clientid), args->owner.owner.data, args->owner.owner.size, args->share_access, args->share_deny, args->seqid, &ownerseqid, other, &confirmrequired));
+	if (confirmrequired) res->u.resok4.rflags |= OPEN4_RESULT_CONFIRM;
 	res->u.resok4.stateid.seqid = ownerseqid;
 	memcpy(res->u.resok4.stateid.other, other, 12);
 
+	/*FIXME - store results in duplicate */
+	return res->status = NFS_OK;
+}
+
+nstat NFS4_OPEN_CONFIRM(OPEN_CONFIRM4args *args, OPEN_CONFIRM4res *res, struct server_conn *conn)
+{
+	struct stateid *stateid;
+	union duplicate *duplicate;
+	(void)conn;
+
+	N4(filecache_getstateid(args->open_stateid.seqid, args->open_stateid.other, &stateid));
+	N4(filecache_checkseqid(stateid, 0, NULL, 0, args->seqid, 1, &duplicate));
+	if (duplicate) {
+		/*FIXME (is this possible?) */
+	}
+	res->u.resok4.open_stateid = args->open_stateid;
 	return res->status = NFS_OK;
 }
 
@@ -1063,8 +1087,11 @@ nstat NFS4_CLOSE(CLOSE4args *args, CLOSE4res *res, struct server_conn *conn)
 	struct stateid *stateid;
 	(void)conn;
 
-	N4(filecache_getstateid(args->open_stateid.seqid, args->open_stateid.other, &stateid));
-	N4(filecache_close(currentfh, stateid));
+	if (filecache_getstateid(args->open_stateid.seqid, args->open_stateid.other, &stateid) == NFS_OK) {
+		/* If stateid is not found then don't return an error, to
+		   prevent errors on duplicate transmissions. */
+		N4(filecache_close(currentfh, stateid));
+	}
 
 	res->u.open_stateid = args->open_stateid;
 
