@@ -49,6 +49,12 @@ void filecache_init(void);
 
 void filecache_reap(int all);
 
+enum nstat filecache_setclientid(char *id, int idlen, char *clientverf, uint64_t *clientid);
+
+enum nstat filecache_setclientidconfirm(uint64_t clientid);
+
+enum nstat filecache_renew(uint64_t clientid);
+
 enum nstat filecache_createstateid(unsigned clientid, char *owner, int ownerlen, unsigned seqid, struct stateid **stateid, int *confirmrequired);
 
 enum nstat filecache_checkseqid(struct stateid *stateid, unsigned seqid, int confirm, int *duplicate);

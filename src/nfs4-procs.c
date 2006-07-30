@@ -121,83 +121,36 @@ nstat NFS4_ACCESS(ACCESS4args *args, ACCESS4res *res, struct server_conn *conn)
 	return res->status = NFS_OK;
 }
 
-
-#define CLIENTLISTSIZE 16
-
-union cliententry {
-	struct {
-		int valid;
-		time_t lastactivity;
-	} client;
-	union cliententry *next;
-};
-
-static union cliententry *cliententries = NULL;
-
 nstat NFS4_SETCLIENTID(SETCLIENTID4args *args, SETCLIENTID4res *res, struct server_conn *conn)
 {
-	union cliententry *entry = cliententries;
-	int i;
+	(void)conn;
 
-	/*FIXME - search for exisiting IDs, and remove them and any locks if confirmed */
-	if (entry == NULL) {
-		U4(entry = cliententries = palloc(sizeof(union cliententry) * (CLIENTLISTSIZE + 1), conn->gpool));
-		memset(entry, 0, sizeof(union cliententry) * (CLIENTLISTSIZE + 1));
-	}
-
-	for (i = 0; i < CLIENTLISTSIZE; i++) {
-		if (!entry[i].client.valid) break;
-	}
-	if (i == CLIENTLISTSIZE) {
-		U4(entry[i].next = palloc(sizeof(union cliententry) * (CLIENTLISTSIZE + 1), conn->gpool));
-		entry = entry[i].next;
-		i = 0;
-		memset(entry, 0, sizeof(union cliententry) * (CLIENTLISTSIZE + 1));
-	}
-	entry[i].client.valid = 1;
-	entry[i].client.lastactivity = clock();
-
-	res->status = NFS_OK;
-	res->u.resok4.clientid = i;
+	N4(filecache_setclientid(args->client.id.data, args->client.id.size, args->client.verifier, &(res->u.resok4.clientid)));
 	memset(res->u.resok4.setclientid_confirm, 0, NFS4_VERIFIER_SIZE);
-
-	return NFS_OK;
+	return res->status = NFS_OK;
 }
 
 nstat NFS4_SETCLIENTID_CONFIRM(SETCLIENTID_CONFIRM4args *args, SETCLIENTID_CONFIRM4res *res, struct server_conn *conn)
 {
+	int zero[2] = {0, 0};
+
 	(void)conn;
-
-	res->status = NFS_OK;
-
-	return NFS_OK;
+	if (memcmp(args->setclientid_confirm, zero, 8) != 0) return NFSERR_STALE_CLIENTID;
+	N4(filecache_setclientidconfirm(args->clientid));
+	return res->status = NFS_OK;
 }
 
 nstat NFS4_RENEW(RENEW4args *args, RENEW4res *res, struct server_conn *conn)
 {
-	union cliententry *entry = cliententries;
-
 	(void)conn;
 
-	if (entry == NULL) return res->status = NFSERR_STALE_CLIENTID;
-
-	while (args->clientid > CLIENTLISTSIZE) {
-		entry = entry[CLIENTLISTSIZE].next;
-		args->clientid -= CLIENTLISTSIZE;
-		if (entry == NULL) return res->status = NFSERR_STALE_CLIENTID;
-	}
-	if (entry[args->clientid].client.valid) {
-		entry[args->clientid].client.lastactivity = clock();
-	} else {
-		return res->status = NFSERR_STALE_CLIENTID;
-	}
-
+	N4(filecache_renew(args->clientid));
 	return res->status = NFS_OK;
 }
 
 nstat NFS4_PUTPUBFH(PUTPUBFH4res *res, struct server_conn *conn)
 {
-	currentfh = conn->export->basedir; /**/
+	currentfh = conn->export->basedir; /*FIXME*/
 
 	res->status = NFS_OK;
 
@@ -206,7 +159,7 @@ nstat NFS4_PUTPUBFH(PUTPUBFH4res *res, struct server_conn *conn)
 
 nstat NFS4_PUTROOTFH(PUTROOTFH4res *res, struct server_conn *conn)
 {
-	currentfh = conn->export->basedir; /**/
+	currentfh = conn->export->basedir; /*FIXME*/
 
 	res->status = NFS_OK;
 

@@ -39,6 +39,22 @@
 
 #define DATABUFFER 128*1024
 
+struct clientid {
+	uint64_t clientid;
+	int unconfirmed;
+	time_t lastactivity;
+/*	char *r_netid; FIXME
+	char *r_addr;       */
+	char clientverf[8];
+	char *id;
+	int idlen;
+	struct clientid *next;
+};
+
+static unsigned nextclientid = 0;
+static struct clientid *clients = NULL;
+
+
 static int ownerseq = 0;
 static struct stateid *owners = NULL;
 
@@ -86,6 +102,152 @@ static struct cachedfile {
 
 
 static unsigned int verifier[2];
+
+static void filecache_removestate(struct clientid *id)
+{
+	/**/
+}
+
+enum nstat filecache_setclientid(char *cid, int cidlen, char *clientverf, uint64_t *clientid)
+{
+	struct clientid *confirmed = NULL;
+	struct clientid *unconfirmed = NULL;
+	struct clientid *id = clients;
+
+	/* Search the list for existing ids. There should be at most one
+	   confirmed and one unconfirmed. */
+	while (id) {
+		if ((id->idlen == cidlen) && (memcmp(id->id, cid, cidlen) == 0)) {
+			if (id->unconfirmed) {
+				unconfirmed = id;
+				if (confirmed) break;
+			} else {
+				confirmed = id;
+				if (unconfirmed) break;
+			}
+		}
+		id = id->next;
+	}
+
+	if (unconfirmed) {
+		/* Use existing unconfirmed entry */
+		unconfirmed->clientid = nextclientid++ | (((uint64_t)(verifier[0])) << 32);
+		unconfirmed->lastactivity = clock();
+		*clientid = unconfirmed->clientid;
+	} else {
+		/* Allocate a new unconfirmed entry */
+		UR(unconfirmed = malloc(sizeof(struct clientid)));
+		unconfirmed->id = malloc(cidlen);
+		if (unconfirmed->id == NULL) {
+			free(unconfirmed);
+			UR(NULL);
+		}
+		memcpy(unconfirmed->clientverf, clientverf, 8);
+		memcpy(unconfirmed->id, cid, cidlen);
+		unconfirmed->lastactivity = clock();
+		unconfirmed->unconfirmed = 1;
+		unconfirmed->next = clients;
+		clients = unconfirmed;
+
+		if (confirmed) {
+			if (memcmp(confirmed->clientverf, clientverf, 8) == 0) {
+				/* This is an update, so use the same id as before */
+				*clientid = unconfirmed->clientid = confirmed->clientid;
+			} else {
+				/* This is a client reboot, so use a new id */
+				*clientid = unconfirmed->clientid = nextclientid++ | (((uint64_t)(verifier[0])) << 32);
+			}
+		} else {
+			/* This is a new client, so use a new id */
+			*clientid = unconfirmed->clientid = nextclientid++ | (((uint64_t)(verifier[0])) << 32);
+		}
+	}
+	return NFS_OK;
+}
+
+enum nstat filecache_setclientidconfirm(uint64_t clientid)
+{
+	struct clientid *confirmed = NULL;
+	struct clientid *unconfirmed = NULL;
+	struct clientid *id = clients;
+
+	/* Search the list for existing ids. There should be at most one
+	   confirmed and one unconfirmed. */
+	while (id) {
+		if (id->clientid == clientid) {
+			if (id->unconfirmed) {
+				unconfirmed = id;
+				if (confirmed) break;
+			} else {
+				confirmed = id;
+				if (unconfirmed) break;
+			}
+		}
+		id = id->next;
+	}
+
+	if ((confirmed == NULL) && (unconfirmed == NULL)) {
+		return NFSERR_STALE_CLIENTID;
+	} else {
+		/* FIXME - Check security principals match */
+		if (confirmed && unconfirmed) {
+			/* Remove the old confirmed entry */
+			if (clients == confirmed) {
+				clients = confirmed->next;
+			} else {
+				id = clients;
+				while (id->next != confirmed) id = id->next;
+				id->next = confirmed->next;
+			}
+			free(confirmed->id);
+			free(confirmed);
+			/* The unconfirmed entry is now confirmed */
+			unconfirmed->unconfirmed = 0;
+			unconfirmed->lastactivity = clock();
+		} else if (confirmed) {
+			/* Must be a duplicate, so return ok */
+			return NFS_OK;
+		} else {
+			struct clientid **prev = &clients;
+			/* The unconfirmed entry is now confirmed */
+			unconfirmed->unconfirmed = 0;
+			unconfirmed->lastactivity = clock();
+			/* The wasn't a previously confirmed entry, so
+			   remove any state from previous incarnations
+			   of the same client */
+			id = clients;
+			while (id) {
+				if ((id->idlen == unconfirmed->idlen) &&
+				    (memcmp(id->id, unconfirmed->id, id->idlen) == 0) &&
+				    (memcmp(id->clientverf, unconfirmed->clientverf, 8) != 0)) {
+					*prev = id->next;
+					filecache_removestate(id);
+					free(id->id);
+					free(id);
+				} else {
+					prev = &(id->next);
+				}
+				id = id->next;
+			}
+		}
+	}
+	return NFS_OK;
+}
+
+enum nstat filecache_renew(uint64_t clientid)
+{
+	struct clientid *id = clients;
+
+	/* FIXME check security principal */
+	while (id) {
+		if ((id->clientid == clientid) && !id->unconfirmed) {
+			id->lastactivity = clock();
+			return NFS_OK;
+		}
+		id = id->next;
+	}
+	return NFSERR_STALE_CLIENTID;
+}
 
 enum nstat filecache_createstateid(unsigned clientid, char *owner, int ownerlen, unsigned seqid, struct stateid **stateid, int *confirmrequired)
 {
