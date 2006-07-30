@@ -93,7 +93,7 @@ extern char *obuf, *obufend;
  check_bufspace(input, 8); \
  if (input) { \
   uint64_t tmp; \
-  tmp  = (uint64_t)(((uint64_t)input_byte()) << 54); \
+  tmp  = (uint64_t)(((uint64_t)input_byte()) << 56); \
   tmp |= (uint64_t)(((uint64_t)input_byte()) << 48); \
   tmp |= (uint64_t)(((uint64_t)input_byte()) << 40); \
   tmp |= (uint64_t)(((uint64_t)input_byte()) << 32); \
@@ -103,7 +103,7 @@ extern char *obuf, *obufend;
   tmp |= (uint64_t)(((uint64_t)input_byte()) << 0 ); \
   structbase = tmp; \
  } else { \
-  output_byte((char)((structbase & 0xFF00000000000000) >> 54)); \
+  output_byte((char)((structbase & 0xFF00000000000000) >> 56)); \
   output_byte((char)((structbase & 0x00FF000000000000) >> 48)); \
   output_byte((char)((structbase & 0x0000FF0000000000) >> 40)); \
   output_byte((char)((structbase & 0x000000FF00000000) >> 32)); \
@@ -118,7 +118,7 @@ extern char *obuf, *obufend;
  check_bufspace(input, 8); \
  if (input) { \
   int64_t tmp; \
-  tmp  = (int64_t)(((int64_t)input_byte()) << 54); \
+  tmp  = (int64_t)(((int64_t)input_byte()) << 56); \
   tmp |= (int64_t)(((int64_t)input_byte()) << 48); \
   tmp |= (int64_t)(((int64_t)input_byte()) << 40); \
   tmp |= (int64_t)(((int64_t)input_byte()) << 32); \
@@ -128,7 +128,7 @@ extern char *obuf, *obufend;
   tmp |= (int64_t)(((int64_t)input_byte()) << 0 ); \
   structbase = tmp; \
  } else { \
-  output_byte((char)((structbase & 0xFF00000000000000) >> 54)); \
+  output_byte((char)((structbase & 0xFF00000000000000) >> 56)); \
   output_byte((char)((structbase & 0x00FF000000000000) >> 48)); \
   output_byte((char)((structbase & 0x0000FF0000000000) >> 40)); \
   output_byte((char)((structbase & 0x000000FF00000000) >> 32)); \
