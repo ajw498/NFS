@@ -27,6 +27,7 @@
 #include "exports.h"
 #include "utils.h"
 #include "filecache.h"
+#include "clientid.h"
 #include "nfs4-procs.h"
 #include "nfs4-decode.h"
 
@@ -125,7 +126,7 @@ nstat NFS4_SETCLIENTID(SETCLIENTID4args *args, SETCLIENTID4res *res, struct serv
 {
 	(void)conn;
 
-	N4(filecache_setclientid(args->client.id.data, args->client.id.size, args->client.verifier, &(res->u.resok4.clientid)));
+	N4(clientid_setclientid(args->client.id.data, args->client.id.size, args->client.verifier, &(res->u.resok4.clientid)));
 	memset(res->u.resok4.setclientid_confirm, 0, NFS4_VERIFIER_SIZE);
 	return res->status = NFS_OK;
 }
@@ -136,7 +137,7 @@ nstat NFS4_SETCLIENTID_CONFIRM(SETCLIENTID_CONFIRM4args *args, SETCLIENTID_CONFI
 
 	(void)conn;
 	if (memcmp(args->setclientid_confirm, zero, 8) != 0) return NFSERR_STALE_CLIENTID;
-	N4(filecache_setclientidconfirm(args->clientid));
+	N4(clientid_setclientidconfirm(args->clientid));
 	return res->status = NFS_OK;
 }
 
@@ -144,7 +145,7 @@ nstat NFS4_RENEW(RENEW4args *args, RENEW4res *res, struct server_conn *conn)
 {
 	(void)conn;
 
-	N4(filecache_renew(args->clientid));
+	N4(clientid_renew(args->clientid));
 	return res->status = NFS_OK;
 }
 
@@ -356,9 +357,9 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					process_bool(OUTPUT, true);
 					break;
 				case FATTR4_LEASE_TIME: {
-					uint32_t lease = 100;
+					uint32_t lease = LEASE_TIMEOUT;
 					setattrmask();
-					process_uint32(OUTPUT, lease);/*FIXME*/
+					process_uint32(OUTPUT, lease);
 					break;
 				}
 				case FATTR4_FILEHANDLE: {
@@ -939,7 +940,7 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 	    (args->share_access & ~OPEN4_SHARE_ACCESS_BOTH) ||
 	    (args->share_deny   & ~OPEN4_SHARE_ACCESS_BOTH)) return NFSERR_INVAL;
 
-	NR(filecache_createstateid((unsigned)(args->owner.clientid), args->owner.owner.data, args->owner.owner.size, args->seqid, &stateid, &confirmrequired));
+	NR(filecache_createstateid(args->owner.clientid, args->owner.owner.data, args->owner.owner.size, args->seqid, &stateid, &confirmrequired));
 
 	if (!confirmrequired) {
 		N4(filecache_checkseqid(stateid, args->seqid, 0, &duplicate));

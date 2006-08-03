@@ -16,7 +16,7 @@ EXTRATARGET = release
 else
 
 CFLAGSN = -zpz0
-CFLAGSG = -O0
+CFLAGSG = -O0 -mpoke-function-name
 
 endif
 
@@ -108,6 +108,7 @@ MOONFISHOBJS = \
 request-decode.o \
 serverconn.o \
 filecache.o \
+clientid.o \
 exports.o
 
 COMMONOBJS = \
@@ -117,6 +118,7 @@ utils.o
 ifneq (,$(findstring debug-server,$(MAKECMDGOALS)))
 
 MODULE =
+CFLAGS := $(CFLAGS) -DDEBUGSERVER
 
 endif
 

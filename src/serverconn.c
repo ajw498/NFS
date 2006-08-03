@@ -57,6 +57,7 @@
 #include "exports.h"
 #include "serverconn.h"
 #include "filecache.h"
+#include "clientid.h"
 
 
 #define MAXCONNS 5
@@ -394,6 +395,7 @@ int conn_poll(void)
 
 	/* Reap any open filehandles that haven't been accessed recently */
 	filecache_reap(0);
+	clientid_reap(0);
 
 	return activity;
 }
@@ -418,6 +420,7 @@ int conn_init(void)
 	}
 
 	filecache_init();
+	clientid_init();
 
 	BR(portmapper_set(100000, 2, IPPROTO_UDP, 111,  portmapper_decode, gpool));
 	BR(portmapper_set(100000, 2, IPPROTO_TCP, 111,  portmapper_decode, gpool));
@@ -458,6 +461,7 @@ void conn_close(void)
 {
 	int i;
 
+	clientid_reap(1);
 	filecache_reap(1);
 
 	for (i = 0; i < MAXCONNS; i++) {
