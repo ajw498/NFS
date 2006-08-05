@@ -21,45 +21,17 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-union duplicate {
-	enum nstat status;
-	struct {
-		enum nstat status;
-		int stateidseq;
-		char stateidother[12];
-		unsigned rflags;
-		unsigned attrset[2];
-	} open;
-};
-
-struct stateid {
-	uint64_t clientid;
-	char *owner;
-	int ownerlen;
-	int refcount;
-	int ownerseq;
-	unsigned seqid;
-	int unconfirmed;
-	union duplicate duplicate;
-	time_t time;
-	struct stateid *next;
-};
+#include "state.h"
 
 void filecache_init(void);
 
 void filecache_reap(int all);
 
-enum nstat filecache_createstateid(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct stateid **stateid, int *confirmrequired);
-
-enum nstat filecache_checkseqid(struct stateid *stateid, unsigned seqid, int confirm, int *duplicate);
-
-enum nstat filecache_getstateid(unsigned seqid, char *other, struct stateid **stateid);
-
 void filecache_removestate(uint64_t clientid);
 
-enum nstat filecache_open(char *path, struct stateid *stateid, unsigned access, unsigned deny, int *ownerseqid, char *other);
+enum nstat filecache_open(char *path, struct open_owner *open_owner, unsigned access, unsigned deny, unsigned *ownerseqid, char *other);
 
-enum nstat filecache_opendowngrade(char *path, struct stateid *stateid, unsigned access, unsigned deny);
+enum nstat filecache_opendowngrade(char *path, struct stateid *stateid, unsigned access, unsigned deny, unsigned *ownerseqid);
 
 enum nstat filecache_close(char *path, struct stateid *stateid);
 

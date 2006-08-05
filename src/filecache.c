@@ -40,33 +40,6 @@
 
 #define DATABUFFER 128*1024
 
-static int ownerseq = 0;
-static struct stateid *owners = NULL;
-
-/* Have to be per lock_owner per file */
-struct open_owner {
-	unsigned access;
-	unsigned deny;
-	struct stateid *stateid;
-	/*struct lock *locks;*/
-	struct open_owner *next;
-};
-
-static const char zeros[12] = {0,0,0,0,0,0,0,0,0,0,0,0};
-static const char ones[12] = {0xF,0xF,0xF,0xF,0xF,0xF,0xF,0xF,0xF,0xF,0xF,0xF};
-
-
-struct openfile {
-	char name[MAX_PATHNAME]; /* Could make this dynamic? */
-	int handle;
-	unsigned int filesize;
-	unsigned int load;
-	unsigned int exec;
-	unsigned int attr;
-	struct open_owner *owners;
-	struct openfile *next;
-};
-
 static struct openfile *openfiles = NULL;
 
 static struct cachedfile {
@@ -85,129 +58,7 @@ static struct cachedfile {
 	struct openfile *file;
 } cachedfiles[MAXCACHEDFILES];
 
-enum accesstype {
-	READ,
-	WRITE,
-	EITHER
-};
-
-
 static unsigned int verifier[2];
-
-void filecache_removestate(uint64_t clientid)
-{
-	struct openfile *file = openfiles;
-
-	while (file) {
-		struct openfile *nextfile = file->next;
-		struct open_owner *owner = file->owners;
-
-		while (owner) {
-			struct open_owner *next = owner->next;
-
-			if (owner->stateid->clientid == clientid) {
-				filecache_close(file->name, owner->stateid);
-				/* FIXME log failure? */
-			}
-			owner = next;
-		}
-		file = nextfile;
-	}
-}
-
-enum nstat filecache_createstateid(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct stateid **stateid, int *confirmrequired)
-{
-	struct stateid *id = owners;
-
-	NR(clientid_renew(clientid));
-
-	/* Search for an existing stateid with the same details */
-	while (id) {
-		if ((id->clientid == clientid) &&
-		    (id->ownerlen == ownerlen) &&
-		    (memcmp(id->owner, owner, ownerlen) == 0)) {
-			*confirmrequired = id->unconfirmed;
-			*stateid = id;
-			return NFS_OK;
-		}
-		id = id->next;
-	}
-
-	/* Not found so create a new stateid */
-	UR(id = malloc(sizeof(struct stateid)));
-	id->owner = malloc(ownerlen);
-	if (id->owner == NULL) {
-		free(id);
-		UR(NULL);
-	}
-	memcpy(id->owner, owner, ownerlen);
-	id->ownerlen = ownerlen;
-	id->clientid = clientid;
-	id->refcount = 0;
-	id->ownerseq = ownerseq++;
-	id->seqid = seqid;
-	id->unconfirmed = 1;
-	id->time = clock();
-	id->next = owners;
-	owners = id;
-
-	*stateid = id;
-	*confirmrequired = 1;
-	return NFS_OK;
-}
-
-enum nstat filecache_checkseqid(struct stateid *stateid, unsigned seqid, int confirm, int *duplicate)
-{
-	if (seqid < stateid->seqid) return NFSERR_BAD_SEQID;
-	if (seqid > stateid->seqid + 1) return NFSERR_BAD_SEQID;
-	if (seqid == stateid->seqid) {
-		*duplicate = 1;
-	} else {
-		*duplicate = 0;
-		stateid->seqid = seqid;
-	}
-	if (stateid->unconfirmed) {
-		if (confirm) {
-			stateid->unconfirmed = 0;
-		} else {
-			return NFSERR_BAD_SEQID;
-		}
-	}
-
-	return NFS_OK;
-}
-
-enum nstat filecache_getstateid(unsigned seqid, char *other, struct stateid **stateid)
-{
-	struct stateid *id = owners;
-	unsigned *other2 = (unsigned *)other;
-
-	if ((seqid == 0) && (memcmp(other, zeros, 12) == 0)) {
-		*stateid = STATEID_NONE;
-		return NFS_OK;
-	}
-
-	if ((seqid == 0xFFFFFFFF) && (memcmp(other, ones, 12) == 0)) {
-		*stateid = STATEID_ANY;
-		return NFS_OK;
-	}
-
-	if ((other2[1] != verifier[0]) || (other2[2] != 0)) {
-		return NFSERR_STALE_STATEID;
-	}
-
-	while (id) {
-		if (id == (struct stateid *)(other2[0])) {
-			if (id->ownerseq != seqid) return NFSERR_STALE_STATEID;
-
-			NR(clientid_renew(id->clientid));
-			*stateid = id;
-			return NFS_OK;
-		}
-		id = id->next;
-	}
-	return NFSERR_STALE_STATEID;
-}
 
 void filecache_init(void)
 {
@@ -219,6 +70,8 @@ void filecache_init(void)
 	/* Get the time we are initialised to use as a verifier */
 	verifier[0] = (unsigned int)time(NULL);
 	verifier[1] = 0;
+
+	state_init(); /*FIXME move elsewhere? */
 }
 
 static enum nstat filecache_flush(int index)
@@ -273,26 +126,16 @@ static void filecache_evict(int index, struct openfile *file)
 	cachedfiles[index].handle = 0;
 }
 
-static enum nstat filecache_checkpermissions(struct openfile *file, struct stateid *stateid, enum accesstype access)
+void filecache_removestate(uint64_t clientid)
 {
-	struct open_owner *owner;
-	enum nstat permission = access == EITHER ? NFSERR_LOCKED : NFS_OK;
+	struct openfile *file = openfiles;
 
-	if ((file == NULL) || (stateid == STATEID_ANY)) return NFS_OK;
-	owner = file->owners;
-	while (owner) {
-		if (owner->stateid == stateid) {
-			if (access == EITHER) return NFS_OK;
-			return (owner->access & (access == READ ? 1 : 2)) ? NFS_OK : NFSERR_LOCKED;
-		} else {
-			if (owner->deny & (access == READ ? 1 : 2)) {
-				permission = NFSERR_LOCKED; /*FIXME NFS2/3 error? */
-			}
-		}
-		owner = owner->next;
+	while (file) {
+		struct openfile *nextfile = file->next;
+
+		state_removeclientstate(file, clientid);
+		file = nextfile;
 	}
-	if (stateid != STATEID_NONE) return NFSERR_BAD_STATEID;
-	return permission;
 }
 
 static enum nstat filecache_opencached(char *path, struct stateid *stateid, enum accesstype access, int *index, struct openfile **openfile, int dontopen)
@@ -309,7 +152,7 @@ static enum nstat filecache_opencached(char *path, struct stateid *stateid, enum
 		if (cachedfiles[i].handle == 0) {
 			available = i;
 		} else if (strcmp(path, cachedfiles[i].name) == 0) {
-			NR(filecache_checkpermissions(cachedfiles[i].file, stateid, access));
+			NR(state_checkpermissions(cachedfiles[i].file, stateid, access));
 			if (index) *index = i;
 			if (openfile) *openfile = cachedfiles[i].file;
 			cachedfiles[i].time = now;
@@ -331,7 +174,7 @@ static enum nstat filecache_opencached(char *path, struct stateid *stateid, enum
 
 	if (openfile) *openfile = file;
 
-	NR(filecache_checkpermissions(file, stateid, access));
+	NR(state_checkpermissions(file, stateid, access));
 
 	if (dontopen) {
 		if (index) *index = -1;
@@ -377,61 +220,32 @@ static enum nstat filecache_opencached(char *path, struct stateid *stateid, enum
 	return NFS_OK;
 }
 
-enum nstat filecache_open(char *path, struct stateid *stateid, unsigned access, unsigned deny, int *ownerseqid, char *other)
+enum nstat filecache_open(char *path, struct open_owner *open_owner, unsigned access, unsigned deny, unsigned *ownerseqid, char *other)
 {
 	int index;
 	struct openfile *file;
-	unsigned *other2 = (unsigned *)(other);
+	struct stateid_other *other2 = (struct stateid_other *)other;
+	struct open_stateid *open_stateid;
 
-	NR(filecache_opencached(path, STATEID_ANY, EITHER, &index, &file, 1));
+	NR(filecache_opencached(path, STATEID_ANY, ACC_EITHER, &index, &file, 1));
 
 	if (file) {
-		struct open_owner *current = file->owners;
-		struct open_owner *matching = NULL;
-		unsigned currentaccess = 0;
-		unsigned currentdeny = 0;
-
-		while (current) {
-			if (current->stateid == stateid) {
-				matching = current;
-			}
-			currentaccess |= current->access;
-			currentdeny |= current->deny;
-			current = current->next;
-		}
-		/* Check share status etc. */
-		if (access == 0) return NFSERR_INVAL;
-		if ((access & currentdeny) || (deny & currentaccess)) return NFSERR_DENIED;
-		if (matching) {
-			matching->access |= access;
-			matching->deny |= deny;
-		} else {
-			struct open_owner *newowner;
-			UR(newowner = malloc(sizeof(struct open_owner)));
-			newowner->stateid = stateid;
-			stateid->refcount++;
-			newowner->access = access;
-			newowner->deny = deny;
-			newowner->next = file->owners;
-			file->owners = newowner;
-		}
+		NR(state_createopenstateid(file, open_owner, access, deny, &open_stateid));
 	} else {
 		os_error *err2;
+		enum nstat nerr;
 		int type;
 
 		UR(file = malloc(sizeof(struct openfile)));
 
-		file->owners = malloc(sizeof(struct open_owner));
-		if (file->owners == NULL) {
+		file->open_stateids = NULL;
+		file->lock_stateids = NULL;
+
+		nerr = state_createopenstateid(file, open_owner, access, deny, &open_stateid);
+		if (nerr != NFS_OK) {
 			free(file);
-			UR(NULL);
+			return nerr;
 		}
-
-		file->owners->stateid = stateid;
-		file->owners->access = access;
-		file->owners->deny = deny;
-		file->owners->next = NULL;
-
 		snprintf(file->name, MAX_PATHNAME, "%s", path);
 
 		err2 = _swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, path, &type,
@@ -444,7 +258,7 @@ enum nstat filecache_open(char *path, struct stateid *stateid, unsigned access, 
 		}
 
 		if ((type == 0) || err2) {
-			free(file->owners);
+			state_removeopenstateid(file, open_stateid);
 			free(file);
 			if (type == 0) return NFSERR_NOENT;
 			/* Check for file already open error FIXME - add to OR function */
@@ -452,46 +266,27 @@ enum nstat filecache_open(char *path, struct stateid *stateid, unsigned access, 
 			OR(err2);
 		}
 
-		stateid->refcount++;
-		/* Add to linked list */
-		file->next = openfiles;
-		openfiles = file;
+		LL_ADD(openfiles, file);
 	}
-	*ownerseqid = stateid->ownerseq;
-	other2[0] = (unsigned)stateid;
-	other2[1] = verifier[0];
-	other2[2] = 0;
+	*ownerseqid = open_stateid->seqid;
+	other2->id = open_stateid;
+	other2->verifier = verifier[0];
+	other2->lock = 0;
 
 	return NFS_OK;
 }
 
-enum nstat filecache_opendowngrade(char *path, struct stateid *stateid, unsigned access, unsigned deny)
+enum nstat filecache_opendowngrade(char *path, struct stateid *stateid, unsigned access, unsigned deny, unsigned *ownerseqid)
 {
 	int index;
 	struct openfile *file;
-	struct open_owner *current;
 
-	NR(filecache_opencached(path, STATEID_ANY, EITHER, &index, &file, 1));
-	if (file == NULL) {
-		return NFSERR_BAD_STATEID;
-	}
+	NR(filecache_opencached(path, stateid, ACC_EITHER, &index, &file, 1));
+	if (file == NULL) return NFSERR_BAD_STATEID;
 
-	current = file->owners;
+	NR(state_opendowngrade(stateid, access, deny, ownerseqid));
 
-	while (current) {
-		if (current->stateid == stateid) {
-			/* Upgrading access is not permitted */
-			if ((access & ~current->access) ||
-			    (deny & ~current->deny)) {
-				return NFSERR_INVAL;
-			}
-			current->access = access;
-			current->deny = deny;
-			return NFS_OK;
-		}
-		current = current->next;
-	}
-	return NFSERR_BAD_STATEID;
+	return NFS_OK;
 }
 
 enum nstat filecache_close(char *path, struct stateid *stateid)
@@ -500,50 +295,21 @@ enum nstat filecache_close(char *path, struct stateid *stateid)
 	struct openfile *file;
 	enum nstat ret = NFS_OK;
 	int handle;
-	struct open_owner *current;
-	struct open_owner **prev;
-	int found = 0;
 
-	NR(filecache_opencached(path, stateid, EITHER, &index, &file, 1));
+	NR(filecache_opencached(path, stateid, ACC_EITHER, &index, &file, 1));
 
 	if (file == NULL) return NFSERR_BAD_STATEID;
 
-	prev = &(file->owners);
-	current = file->owners;
-
-	while (current) {
-		struct open_owner *next = current->next;
-		if ((stateid == STATEID_ANY) || (current->stateid == stateid)) {
-			found = 1;
-			/* Remove from list */
-			*prev = next;
-
-			current->stateid->refcount--;
-			current->stateid->time = clock();
-
-			free(current);
-		} else {
-			prev = &(current->next);
-		}
-		current = next;
-	}
-	if (!found) return NFSERR_BAD_STATEID;
+	state_removeopenstateid(file, stateid->open);
 
 	/* If last client with this file open, then close the file */
-	if (file->owners == NULL) {
+	if (file->open_stateids == NULL) {
 		if (index != -1) {
 			filecache_evict(index, file);
 			ret = cachedfiles[index].writeerror;
 		}
 
-		/* Remove from linked list */
-		if (openfiles == file) {
-			openfiles = file->next;
-		} else {
-			struct openfile *thisfile = openfiles;
-			while (thisfile->next != file) thisfile = thisfile->next;
-			thisfile->next = file->next;
-		}
+		LL_REMOVE(openfiles, struct openfile, file);
 
 		/* Close the file */
 		handle = file->handle;
@@ -558,8 +324,6 @@ void filecache_reap(int all)
 {
 	int i;
 	clock_t now = clock();
-	struct stateid *stateid = owners;
-	struct stateid **previd = &owners;
 
 	for (i = 0; i < MAXCACHEDFILES; i++) {
 		/* Close a file if there has been no activity for a while */
@@ -570,34 +334,12 @@ void filecache_reap(int all)
 
 	if (all) {
 		/* Close all open files as well */
-		struct openfile *thisfile = openfiles;
-
-		while (thisfile) {
-			struct openfile *next = thisfile->next;
-
-			filecache_close(thisfile->name, STATEID_ANY);
-			thisfile = next;
-		}
+		while (openfiles) filecache_close(openfiles->name, NULL);
 	}
 
-	/* Remove all timed out stateids. Only remove unused ones, all the
-	   rest will be removed when the clientids are removed */
-	while (stateid) {
-		if ((stateid->refcount == 0) && (all || (now - stateid->time > 2 * (LEASE_TIMEOUT * CLOCKS_PER_SEC)))) {
-			struct stateid *next = stateid->next;
-
-			*previd = next;
-			free(stateid->owner);
-			free(stateid);
-			stateid = next;
-		} else {
-			previd = &(stateid->next);
-			stateid = stateid->next;
-		}
-	}
+	state_reap(all, now);
 
 	if (all && openfiles) syslogf(LOGNAME, LOG_SERIOUS, "filecache_reap files still open");
-	if (all && owners) syslogf(LOGNAME, LOG_SERIOUS, "filecache_reap stateids still allocated");
 }
 
 enum nstat filecache_read(char *path, struct stateid *stateid, unsigned int count, unsigned int offset, char **data, unsigned int *read, int *eof)
@@ -606,7 +348,7 @@ enum nstat filecache_read(char *path, struct stateid *stateid, unsigned int coun
 	unsigned int bufferread;
 	unsigned int bufferoffset;
 
-	NR(filecache_opencached(path, stateid, READ, &index, NULL, 0));
+	NR(filecache_opencached(path, stateid, ACC_READ, &index, NULL, 0));
 
 	/* If the previous access was a write we need to flush any buffered
 	   data before overwriting it */
@@ -678,7 +420,7 @@ enum nstat filecache_write(char *path, struct stateid *stateid, unsigned int cou
 
 	if (stateid == STATEID_ANY) stateid = STATEID_NONE;
 
-	NR(filecache_opencached(path, stateid, WRITE, &index, &file, 0));
+	NR(filecache_opencached(path, stateid, ACC_WRITE, &index, &file, 0));
 
 	/* If the data in the buffer is from a read then discard it */
 	if (cachedfiles[index].write == 0) {
@@ -721,7 +463,7 @@ enum nstat filecache_commit(char *path, char *verf)
 
 	if (verf) memcpy(verf, verifier, 8);
 
-	NR(filecache_opencached(path, STATEID_ANY, WRITE, &index, NULL, 1));
+	NR(filecache_opencached(path, STATEID_ANY, ACC_WRITE, &index, NULL, 1));
 
 	if (index != -1) {
 		filecache_flush(index);
@@ -737,7 +479,7 @@ enum nstat filecache_getattr(char *path, unsigned int *load, unsigned int *exec,
 	int index;
 	struct openfile *file;
 
-	NR(filecache_opencached(path, STATEID_ANY, READ, &index, &file, 1));
+	NR(filecache_opencached(path, STATEID_ANY, ACC_READ, &index, &file, 1));
 
 	if (index != -1) {
 		if (cached) *cached = 1;
@@ -767,7 +509,7 @@ enum nstat filecache_setattr(char *path, struct stateid *stateid, unsigned int l
 
 	if (!setsize) stateid = STATEID_ANY;
 
-	NR(filecache_opencached(path, stateid, WRITE, &index, &file, !setsize));
+	NR(filecache_opencached(path, stateid, ACC_WRITE, &index, &file, !setsize));
 
 	if (index != -1) {
 		cachedfiles[index].load = load;

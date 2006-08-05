@@ -109,6 +109,7 @@ request-decode.o \
 serverconn.o \
 filecache.o \
 clientid.o \
+state.o \
 exports.o
 
 COMMONOBJS = \
