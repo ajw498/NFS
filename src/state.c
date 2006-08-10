@@ -194,6 +194,29 @@ enum nstat state_newlockowner(uint64_t clientid, char *owner, int ownerlen, unsi
 	return NFS_OK;
 }
 
+enum nstat state_releaselockowner(uint64_t clientid, char *owner, int ownerlen)
+{
+	struct lock_owner *id = lock_owners;
+
+	/* Search for an existing owner with the same details */
+	while (id) {
+		if ((id->clientid == clientid) &&
+		    (id->ownerlen == ownerlen) &&
+		    (memcmp(id->owner, owner, ownerlen) == 0)) {
+			if (id->refcount) return NFSERR_LOCKS_HELD;
+
+			LL_REMOVE(lock_owners, struct lock_owner, id);
+			free(id->owner);
+			free(id);
+
+			return NFS_OK;
+		}
+		id = id->next;
+	}
+
+	return NFS_OK;
+}
+
 enum nstat state_checkopenseqid(struct stateid *stateid, unsigned seqid, int openconfirm, int *duplicate)
 {
 	*duplicate = 0;

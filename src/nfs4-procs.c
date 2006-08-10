@@ -1403,3 +1403,22 @@ nstat NFS4_LOCKU(LOCKU4args *args, LOCKU4res *res, struct server_conn *conn)
 failure:
 	return stateid->lock->lock_owner->duplicate.locku.status = res->status;
 }
+
+nstat NFS4_RELEASE_LOCKOWNER(RELEASE_LOCKOWNER4args *args, RELEASE_LOCKOWNER4res *res, struct server_conn *conn)
+{
+	(void)conn;
+
+	N4(state_releaselockowner(args->lock_owner.clientid, args->lock_owner.owner.data, args->lock_owner.owner.size));
+
+	return res->status = NFS_OK;
+}
+
+nstat NFS4_SECINFO(SECINFO4args *args, SECINFO4res *res, struct server_conn *conn)
+{
+	(void)conn;
+	(void)args;
+	/*FIXME*/
+
+	return res->status = NFSERR_NOTSUPP;
+}
+

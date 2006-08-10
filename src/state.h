@@ -197,6 +197,8 @@ enum nstat state_newopenowner(uint64_t clientid, char *owner, int ownerlen, unsi
 
 enum nstat state_newlockowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct lock_owner **lock_owner, int *duplicate);
 
+enum nstat state_releaselockowner(uint64_t clientid, char *owner, int ownerlen);
+
 enum nstat state_checkopenseqid(struct stateid *stateid, unsigned seqid, int openconfirm, int *duplicate);
 
 enum nstat state_checklockseqid(struct stateid *stateid, unsigned seqid, int *duplicate);
