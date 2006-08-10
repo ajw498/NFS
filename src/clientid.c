@@ -51,11 +51,10 @@ struct clientid {
 static unsigned nextclientid = 0;
 static struct clientid *clients = NULL;
 
-static unsigned verifier;
 
 void clientid_init(void)
 {
-	verifier = clock();
+	/*FIXME - remove?*/
 }
 
 enum nstat clientid_setclientid(char *cid, int cidlen, char *clientverf, uint64_t *clientid)
@@ -81,7 +80,7 @@ enum nstat clientid_setclientid(char *cid, int cidlen, char *clientverf, uint64_
 
 	if (unconfirmed) {
 		/* Use existing unconfirmed entry */
-		unconfirmed->clientid = nextclientid++ | (((uint64_t)verifier) << 32);
+		unconfirmed->clientid = nextclientid++ | (((uint64_t)verifier[0]) << 32);
 		unconfirmed->lastactivity = clock();
 		memcpy(unconfirmed->clientverf, clientverf, 8);
 		*clientid = unconfirmed->clientid;
@@ -107,11 +106,11 @@ enum nstat clientid_setclientid(char *cid, int cidlen, char *clientverf, uint64_
 				*clientid = unconfirmed->clientid = confirmed->clientid;
 			} else {
 				/* This is a client reboot, so use a new id */
-				*clientid = unconfirmed->clientid = nextclientid++ | (((uint64_t)verifier) << 32);
+				*clientid = unconfirmed->clientid = nextclientid++ | (((uint64_t)verifier[0]) << 32);
 			}
 		} else {
 			/* This is a new client, so use a new id */
-			*clientid = unconfirmed->clientid = nextclientid++ | (((uint64_t)verifier) << 32);
+			*clientid = unconfirmed->clientid = nextclientid++ | (((uint64_t)verifier[0]) << 32);
 		}
 	}
 

@@ -50,19 +50,18 @@ HASH_DECLARE(lock_hash, struct lock_stateid);
 static const char zeros[12] = {0,0,0,0,0,0,0,0,0,0,0,0};
 static const char ones[12] = {0xF,0xF,0xF,0xF,0xF,0xF,0xF,0xF,0xF,0xF,0xF,0xF};
 
-static unsigned verifier;
-
 void state_init(void)
 {
 	HASH_INIT(open_hash);
 	HASH_INIT(lock_hash);
-	verifier = (unsigned)time(NULL); /* FIXME - use a global var */
 }
 
 void state_removeclientstate(struct openfile *file, uint64_t clientid)
 {
 	struct open_stateid *open_stateid = file->open_stateids;
+	struct lock_owner *lock_owner = lock_owners;
 
+	/* Free all this client's files */
 	while (open_stateid) {
 		struct open_stateid *next = open_stateid->next;
 
@@ -75,6 +74,21 @@ void state_removeclientstate(struct openfile *file, uint64_t clientid)
 			/* FIXME log failure? */
 		}
 		open_stateid = next;
+	}
+
+	/* Free all this client's lock_owners */
+	while (lock_owner) {
+		struct lock_owner *next = lock_owner->next;
+		if (lock_owner->clientid == clientid) {
+			if (lock_owner->refcount) {
+				syslogf(LOGNAME, LOG_SERIOUS, "state_removeclientstate with lock_owner in use");
+			} else {
+				LL_REMOVE(lock_owners, struct lock_owner, lock_owner);
+				free(lock_owner->owner);
+				free(lock_owner);
+			}
+		}
+		lock_owner = next;
 	}
 }
 
@@ -131,6 +145,55 @@ enum nstat state_newopenowner(uint64_t clientid, char *owner, int ownerlen, unsi
 	return NFS_OK;
 }
 
+enum nstat state_newlockowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct lock_owner **lock_owner, int *duplicate)
+{
+	struct lock_owner *id = lock_owners;
+
+	NR(clientid_renew(clientid));
+
+	*duplicate = 0;
+
+	/* Search for an existing owner with the same details */
+	while (id) {
+		if ((id->clientid == clientid) &&
+		    (id->ownerlen == ownerlen) &&
+		    (memcmp(id->owner, owner, ownerlen) == 0)) {
+			*lock_owner = id;
+
+			/* Check the sequence id is correct */
+			if (seqid < id->seqid) {
+				return NFSERR_BAD_SEQID;
+			} else if (seqid == id->seqid) {
+				*duplicate = 1;
+			} else if (seqid == id->seqid + 1) {
+				id->seqid = seqid;
+			} else {
+				return NFSERR_BAD_SEQID;
+			}
+
+			return NFS_OK;
+		}
+		id = id->next;
+	}
+
+	/* Not found so create a new owner */
+	UR(id = malloc(sizeof(struct lock_owner)));
+	id->owner = malloc(ownerlen);
+	if (id->owner == NULL) {
+		free(id);
+		UR(NULL);
+	}
+	memcpy(id->owner, owner, ownerlen);
+	id->ownerlen = ownerlen;
+	id->clientid = clientid;
+	id->refcount = 0;
+	id->seqid = seqid;
+	LL_ADD(lock_owners, id);
+
+	*lock_owner = id;
+	return NFS_OK;
+}
+
 enum nstat state_checkopenseqid(struct stateid *stateid, unsigned seqid, int openconfirm, int *duplicate)
 {
 	*duplicate = 0;
@@ -156,6 +219,92 @@ enum nstat state_checkopenseqid(struct stateid *stateid, unsigned seqid, int ope
 	return NFS_OK;
 }
 
+enum nstat state_checklockseqid(struct stateid *stateid, unsigned seqid, int *duplicate)
+{
+	*duplicate = 0;
+
+	if (seqid < stateid->lock->lock_owner->seqid) {
+		return NFSERR_BAD_SEQID;
+	} else if (seqid == stateid->lock->lock_owner->seqid) {
+		*duplicate = 1;
+	} else if (seqid == stateid->lock->lock_owner->seqid + 1) {
+		stateid->lock->lock_owner->seqid = seqid;
+	} else {
+		return NFSERR_BAD_SEQID;
+	}
+
+	return NFS_OK;
+}
+
+enum nstat state_lock(struct open_stateid *open_stateid, struct lock_owner *lock_owner, int write, unsigned offset, unsigned length, struct lock_stateid **lock_stateid)
+{
+	struct lock_stateid *current = open_stateid->file->lock_stateids;
+	struct lock_stateid *matching = NULL;
+	struct lock *newlock;
+
+	/* Search for existing locks */
+	while (current) {
+		if (current->lock_owner == lock_owner) {
+			matching = current;
+		} else {
+			struct lock *lock = current->locks;
+			while (lock) {
+				if (lock->offset < offset + length /*FIXME check for overflow? */ &&
+				    lock->offset + lock->length > offset) {
+					/* Overlapping lock found, check if it is conflicting */
+					if (lock->write || write) {
+						/*FIXME return details of lock */
+						return NFSERR_DENIED;
+					}
+				}
+				lock = lock->next;
+			}
+		}
+		current = current->next;
+	}
+
+	/* No conflicting locks were found, so add the lock */
+	UR(newlock = malloc(sizeof(struct lock)));
+	newlock->write = write;
+	newlock->offset = offset;
+	newlock->length = length;
+
+	if (matching == NULL) {
+		matching = malloc(sizeof(struct lock_stateid));
+		if (matching == NULL) {
+			free(newlock);
+			UR(NULL);
+		}
+		matching->open_stateid = open_stateid;
+		matching->lock_owner = lock_owner;
+		matching->locks = NULL;
+		matching->seqid = 0;
+		LL_ADD(open_stateid->file->lock_stateids, matching);
+		HASH_ADD(lock_hash, matching);
+		lock_owner->refcount++;
+	}
+	LL_ADD(matching->locks, newlock);
+	*lock_stateid = matching;
+	return NFS_OK;
+}
+
+enum nstat state_unlock(struct stateid *stateid, unsigned offset, unsigned length)
+{
+	struct lock *lock = stateid->lock->locks;
+
+	/* Search for existing locks */
+	while (lock) {
+		if ((lock->offset == offset) && (lock->length == length)) {
+			LL_REMOVE(stateid->lock->locks, struct lock, lock);
+			free(lock);
+			return NFS_OK;
+		}
+		lock = lock->next;
+	}
+
+	return NFSERR_LOCK_RANGE;
+}
+
 enum nstat state_getstateid(unsigned seqid, char *other, struct stateid **stateid, struct server_conn *conn)
 {
 	struct stateid_other *other2 = (struct stateid_other *)other;
@@ -171,7 +320,7 @@ enum nstat state_getstateid(unsigned seqid, char *other, struct stateid **statei
 		return NFS_OK;
 	}
 
-	if (other2->verifier != verifier) {
+	if (other2->verifier != verifier[0]) {
 		return NFSERR_STALE_STATEID;
 	}
 
@@ -265,6 +414,24 @@ enum nstat state_createopenstateid(struct openfile *file, struct open_owner *ope
 
 static void state_removesingleopenstateid(struct openfile *file, struct open_stateid *open_stateid)
 {
+	struct lock_stateid *lock_stateid = file->lock_stateids;
+	while (lock_stateid) {
+		struct lock_stateid *next = lock_stateid->next;
+
+		if (lock_stateid->open_stateid == open_stateid) {
+			while (lock_stateid->locks) {
+				struct lock *lock = lock_stateid->locks;
+				LL_REMOVE(lock_stateid->locks, struct lock, lock);
+				free(lock);
+			}
+			LL_REMOVE(file->lock_stateids, struct lock_stateid, lock_stateid);
+			HASH_REMOVE(lock_hash, struct lock_stateid, lock_stateid);
+			lock_stateid->lock_owner->refcount--;
+			free(lock_stateid);
+		}
+		lock_stateid = next;
+	}
+
 	LL_REMOVE(file->open_stateids, struct open_stateid, open_stateid);
 	HASH_REMOVE(open_hash, struct open_stateid, open_stateid);
 	open_stateid->open_owner->refcount--;
@@ -317,7 +484,19 @@ void state_reap(int all, clock_t now)
 		}
 	}
 
+	if (all) {
+		/* Remove all unused lock_owners */
+		while (lock_owners) {
+			struct lock_owner *lock_owner = lock_owners;
+			if (lock_owner->refcount) syslogf(LOGNAME, LOG_SERIOUS, "state_reap lock_owner with non-zero refcount");
+			LL_REMOVE(lock_owners, struct lock_owner, lock_owner);
+			free(lock_owner->owner);
+			free(lock_owner);
+		}
+	}
+
 /*FIXME	if (all && open_hash) syslogf(LOGNAME, LOG_SERIOUS, "filecache_reap files still open");*/
 	if (all && open_owners) syslogf(LOGNAME, LOG_SERIOUS, "state_reap open_owners still allocated");
+	if (all && lock_owners) syslogf(LOGNAME, LOG_SERIOUS, "state_reap lock_owners still allocated");
 }
 

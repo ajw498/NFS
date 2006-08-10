@@ -21,7 +21,12 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+#ifndef FILECACHE_H
+#define FILECACHE_H
+
 #include "state.h"
+
+extern unsigned int verifier[2];
 
 void filecache_init(void);
 
@@ -44,4 +49,6 @@ enum nstat filecache_commit(char *path, char *verf);
 enum nstat filecache_getattr(char *path, unsigned int *load, unsigned int *exec, unsigned int *size, unsigned int *attr, int *cached);
 
 enum nstat filecache_setattr(char *path, struct stateid *stateid, unsigned int load, unsigned int exec, unsigned int attr, unsigned int size, int setsize);
+
+#endif
 

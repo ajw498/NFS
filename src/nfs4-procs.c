@@ -170,6 +170,8 @@ nstat NFS4_PUTROOTFH(PUTROOTFH4res *res, struct server_conn *conn)
 
 nstat NFS4_GETFH(GETFH4res *res, struct server_conn *conn)
 {
+	res->u.resok4.object.data = NULL;
+	res->u.resok4.object.size = NFS4_FHSIZE;
 	N4(path_to_fh(currentfh, &(res->u.resok4.object.data), &(res->u.resok4.object.size), conn));
 
 	return NFS_OK;
@@ -1055,9 +1057,9 @@ nstat NFS4_OPEN_DOWNGRADE(OPEN_DOWNGRADE4args *args, OPEN_DOWNGRADE4res *res, st
 	N4(state_getstateid(args->open_stateid.seqid, args->open_stateid.other, &stateid, conn));
 	N4(state_checkopenseqid(stateid, args->seqid, 0, &duplicate));
 	if (duplicate) {
-		res->status = stateid->open->open_owner->duplicate.status;
+		res->status = stateid->open->open_owner->duplicate.open_downgrade.status;
 	} else {
-		res->status = stateid->open->open_owner->duplicate.status = filecache_opendowngrade(currentfh, stateid, args->share_access, args->share_deny, &ownerseqid);
+		res->status = stateid->open->open_owner->duplicate.open_downgrade.status = filecache_opendowngrade(currentfh, stateid, args->share_access, args->share_deny, &ownerseqid);
 	}
 
 	res->u.resok4.open_stateid = args->open_stateid;
@@ -1074,9 +1076,9 @@ nstat NFS4_CLOSE(CLOSE4args *args, CLOSE4res *res, struct server_conn *conn)
 	N4(state_getstateid(args->open_stateid.seqid, args->open_stateid.other, &stateid, conn));
 	N4(state_checkopenseqid(stateid, args->seqid, 0, &duplicate));
 	if (duplicate) {
-		res->status = stateid->open->open_owner->duplicate.status;
+		res->status = stateid->open->open_owner->duplicate.close.status;
 	} else {
-		res->status = stateid->open->open_owner->duplicate.status = filecache_close(currentfh, stateid);
+		res->status = stateid->open->open_owner->duplicate.close.status = filecache_close(currentfh, stateid);
 	}
 
 	res->u.open_stateid = args->open_stateid;
@@ -1304,31 +1306,100 @@ nstat NFS4_VERIFY(VERIFY4args *args, VERIFY4res *res, struct server_conn *conn)
 
 nstat NFS4_LOCK(LOCK4args *args, LOCK4res *res, struct server_conn *conn)
 {
-	(void)args;
-	(void)conn;
-	res->u.resok4.lock_stateid.seqid = 22;
-	memset(res->u.resok4.lock_stateid.other, 0, 12);
-	res->u.resok4.lock_stateid.other[0] = 33;
+	struct stateid *stateid;
+	int write;
+	struct stateid_other *other2;
+	struct lock_stateid *lock_stateid;
+	int duplicate;
+/* FIXME Check that offset + length < 32bits unless length == allones -> NFSERR_BAD_RANGE
+check length 0 or (offset + len > 64bits and len != allones) -> NFSERR_INVAL */ 
+
+	if ((args->locktype == READ_LT) || (args->locktype == READW_LT)) {
+		write = 0;
+	} else if ((args->locktype != WRITE_LT) || (args->locktype != WRITEW_LT)) {
+		write = 1;
+	} else {
+		return NFSERR_INVAL;
+	}
+
+	/*FIXME handle reclaims */
+
+	if (args->locker.new_lock_owner) {
+		struct lock_owner *lock_owner;
+
+		N4(state_getstateid(args->locker.u.open_owner.open_stateid.seqid, args->locker.u.open_owner.open_stateid.other, &stateid, conn));
+		N4(state_checkopenseqid(stateid, args->locker.u.open_owner.open_seqid, 0, &duplicate));
+		if (duplicate) {
+			/*FIXME*/
+			return res->status = stateid->open->open_owner->duplicate.lock.status;
+		}
+		NF(state_newlockowner(args->locker.u.open_owner.lock_owner.clientid, args->locker.u.open_owner.lock_owner.owner.data, args->locker.u.open_owner.lock_owner.owner.size, args->locker.u.open_owner.lock_seqid, &lock_owner, &duplicate));
+		if (duplicate) {
+			/*FIXME - return error?*/
+		}
+		/*FIXME check currentfh matches stateid? */
+		NF(state_lock(stateid->open, lock_owner, write, args->offset, args->length, &lock_stateid));
+	} else {
+		N4(state_getstateid(args->locker.u.lock_owner.lock_stateid.seqid, args->locker.u.lock_owner.lock_stateid.other, &stateid, conn));
+		N4(state_checklockseqid(stateid, args->locker.u.lock_owner.lock_seqid, &duplicate));
+		if (duplicate) {
+			/*FIXME*/
+		}
+		NF(state_lock(stateid->open, stateid->lock->lock_owner, write, args->offset, args->length, &lock_stateid));
+	}
+
+	res->u.resok4.lock_stateid.seqid = lock_stateid->seqid;
+	other2 = (struct stateid_other *)res->u.resok4.lock_stateid.other;
+	other2->id = lock_stateid;
+	other2->verifier = verifier[0];
+	other2->lock = 1;
 
 	return res->status = NFS_OK;
+failure:
+	/*FIXME - fill in denied struct if relevent */
+	return res->status;
 }
 
 nstat NFS4_LOCKT(LOCKT4args *args, LOCKT4res *res, struct server_conn *conn)
 {
-	(void)args;
-	(void)conn;
+	if (args->locktype != READ_LT &&
+	    args->locktype != WRITE_LT &&
+	    args->locktype != READW_LT &&
+	    args->locktype != WRITEW_LT) {
+		return NFSERR_INVAL;
+	}
 
 	return res->status = NFSERR_NOTSUPP;
 }
 
 nstat NFS4_LOCKU(LOCKU4args *args, LOCKU4res *res, struct server_conn *conn)
 {
-	(void)args;
-	(void)conn;
+	struct stateid *stateid;
+	int duplicate;
 
-	res->u.lock_stateid.seqid = 44;
-	memset(res->u.lock_stateid.other, 0, 12);
-	res->u.lock_stateid.other[0] = 66;
+	if ((args->locktype != READ_LT) &&
+	    (args->locktype != WRITE_LT) &&
+	    (args->locktype != READW_LT) &&
+	    (args->locktype != WRITEW_LT)) {
+		return NFSERR_INVAL;
+	}
 
-	return res->status = NFS_OK;
+	N4(state_getstateid(args->lock_stateid.seqid, args->lock_stateid.other, &stateid, conn));
+	N4(state_checklockseqid(stateid, args->seqid, &duplicate));
+	if (duplicate) {
+		res->u.lock_stateid = args->lock_stateid;
+		res->u.lock_stateid.seqid = stateid->lock->lock_owner->duplicate.locku.seqid;
+		return res->status = stateid->lock->lock_owner->duplicate.locku.status;
+	}
+
+	NF(state_unlock(stateid, args->offset, args->length));
+
+	stateid->lock->seqid++;
+
+	res->u.lock_stateid = args->lock_stateid;
+	res->u.lock_stateid.seqid = stateid->lock->seqid;
+	stateid->lock->lock_owner->duplicate.locku.seqid = stateid->lock->seqid;
+
+failure:
+	return stateid->lock->lock_owner->duplicate.locku.status = res->status;
 }

@@ -27,7 +27,6 @@
 #include "serverconn.h"
 
 union duplicate {
-	enum nstat status;
 	struct {
 		enum nstat status;
 		int stateidseq;
@@ -35,6 +34,19 @@ union duplicate {
 		unsigned rflags;
 		unsigned attrset[2];
 	} open;
+	struct {
+		enum nstat status;
+	} open_downgrade;
+	struct {
+		enum nstat status;
+	} close;
+	struct {
+		enum nstat status;
+	} lock;
+	struct {
+		enum nstat status;
+		unsigned seqid;
+	} locku;
 };
 
 /* Identifies an entity on the client that has opened one or more files */
@@ -61,6 +73,7 @@ struct open_stateid {
 };
 
 struct lock_owner {
+	uint64_t clientid;
 	char *owner;
 	int ownerlen;
 	int refcount;
@@ -81,6 +94,7 @@ struct lock_stateid {
 	struct lock_owner *lock_owner;
 	unsigned seqid;
 	struct lock *locks;
+	struct lock_stateid *next;
 	struct lock_stateid *hashnext;
 };
 
@@ -181,7 +195,11 @@ void state_removeclientstate(struct openfile *file, uint64_t clientid);
 
 enum nstat state_newopenowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct open_owner **open_owner, int *confirmrequired, int *duplicate);
 
+enum nstat state_newlockowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct lock_owner **lock_owner, int *duplicate);
+
 enum nstat state_checkopenseqid(struct stateid *stateid, unsigned seqid, int openconfirm, int *duplicate);
+
+enum nstat state_checklockseqid(struct stateid *stateid, unsigned seqid, int *duplicate);
 
 enum nstat state_getstateid(unsigned seqid, char *other, struct stateid **stateid, struct server_conn *conn);
 
@@ -192,6 +210,10 @@ enum nstat state_createopenstateid(struct openfile *file, struct open_owner *ope
 void state_removeopenstateid(struct openfile *file, struct open_stateid *open_stateid);
 
 enum nstat state_opendowngrade(struct stateid *stateid, unsigned access, unsigned deny, unsigned *ownerseqid);
+
+enum nstat state_lock(struct open_stateid *open_stateid, struct lock_owner *lock_owner, int write, unsigned offset, unsigned length, struct lock_stateid **lock_stateid);
+
+enum nstat state_unlock(struct stateid *stateid, unsigned offset, unsigned length);
 
 void state_reap(int all, clock_t now);
 

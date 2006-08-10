@@ -58,7 +58,7 @@ static struct cachedfile {
 	struct openfile *file;
 } cachedfiles[MAXCACHEDFILES];
 
-static unsigned int verifier[2];
+unsigned int verifier[2];
 
 void filecache_init(void)
 {
