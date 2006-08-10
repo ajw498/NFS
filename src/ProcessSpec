@@ -68,8 +68,9 @@ print RECV   "#include \"$spectype-decode2.h\"\n";
 print RECV   "$rettype ${spectype}_decode(int proc, struct server_conn *conn)\n{\nswitch (proc) {\n";
 
 print RECV2   $header;
-print RECV2   "#include \"$spectype-procs.h\"\n\n";
+print RECV2   "#include \"$spectype-procs.h\"\n";
 print RECV2   "#include \"$spectype-decode2.h\"\n";
+print RECV2   "#include <stdio.h>\n\n";
 
 print RECVPROCSH   $header;
 print RECVPROCSH  "#include <sys/types.h>\n";
@@ -334,6 +335,10 @@ while (<>) {
       print RECV2 "\t\tprocess_$res(OUTPUT, res";
       print RECV2 ");\n";
       print RECV2 "\t}\n" unless ($procname =~ /^NFS4/);
+      print RECV2 "#ifdef DEBUGSERVER\n";
+      my $longprocname = sprintf("%.20s","$procname                    ");
+      print RECV2 "\tprintf(\"$longprocname %d\\n\",success);\n";
+      print RECV2 "#endif\n";
       print RECV2 "\treturn success;\nbuffer_overflow:\n\treturn ";
       print RECV2 ($procname =~ /^NFS4/) ? "NFSERR_BADXDR;" : "GARBAGE_ARGS;";
       print RECV2 "\n}\n\n";
