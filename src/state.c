@@ -263,7 +263,7 @@ enum nstat state_lock(struct open_stateid *open_stateid, struct lock_owner *lock
 {
 	struct lock_stateid *current = open_stateid->file->lock_stateids;
 	struct lock_stateid *matching = NULL;
-	struct lock *newlock;
+	struct lock *newlock = NULL;
 
 	/* Search for existing locks */
 	while (current) {
@@ -287,13 +287,69 @@ enum nstat state_lock(struct open_stateid *open_stateid, struct lock_owner *lock
 	}
 
 	/* No conflicting locks were found, so add the lock */
+
+	/* Allocate the new lock here so that if the allocation fails we won't
+	   have modified any existing locks */
 	UR(newlock = malloc(sizeof(struct lock)));
 	newlock->write = write;
 	newlock->offset = offset;
 	newlock->length = length;
 
-	if (matching == NULL) {
-		matching = malloc(sizeof(struct lock_stateid));
+	if (matching) {
+		/* To implement POSIX type locking, we must search through existing
+		   locks owned by this owner, and merge any that overlap with the
+		   new one. The records are not actually merged, they are just
+		   adjusted so that they are adjacent and there are no overlaps. */
+		struct lock *lock = matching->locks;
+
+		*lock_stateid = matching;
+		while (lock) {
+			struct lock *next = lock->next;
+
+			if (lock->offset < offset) {
+				if (lock->offset + lock->length > offset + length) {
+					/* New lock completely within an existing lock */
+					if (lock->write != write) {
+						/* Different types, so have to split the old lock */
+						struct lock *split = malloc(sizeof(struct lock));
+						if (split == NULL) {
+							/* If we get here, we cannot have modified any
+							   other existing locks. To do so would have
+							   required two existing locks overlapping each
+							   other */
+							free(newlock);
+							UR(NULL);
+						}
+						split->write = lock->write;
+						split->offset = offset + length;
+						split->length = (lock->offset + lock->length) - split->offset;
+						LL_ADD(matching->locks, split);
+						lock->length = offset - lock->offset;
+						LL_ADD(matching->locks, newlock);
+					} else {
+						/* Same type, so new lock can be ignored */
+						free(newlock);
+					}
+					return NFS_OK;
+				} else if (lock->offset + lock->length > offset) {
+					/* Partial overlap at bottom of new lock */
+					lock->length -= offset - lock->offset;
+				}
+			} else if (lock->offset < offset + length) {
+				if (lock->offset + lock->length <= offset + length) {
+					/* Old lock completely within new lock, so remove it */
+					LL_REMOVE(matching->locks, struct lock, lock);
+					free(lock);
+				} else {
+					/* Partial overlap at top of new lock */
+					lock->length -= (offset + length) - lock->offset;
+					lock->offset += (offset + length) - lock->offset;
+				}
+			}
+			lock = next;
+		}
+	} else {
+		*lock_stateid = matching = malloc(sizeof(struct lock_stateid));
 		if (matching == NULL) {
 			free(newlock);
 			UR(NULL);
@@ -307,7 +363,6 @@ enum nstat state_lock(struct open_stateid *open_stateid, struct lock_owner *lock
 		lock_owner->refcount++;
 	}
 	LL_ADD(matching->locks, newlock);
-	*lock_stateid = matching;
 	return NFS_OK;
 }
 
@@ -317,15 +372,40 @@ enum nstat state_unlock(struct stateid *stateid, unsigned offset, unsigned lengt
 
 	/* Search for existing locks */
 	while (lock) {
-		if ((lock->offset == offset) && (lock->length == length)) {
-			LL_REMOVE(stateid->lock->locks, struct lock, lock);
-			free(lock);
-			return NFS_OK;
+		struct lock *next = lock->next;
+
+		if (lock->offset < offset) {
+			if (lock->offset + lock->length > offset + length) {
+				/* Removed lock completely within an existing lock, so have
+				   to split the lock */
+				struct lock *split;
+
+				UR(split = malloc(sizeof(struct lock)));
+				split->write = lock->write;
+				split->offset = offset + length;
+				split->length = (lock->offset + lock->length) - split->offset;
+				LL_ADD(stateid->lock->locks, split);
+				lock->length = offset - lock->offset;
+				return NFS_OK;
+			} else if (lock->offset + lock->length > offset) {
+				/* Partial overlap at bottom of removed lock */
+				lock->length -= offset - lock->offset;
+			}
+		} else if (lock->offset < offset + length) {
+			if (lock->offset + lock->length <= offset + length) {
+				/* Old lock completely within new lock, so remove it */
+				LL_REMOVE(stateid->lock->locks, struct lock, lock);
+				free(lock);
+			} else {
+				/* Partial overlap at top of new lock */
+				lock->length -= (offset + length) - lock->offset;
+				lock->offset += (offset + length) - lock->offset;
+			}
 		}
-		lock = lock->next;
+		lock = next;
 	}
 
-	return NFSERR_LOCK_RANGE;
+	return NFS_OK;
 }
 
 enum nstat state_getstateid(unsigned seqid, char *other, struct stateid **stateid, struct server_conn *conn)
