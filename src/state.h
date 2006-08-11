@@ -82,10 +82,11 @@ struct lock_owner {
 	struct lock_owner *next;
 };
 
+/* Bottom and top are inclusive */
 struct lock {
 	int write;
-	unsigned offset;
-	unsigned length;
+	unsigned bottom;
+	unsigned top;
 	struct lock *next;
 };
 
@@ -213,9 +214,9 @@ void state_removeopenstateid(struct openfile *file, struct open_stateid *open_st
 
 enum nstat state_opendowngrade(struct stateid *stateid, unsigned access, unsigned deny, unsigned *ownerseqid);
 
-enum nstat state_lock(struct open_stateid *open_stateid, struct lock_owner *lock_owner, int write, unsigned offset, unsigned length, struct lock_stateid **lock_stateid);
+enum nstat state_lock(struct open_stateid *open_stateid, struct lock_owner *lock_owner, int write, uint64_t offset, uint64_t length, struct lock_stateid **lock_stateid);
 
-enum nstat state_unlock(struct stateid *stateid, unsigned offset, unsigned length);
+enum nstat state_unlock(struct stateid *stateid, uint64_t offset, uint64_t length);
 
 void state_reap(int all, clock_t now);
 

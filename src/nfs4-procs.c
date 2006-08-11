@@ -1311,8 +1311,6 @@ nstat NFS4_LOCK(LOCK4args *args, LOCK4res *res, struct server_conn *conn)
 	struct stateid_other *other2;
 	struct lock_stateid *lock_stateid;
 	int duplicate;
-/* FIXME Check that offset + length < 32bits unless length == allones -> NFSERR_BAD_RANGE
-check length 0 or (offset + len > 64bits and len != allones) -> NFSERR_INVAL */ 
 
 	if ((args->locktype == READ_LT) || (args->locktype == READW_LT)) {
 		write = 0;
