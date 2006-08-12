@@ -27,8 +27,12 @@
 #include "state.h"
 
 extern unsigned int verifier[2];
+extern int graceperiod;
+
 
 void filecache_init(void);
+
+void filecache_savegrace(void);
 
 void filecache_reap(int all);
 

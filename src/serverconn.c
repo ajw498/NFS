@@ -461,6 +461,7 @@ void conn_close(void)
 {
 	int i;
 
+	filecache_savegrace();
 	clientid_reap(1);
 	filecache_reap(1);
 

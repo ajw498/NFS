@@ -944,6 +944,8 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 	    (args->share_access & ~OPEN4_SHARE_ACCESS_BOTH) ||
 	    (args->share_deny   & ~OPEN4_SHARE_ACCESS_BOTH)) return NFSERR_INVAL;
 
+	if (graceperiod && (args->claim.claim != CLAIM_PREVIOUS)) return NFSERR_GRACE;
+
 	NR(state_newopenowner(args->owner.clientid, args->owner.owner.data, args->owner.owner.size, args->seqid, &open_owner, &confirmrequired, &duplicate));
 
 	if (duplicate) {
@@ -966,15 +968,18 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 	case CLAIM_NULL:
 		NF(lookup_filename(currentfh, &(args->claim.u.file), &currentfh, &filetype, conn));
 		break;
+	case CLAIM_PREVIOUS:
+		if (args->claim.u.delegate_type != OPEN_DELEGATE_NONE) return NFSERR_RECLAIM_BAD;
+		break;
 	default:
-		NF(NFSERR_IO); /*FIXME*/
+		NF(NFSERR_RECLAIM_BAD);
 	}
 
 	UF(res->u.resok4.attrset.data = palloc(2 * sizeof(unsigned), conn->pool));
 	res->u.resok4.attrset.size = 2;
 	memset(res->u.resok4.attrset.data, 0, 2 * sizeof(unsigned));
 
-	res->u.resok4.rflags = 0;
+	res->u.resok4.rflags = OPEN4_RESULT_LOCKTYPE_POSIX;
 	res->u.resok4.cinfo.atomic = TRUE;
 	res->u.resok4.cinfo.before = changeid;
 	changeid++;
@@ -1328,7 +1333,7 @@ nstat NFS4_LOCK(LOCK4args *args, LOCK4res *res, struct server_conn *conn)
 		return NFSERR_INVAL;
 	}
 
-	/*FIXME handle reclaims */
+	if (graceperiod && (args->reclaim == 0)) return NFSERR_GRACE;
 
 	if (args->locker.new_lock_owner) {
 		N4(state_getstateid(args->locker.u.open_owner.open_stateid.seqid, args->locker.u.open_owner.open_stateid.other, &stateid, conn));

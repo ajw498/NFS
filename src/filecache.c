@@ -60,18 +60,34 @@ static struct cachedfile {
 
 unsigned int verifier[2];
 
+int graceperiod = 1;
+
+#define GRACEFILE "<Choices$Write>.Moonfish.SkipGrace"
+
 void filecache_init(void)
 {
 	int i;
+	os_error *err;
+	int type;
 
 	/* Initialise all entries */
 	for (i = 0; i < MAXCACHEDFILES; i++) cachedfiles[i].handle = 0;
 
 	/* Get the time we are initialised to use as a verifier */
-	verifier[0] = (unsigned int)time(NULL);
+	verifier[0] = (unsigned)time(NULL);
 	verifier[1] = 0;
 
-	state_init(); /*FIXME move elsewhere? */
+	state_init();
+
+	/* Check for the existence of the file indicating that we can skip
+	   the grace period. Remove the file so that it will not be present
+	   if the server crashes */
+	err = _swix(OS_File, _INR(0,1) | _OUT(0), 6, GRACEFILE, &type);
+	if (err) {
+		syslogf(LOGNAME, LOG_SERIOUS, "Error deleting grace file %s (%s)", GRACEFILE, err->errmess);
+	} else {
+		if (type == OBJ_FILE) graceperiod = 0;
+	}
 }
 
 static enum nstat filecache_flush(int index)
@@ -329,10 +345,27 @@ enum nstat filecache_close(char *path, struct stateid *stateid)
 	return ret;
 }
 
+void filecache_savegrace(void)
+{
+	if (openfiles == NULL) {
+		/* We are shutting down with no open state, so record this
+		   fact to avoid the grace period on startup.
+		   Ignore errors creating the file */
+		_swix(OS_File, _INR(0,2) | _INR(4,5), 11, GRACEFILE, 0xFFF, 0, 0);
+	}
+}
+
 void filecache_reap(int all)
 {
 	int i;
 	clock_t now = clock();
+
+	/* Check when the grace period is over */
+	if (graceperiod) {
+		if ((unsigned)time(NULL) > verifier[0] + LEASE_TIMEOUT) {
+			graceperiod = 0;
+		}
+	}
 
 	for (i = 0; i < MAXCACHEDFILES; i++) {
 		/* Close a file if there has been no activity for a while */
@@ -357,6 +390,8 @@ enum nstat filecache_read(char *path, struct stateid *stateid, unsigned int coun
 	struct openfile *file;
 	unsigned int bufferread;
 	unsigned int bufferoffset;
+
+	if (graceperiod) return NFSERR_GRACE; /*FIXME NFS3? */
 
 	NR(filecache_opencached(path, stateid, ACC_READ, &index, &file, 0));
 	NR(state_checklocks(file, stateid, 0, offset, count));
@@ -426,6 +461,8 @@ enum nstat filecache_write(char *path, struct stateid *stateid, unsigned int cou
 {
 	int index;
 	struct openfile *file;
+
+	if (graceperiod) return NFSERR_GRACE; /*FIXME NFS3? */
 
 	if (verf) memcpy(verf, verifier, 8);
 
@@ -518,6 +555,8 @@ enum nstat filecache_setattr(char *path, struct stateid *stateid, unsigned int l
 {
 	int index;
 	struct openfile *file;
+
+	if (graceperiod && setsize) return NFSERR_GRACE; /*FIXME NFS3? */
 
 	if (!setsize) stateid = STATEID_ANY;
 
