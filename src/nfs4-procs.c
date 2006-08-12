@@ -1311,6 +1311,14 @@ nstat NFS4_LOCK(LOCK4args *args, LOCK4res *res, struct server_conn *conn)
 	struct stateid_other *other2;
 	struct lock_stateid *lock_stateid;
 	int duplicate;
+	int deniedwrite;
+	uint64_t deniedoffset;
+	uint64_t deniedlength;
+	uint64_t deniedclientid;
+	char *deniedowner;
+	int deniedownerlen;
+	struct lock_owner *lock_owner;
+	union duplicate *dup;
 
 	if ((args->locktype == READ_LT) || (args->locktype == READW_LT)) {
 		write = 0;
@@ -1323,27 +1331,23 @@ nstat NFS4_LOCK(LOCK4args *args, LOCK4res *res, struct server_conn *conn)
 	/*FIXME handle reclaims */
 
 	if (args->locker.new_lock_owner) {
-		struct lock_owner *lock_owner;
-
 		N4(state_getstateid(args->locker.u.open_owner.open_stateid.seqid, args->locker.u.open_owner.open_stateid.other, &stateid, conn));
 		N4(state_checkopenseqid(stateid, args->locker.u.open_owner.open_seqid, 0, &duplicate));
-		if (duplicate) {
-			/*FIXME*/
-			return res->status = stateid->open->open_owner->duplicate.lock.status;
-		}
-		NF(state_newlockowner(args->locker.u.open_owner.lock_owner.clientid, args->locker.u.open_owner.lock_owner.owner.data, args->locker.u.open_owner.lock_owner.owner.size, args->locker.u.open_owner.lock_seqid, &lock_owner, &duplicate));
-		if (duplicate) {
-			/*FIXME - return error?*/
-		}
+		if (duplicate) goto duplicate;
+		NF(state_newlockowner(args->locker.u.open_owner.lock_owner.clientid, args->locker.u.open_owner.lock_owner.owner.data, args->locker.u.open_owner.lock_owner.owner.size, args->locker.u.open_owner.lock_seqid, &lock_owner));
 		/*FIXME check currentfh matches stateid? */
-		NF(state_lock(stateid->open, lock_owner, write, args->offset, args->length, &lock_stateid));
+		NF(state_lock(stateid->open->file, stateid->open, lock_owner, write,
+		              args->offset, args->length, &lock_stateid,
+		              &deniedwrite, &deniedoffset, &deniedlength,
+		              &deniedclientid, &deniedowner, &deniedownerlen));
 	} else {
 		N4(state_getstateid(args->locker.u.lock_owner.lock_stateid.seqid, args->locker.u.lock_owner.lock_stateid.other, &stateid, conn));
 		N4(state_checklockseqid(stateid, args->locker.u.lock_owner.lock_seqid, &duplicate));
-		if (duplicate) {
-			/*FIXME*/
-		}
-		NF(state_lock(stateid->open, stateid->lock->lock_owner, write, args->offset, args->length, &lock_stateid));
+		if (duplicate) goto duplicate;
+		NF(state_lock(stateid->open->file, stateid->open, stateid->lock->lock_owner,
+		              write, args->offset, args->length, &lock_stateid,
+		              &deniedwrite, &deniedoffset, &deniedlength,
+		              &deniedclientid, &deniedowner, &deniedownerlen));
 	}
 
 	res->u.resok4.lock_stateid.seqid = lock_stateid->seqid;
@@ -1352,22 +1356,102 @@ nstat NFS4_LOCK(LOCK4args *args, LOCK4res *res, struct server_conn *conn)
 	other2->verifier = verifier[0];
 	other2->lock = 1;
 
+	if (args->locker.new_lock_owner) {
+		dup = &(stateid->open->open_owner->duplicate);
+	} else {
+		dup = &(stateid->lock->lock_owner->duplicate);
+	}
+	dup->lock.status = NFS_OK;
+	dup->lock.res.ok.seqid = lock_stateid->seqid;
+	memcpy(dup->lock.res.ok.other, res->u.resok4.lock_stateid.other, sizeof(struct stateid_other));
+
 	return res->status = NFS_OK;
+
 failure:
-	/*FIXME - fill in denied struct if relevent */
+	if (args->locker.new_lock_owner) {
+		dup = &(stateid->open->open_owner->duplicate);
+	} else {
+		dup = &(stateid->lock->lock_owner->duplicate);
+	}
+	dup->lock.status = res->status;
+	dup->lock.res.denied.write = deniedwrite;
+	dup->lock.res.denied.offset = deniedoffset;
+	dup->lock.res.denied.length = deniedlength;
+	dup->lock.res.denied.clientid = deniedclientid;
+	memcpy(dup->lock.res.denied.owner, deniedowner, deniedownerlen);
+	dup->lock.res.denied.ownerlen = deniedownerlen;
+
+	res->u.denied.locktype = deniedwrite ? WRITE_LT : READ_LT;
+	res->u.denied.offset = deniedoffset;
+	res->u.denied.length = deniedlength;
+	res->u.denied.owner.clientid = deniedclientid;
+	res->u.denied.owner.owner.data = deniedowner;
+	res->u.denied.owner.owner.size = deniedownerlen;
+	return res->status;
+
+duplicate:
+	if (args->locker.new_lock_owner) {
+		dup = &(stateid->open->open_owner->duplicate);
+	} else {
+		dup = &(stateid->lock->lock_owner->duplicate);
+	}
+	res->status = dup->lock.status;
+	if (res->status == NFS_OK) {
+		res->u.resok4.lock_stateid.seqid = dup->lock.res.ok.seqid;
+		memcpy(res->u.resok4.lock_stateid.other, dup->lock.res.ok.other, sizeof(struct stateid_other));
+	} else {
+		res->u.denied.locktype = dup->lock.res.denied.write ? WRITE_LT : READ_LT;
+		res->u.denied.offset = dup->lock.res.denied.offset;
+		res->u.denied.length = dup->lock.res.denied.length;
+		res->u.denied.owner.clientid = dup->lock.res.denied.clientid;
+		res->u.denied.owner.owner.data = dup->lock.res.denied.owner;
+		res->u.denied.owner.owner.size = dup->lock.res.denied.ownerlen;
+	}
 	return res->status;
 }
 
 nstat NFS4_LOCKT(LOCKT4args *args, LOCKT4res *res, struct server_conn *conn)
 {
-	if (args->locktype != READ_LT &&
-	    args->locktype != WRITE_LT &&
-	    args->locktype != READW_LT &&
-	    args->locktype != WRITEW_LT) {
+	int write;
+	struct lock_owner *lock_owner;
+	struct openfile *file;
+	int deniedwrite;
+	uint64_t deniedoffset;
+	uint64_t deniedlength;
+	uint64_t deniedclientid;
+	char *deniedowner;
+	int deniedownerlen;
+
+	(void)conn;
+
+	if ((args->locktype == READ_LT) || (args->locktype == READW_LT)) {
+		write = 0;
+	} else if ((args->locktype != WRITE_LT) || (args->locktype != WRITEW_LT)) {
+		write = 1;
+	} else {
 		return NFSERR_INVAL;
 	}
 
-	return res->status = NFSERR_NOTSUPP;
+	NR(state_getlockowner(args->owner.clientid, args->owner.owner.data, args->owner.owner.size, &lock_owner));
+	if (lock_owner == NULL) return NFS_OK;
+
+	NR(filecache_getfile(currentfh, &file));
+	if (file == NULL) return NFS_OK;
+
+	res->status = state_lock(file, NULL, lock_owner, write, args->offset, args->length,
+	                         NULL, &deniedwrite, &deniedoffset, &deniedlength,
+	                         &deniedclientid, &deniedowner, &deniedownerlen);
+
+	if (res->status == NFSERR_DENIED) {
+		res->u.denied.offset = deniedoffset;
+		res->u.denied.length = deniedlength;
+		res->u.denied.locktype = deniedwrite ? WRITE_LT : READ_LT;
+		res->u.denied.owner.clientid = deniedclientid;
+		res->u.denied.owner.owner.data = deniedowner;
+		res->u.denied.owner.owner.size = deniedownerlen;
+	}
+
+	return res->status;
 }
 
 nstat NFS4_LOCKU(LOCKU4args *args, LOCKU4res *res, struct server_conn *conn)

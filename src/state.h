@@ -26,11 +26,17 @@
 
 #include "serverconn.h"
 
+struct stateid_other {
+	void *id;
+	unsigned verifier;
+	int lock;
+};
+
 union duplicate {
 	struct {
 		enum nstat status;
 		int stateidseq;
-		char stateidother[12];
+		char stateidother[sizeof(struct stateid_other)];
 		unsigned rflags;
 		unsigned attrset[2];
 	} open;
@@ -42,6 +48,20 @@ union duplicate {
 	} close;
 	struct {
 		enum nstat status;
+		union {
+			struct {
+				int write;
+				uint64_t offset;
+				uint64_t length;
+				uint64_t clientid;
+				char owner[1024];
+				int ownerlen;
+			} denied;
+			struct {
+				unsigned seqid;
+				char other[sizeof(struct stateid_other)];
+			} ok;
+		} res;
 	} lock;
 	struct {
 		enum nstat status;
@@ -102,12 +122,6 @@ struct lock_stateid {
 struct stateid {
 	struct lock_stateid *lock;
 	struct open_stateid *open;
-};
-
-struct stateid_other {
-	void *id;
-	unsigned verifier;
-	int lock;
 };
 
 enum accesstype {
@@ -196,7 +210,9 @@ void state_removeclientstate(struct openfile *file, uint64_t clientid);
 
 enum nstat state_newopenowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct open_owner **open_owner, int *confirmrequired, int *duplicate);
 
-enum nstat state_newlockowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct lock_owner **lock_owner, int *duplicate);
+enum nstat state_newlockowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct lock_owner **lock_owner);
+
+enum nstat state_getlockowner(uint64_t clientid, char *owner, int ownerlen, struct lock_owner **lock_owner);
 
 enum nstat state_releaselockowner(uint64_t clientid, char *owner, int ownerlen);
 
@@ -214,7 +230,11 @@ void state_removeopenstateid(struct openfile *file, struct open_stateid *open_st
 
 enum nstat state_opendowngrade(struct stateid *stateid, unsigned access, unsigned deny, unsigned *ownerseqid);
 
-enum nstat state_lock(struct open_stateid *open_stateid, struct lock_owner *lock_owner, int write, uint64_t offset, uint64_t length, struct lock_stateid **lock_stateid);
+enum nstat state_lock(struct openfile *file, struct open_stateid *open_stateid,
+                      struct lock_owner *lock_owner, int write, uint64_t offset,
+                      uint64_t length, struct lock_stateid **lock_stateid,
+                      int *deniedwrite, uint64_t *deniedoffset, uint64_t *deniedlength,
+                      uint64_t *deniedclientid, char **deniedowner, int *deniedownerlen);
 
 enum nstat state_unlock(struct stateid *stateid, uint64_t offset, uint64_t length);
 

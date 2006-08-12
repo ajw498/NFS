@@ -220,6 +220,15 @@ static enum nstat filecache_opencached(char *path, struct stateid *stateid, enum
 	return NFS_OK;
 }
 
+enum nstat filecache_getfile(char *path, struct openfile **file)
+{
+	int index;
+
+	NR(filecache_opencached(path, STATEID_ANY, ACC_EITHER, &index, file, 1));
+
+	return NFS_OK;
+}
+
 enum nstat filecache_open(char *path, struct open_owner *open_owner, unsigned access, unsigned deny, unsigned *ownerseqid, char *other)
 {
 	int index;

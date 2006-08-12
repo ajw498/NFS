@@ -145,13 +145,11 @@ enum nstat state_newopenowner(uint64_t clientid, char *owner, int ownerlen, unsi
 	return NFS_OK;
 }
 
-enum nstat state_newlockowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct lock_owner **lock_owner, int *duplicate)
+enum nstat state_newlockowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct lock_owner **lock_owner)
 {
 	struct lock_owner *id = lock_owners;
 
 	NR(clientid_renew(clientid));
-
-	*duplicate = 0;
 
 	/* Search for an existing owner with the same details */
 	while (id) {
@@ -161,15 +159,8 @@ enum nstat state_newlockowner(uint64_t clientid, char *owner, int ownerlen, unsi
 			*lock_owner = id;
 
 			/* Check the sequence id is correct */
-			if (seqid < id->seqid) {
-				return NFSERR_BAD_SEQID;
-			} else if (seqid == id->seqid) {
-				*duplicate = 1;
-			} else if (seqid == id->seqid + 1) {
-				id->seqid = seqid;
-			} else {
-				return NFSERR_BAD_SEQID;
-			}
+			if (seqid != id->seqid + 1) return NFSERR_BAD_SEQID;
+			id->seqid = seqid;
 
 			return NFS_OK;
 		}
@@ -191,6 +182,24 @@ enum nstat state_newlockowner(uint64_t clientid, char *owner, int ownerlen, unsi
 	LL_ADD(lock_owners, id);
 
 	*lock_owner = id;
+	return NFS_OK;
+}
+
+enum nstat state_getlockowner(uint64_t clientid, char *owner, int ownerlen, struct lock_owner **lock_owner)
+{
+	struct lock_owner *id = lock_owners;
+
+	while (id) {
+		if ((id->clientid == clientid) &&
+		    (id->ownerlen == ownerlen) &&
+		    (memcmp(id->owner, owner, ownerlen) == 0)) {
+			*lock_owner = id;
+			return NFS_OK;
+		}
+		id = id->next;
+	}
+
+	*lock_owner = NULL;
 	return NFS_OK;
 }
 
@@ -280,9 +289,13 @@ static enum nstat state_getlockrange(uint64_t offset, uint64_t length, unsigned 
 	return NFS_OK;
 }
 
-enum nstat state_lock(struct open_stateid *open_stateid, struct lock_owner *lock_owner, int write, uint64_t offset, uint64_t length, struct lock_stateid **lock_stateid)
+enum nstat state_lock(struct openfile *file, struct open_stateid *open_stateid,
+                      struct lock_owner *lock_owner, int write, uint64_t offset,
+                      uint64_t length, struct lock_stateid **lock_stateid,
+                      int *deniedwrite, uint64_t *deniedoffset, uint64_t *deniedlength,
+                      uint64_t *deniedclientid, char **deniedowner, int *deniedownerlen)
 {
-	struct lock_stateid *current = open_stateid->file->lock_stateids;
+	struct lock_stateid *current = file->lock_stateids;
 	struct lock_stateid *matching = NULL;
 	struct lock *newlock = NULL;
 	unsigned bottom;
@@ -300,7 +313,12 @@ enum nstat state_lock(struct open_stateid *open_stateid, struct lock_owner *lock
 				if ((lock->bottom <= top) && (lock->top >= bottom)) {
 					/* Overlapping lock found, check if it is conflicting */
 					if (lock->write || write) {
-						/*FIXME return details of lock */
+						*deniedwrite = lock->write;
+						*deniedoffset = lock->bottom;
+						*deniedlength = ((uint64_t)lock->top - (uint64_t)lock->bottom) + 1ULL;
+						*deniedclientid = current->lock_owner->clientid;
+						*deniedowner = current->lock_owner->owner;
+						*deniedownerlen = current->lock_owner->ownerlen;
 						return NFSERR_DENIED;
 					}
 				}
@@ -310,7 +328,9 @@ enum nstat state_lock(struct open_stateid *open_stateid, struct lock_owner *lock
 		current = current->next;
 	}
 
-	/* No conflicting locks were found, so add the lock */
+	/* No conflicting locks were found. If this was just a test for a lock
+	   then return, else add the lock */
+	if (open_stateid == NULL) return NFS_OK;
 
 	/* Allocate the new lock here so that if the allocation fails we won't
 	   have modified any existing locks */
@@ -381,7 +401,7 @@ enum nstat state_lock(struct open_stateid *open_stateid, struct lock_owner *lock
 		matching->lock_owner = lock_owner;
 		matching->locks = NULL;
 		matching->seqid = 0;
-		LL_ADD(open_stateid->file->lock_stateids, matching);
+		LL_ADD(file->lock_stateids, matching);
 		HASH_ADD(lock_hash, matching);
 		lock_owner->refcount++;
 	}

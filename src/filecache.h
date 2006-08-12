@@ -34,6 +34,8 @@ void filecache_reap(int all);
 
 void filecache_removestate(uint64_t clientid);
 
+enum nstat filecache_getfile(char *path, struct openfile **file);
+
 enum nstat filecache_open(char *path, struct open_owner *open_owner, unsigned access, unsigned deny, unsigned *ownerseqid, char *other);
 
 enum nstat filecache_opendowngrade(char *path, struct stateid *stateid, unsigned access, unsigned deny, unsigned *ownerseqid);
