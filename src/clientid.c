@@ -199,7 +199,9 @@ enum nstat clientid_renew(uint64_t clientid)
 		}
 		id = id->next;
 	}
-	/* FIXME return nfserr_expired if timestamp part of clientid matches */
+
+	if (clientid >> 32 == verifier[0]) return NFSERR_EXPIRED;
+
 	return NFSERR_STALE_CLIENTID;
 }
 

@@ -510,7 +510,7 @@ enum nstat state_getstateid(unsigned seqid, char *other, struct stateid **statei
 		struct lock_stateid *id;
 
 		HASH_GET(id, lock_hash, other2->id);
-		if (id == NULL) return NFSERR_OLD_STATEID;
+		if (id == NULL) return NFSERR_EXPIRED;
 		if (id->seqid != seqid) return NFSERR_OLD_STATEID;
 		(*stateid)->lock = id;
 		(*stateid)->open = id->open_stateid;
@@ -519,7 +519,7 @@ enum nstat state_getstateid(unsigned seqid, char *other, struct stateid **statei
 		struct open_stateid *id;
 
 		HASH_GET(id, open_hash, other2->id);
-		if (id == NULL) return NFSERR_OLD_STATEID;
+		if (id == NULL) return NFSERR_EXPIRED;
 		if (id->seqid != seqid) return NFSERR_OLD_STATEID;
 		(*stateid)->lock = NULL;
 		(*stateid)->open = id;
@@ -539,7 +539,7 @@ enum nstat state_checkpermissions(struct openfile *file, struct stateid *stateid
 
 		while (id) {
 			if (id->deny & (access == ACC_READ ? 1 : 2)) {
-				return NFSERR_LOCKED; /*FIXME NFS2/3 error? */
+				return NFSERR_OPENMODE; /*FIXME NFS2/3 error? */
 			}
 			id = id->next;
 		}
@@ -548,7 +548,7 @@ enum nstat state_checkpermissions(struct openfile *file, struct stateid *stateid
 	if (stateid->open->file != file) return NFSERR_BAD_STATEID;
 	if (access == ACC_EITHER) return NFS_OK;
 
-	return (stateid->open->access & (access == ACC_READ ? 1 : 2)) ? NFS_OK : NFSERR_LOCKED;
+	return (stateid->open->access & (access == ACC_READ ? 1 : 2)) ? NFS_OK : NFSERR_OPENMODE;
 }
 
 enum nstat state_createopenstateid(struct openfile *file, struct open_owner *open_owner, unsigned access, unsigned deny, struct open_stateid **open_stateid)
