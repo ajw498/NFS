@@ -289,6 +289,36 @@ static enum nstat state_getlockrange(uint64_t offset, uint64_t length, unsigned 
 	return NFS_OK;
 }
 
+enum nstat state_checklocks(struct openfile *file, struct stateid *stateid, int write, unsigned offset, unsigned length)
+{
+	struct lock_stateid *current = file->lock_stateids;
+	struct lock_owner *lock_owner = NULL;
+
+	if ((file == NULL) || (stateid == STATEID_ANY)) return NFS_OK;
+
+	if ((stateid != STATEID_NONE) && (stateid->lock != NULL)) {
+		lock_owner = stateid->lock->lock_owner;
+	}
+
+	/* Search for matching locks */
+	while (current) {
+		if (current->lock_owner != lock_owner) {
+			struct lock *lock = current->locks;
+			while (lock) {
+				if ((offset <= lock->top) && (offset + length >= lock->bottom)) {
+					/* Overlapping lock found, check if it is conflicting */
+					if (lock->write || write) {
+						return NFSERR_LOCKED;
+					}
+				}
+				lock = lock->next;
+			}
+		}
+		current = current->next;
+	}
+	return NFS_OK;
+}
+
 enum nstat state_lock(struct openfile *file, struct open_stateid *open_stateid,
                       struct lock_owner *lock_owner, int write, uint64_t offset,
                       uint64_t length, struct lock_stateid **lock_stateid,

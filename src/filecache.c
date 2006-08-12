@@ -354,10 +354,12 @@ void filecache_reap(int all)
 enum nstat filecache_read(char *path, struct stateid *stateid, unsigned int count, unsigned int offset, char **data, unsigned int *read, int *eof)
 {
 	int index;
+	struct openfile *file;
 	unsigned int bufferread;
 	unsigned int bufferoffset;
 
-	NR(filecache_opencached(path, stateid, ACC_READ, &index, NULL, 0));
+	NR(filecache_opencached(path, stateid, ACC_READ, &index, &file, 0));
+	NR(state_checklocks(file, stateid, 0, offset, count));
 
 	/* If the previous access was a write we need to flush any buffered
 	   data before overwriting it */
@@ -430,6 +432,7 @@ enum nstat filecache_write(char *path, struct stateid *stateid, unsigned int cou
 	if (stateid == STATEID_ANY) stateid = STATEID_NONE;
 
 	NR(filecache_opencached(path, stateid, ACC_WRITE, &index, &file, 0));
+	NR(state_checklocks(file, stateid, 1, offset, count));
 
 	/* If the data in the buffer is from a read then discard it */
 	if (cachedfiles[index].write == 0) {
@@ -519,6 +522,19 @@ enum nstat filecache_setattr(char *path, struct stateid *stateid, unsigned int l
 	if (!setsize) stateid = STATEID_ANY;
 
 	NR(filecache_opencached(path, stateid, ACC_WRITE, &index, &file, !setsize));
+	if (setsize && file) {
+		unsigned offset;
+		unsigned count;
+
+		if (size > file->filesize) {
+			offset = file->filesize;
+			count = size - file->filesize;
+		} else {
+			offset = size;
+			count = file->filesize - size;
+		}
+		NR(state_checklocks(file, stateid, 1, offset, count));
+	}
 
 	if (index != -1) {
 		cachedfiles[index].load = load;

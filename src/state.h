@@ -238,6 +238,8 @@ enum nstat state_lock(struct openfile *file, struct open_stateid *open_stateid,
 
 enum nstat state_unlock(struct stateid *stateid, uint64_t offset, uint64_t length);
 
+enum nstat state_checklocks(struct openfile *file, struct stateid *stateid, int write, unsigned offset, unsigned length);
+
 void state_reap(int all, clock_t now);
 
 
