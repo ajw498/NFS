@@ -361,9 +361,15 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					break;
 				}
 				case FATTR4_CHANGE: {
-					uint64_t change = (((uint64_t)load & 0x000FFFFFULL) << 32) | exec;
+					uint64_t change;
 					setattrmask();
-					process_uint64(OUTPUT, change);/*FIXME - fakedirtimes */
+					if (type == OBJ_DIR) {
+						change = changeid;
+						changeid++;
+					} else {
+						change = ((uint64_t)load << 32) | exec;
+					}
+					process_uint64(OUTPUT, change);
 					break;
 				}
 				case FATTR4_SIZE: {
@@ -476,7 +482,8 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 				case FATTR4_MIMETYPE: {
 					fattr4_mimetype mimetype;
 					setattrmask();
-					UR(mimetype.data = filetype_to_mimetype(filetype, conn->pool));
+					mimetype.data = filetype_to_mimetype(filetype, conn->pool);
+					if (mimetype.data == NULL) goto buffer_overflow;
 					mimetype.size = strlen(mimetype.data);
 					process_array(OUTPUT, mimetype, char, mimetype.size);
 					break;
@@ -556,6 +563,10 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					process_nfstime4(OUTPUT, mtime);
 					break;
 				}
+				case FATTR4_TIME_ACCESS_SET:
+				case FATTR4_TIME_MODIFY_SET:
+					ret = NFSERR_INVAL;
+					goto failure;
 				}
 			}
 		}
@@ -628,8 +639,15 @@ static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn
 				}
 				case FATTR4_CHANGE: {
 					uint64_t change;
-					process_uint64(INPUT, change);/*FIXME - fakedirtimes? */
-					differ |= change != ((((uint64_t)load & 0x000FFFFFULL) << 32) | exec);
+					uint64_t newchange;
+					process_uint64(INPUT, change);
+					if (type == OBJ_DIR) {
+						newchange = changeid;
+						changeid++;
+					} else {
+						newchange = ((uint64_t)load << 32) | exec;
+					}
+					differ |= change != newchange;
 					break;
 				}
 				case FATTR4_SPACE_USED:
@@ -726,8 +744,10 @@ static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn
 					differ |= mtime.nseconds != mtime2.nseconds;
 					break;
 				}
+				case FATTR4_TIME_ACCESS_SET:
+				case FATTR4_TIME_MODIFY_SET:
+					return NFSERR_INVAL;
 				default:
-					/*FIXME: NFS4ERR_INVAL for write only attrs */
 					return NFSERR_ATTRNOTSUPP;
 				}
 			}
@@ -850,6 +870,9 @@ static nstat set_fattr(char *path, struct stateid *stateid, fattr4 *args, bitmap
 					}
 					break;
 				}
+				default:
+					/* Everything else is read only */
+					return NFSERR_INVAL;
 				}
 			}
 		}
@@ -895,9 +918,6 @@ nstat NFS4_GETATTR(GETATTR4args *args, GETATTR4res *res, struct server_conn *con
 	if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
 	if (type == OBJ_NONE) {
 		return res->status = NFSERR_NOENT;
-/*	} else { FIXME?
-		int ftype = (load & 0x000FFF00) >> 8;
-		if ((type == OBJ_FILE) && (filetype != -1) && (filetype != ftype)) return NFSERR_NOENT;*/
 	}
 
 	N4(get_fattr(currentfh, type, load, exec, len, attr, &(args->attr_request), &(res->u.resok4.obj_attributes), conn));
@@ -1039,7 +1059,7 @@ nstat NFS4_SAVEFH(SAVEFH4res *res, struct server_conn *conn)
 
 nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 {
-	int filetype = 0xFFF;/*FIXME*/
+	int filetype = conn->export->defaultfiletype;
 	int verf;
 	char other[12];
 	unsigned ownerseqid;
