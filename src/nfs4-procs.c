@@ -46,8 +46,6 @@ enum accept_stat nfs4_decode_proc(int proc, struct server_conn *conn)
 		struct COMPOUND4res res;
 		char *initobuf = obuf;
 
-		/*FIXME host access control */
-
 		currentfh = NULL;
 		savedfh = "";
 		conn->export = conn->exports;
@@ -210,6 +208,7 @@ static nstat lookup_filename(char *base, component4 *leafname, char **res, int *
 			char *leaf = export->exportname;
 			if (leaf && (leaf[0] == '/')) leaf++;
 			if (leaf && (strcmp(buffer, leaf) == 0)) {
+				if ((conn->host & export->mask) != export->host) return NFSERR_ACCESS;
 				*res = export->basedir;
 				conn->export = export;
 				return NFS_OK;
@@ -275,6 +274,8 @@ nstat NFS4_LOOKUPP(LOOKUPP4res *res, struct server_conn *conn)
 
 static uint64_t changeid = 0;
 
+#define ATTRSIZE 512
+
 static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, unsigned len, unsigned attr, bitmap4 *args, fattr4 *res, struct server_conn *conn)
 {
 	char *attrdata;
@@ -287,10 +288,9 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 	int i;
 	int j;
 	int filetype;
+	enum nstat ret = NFS_OK;
 
-	UR(attrdata = palloc(1024, conn->pool));
-	obuf = attrdata;
-	obufend = attrdata + 1024;/*FIXME*/
+	UR(attrdata = palloc(ATTRSIZE, conn->pool));
 
 	filetype = (load & 0xFFF00000) ? ((load & 0x000FFF00) >> 8) : 0xFFD;
 
@@ -322,6 +322,9 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 	UR(res->attrmask.data = palloc(2 * sizeof(unsigned), conn->pool));
 	res->attrmask.size = 2;
 	memset(res->attrmask.data, 0, 2 * sizeof(unsigned));
+
+	obuf = attrdata;
+	obufend = attrdata + ATTRSIZE;
 
 	for (i = 0; i < args->size; i++) {
 		for (j = 0; j < 32; j++) {
@@ -403,7 +406,7 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 				case FATTR4_FILEHANDLE: {
 					nfs_fh4 fh = {NULL, NFS4_FHSIZE};
 					setattrmask();
-					NR(path_to_fh(path, &(fh.data), &(fh.size), conn));
+					if ((ret = path_to_fh(path, &(fh.data), &(fh.size), conn)) != NFS_OK) goto failure;
 					process_nfs_fh4(OUTPUT, fh);
 					break;
 				}
@@ -561,12 +564,17 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 	res->attr_vals.data = attrdata;
 	res->attr_vals.size = obuf - attrdata;
 
+failure:
+	/* Restore old buffer positions */
 	obuf = oldobuf;
 	obufend = oldobufend;
 
-	return NFS_OK;
+	return ret;
 
 buffer_overflow:
+	obuf = oldobuf;
+	obufend = oldobufend;
+
 	return NFSERR_RESOURCE;
 }
 
@@ -594,7 +602,7 @@ static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn
 	unsigned len;
 
 	ibuf = args->attr_vals.data;
-	ibufend = ibuf + args->attr_vals.size; /* FIXME - restore on error */
+	ibufend = ibuf + args->attr_vals.size;
 
 	if (path == NULL) {
 		setrootattrs();
@@ -726,6 +734,8 @@ static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn
 		}
 	}
 
+	/* There is no need to restore on error because nothing further will
+	   be read from the input if this op doesn't complete successfully */
 	ibuf = oldibuf;
 	ibufend = oldibufend;
 
@@ -742,15 +752,6 @@ buffer_overflow:
   if (res) res->data[attr2 > 31 ? 1 : 0] |= 1 << (attr2 & 0x1F); \
 } while (0)
 
-/*FIXME*/
-static void foo(struct server_conn *conn)
-{
-					fattr4_acl acltmp;
-					process_array2(INPUT, acltmp, nfsace4, OPAQUE_MAX);
-buffer_overflow:
-	return;
-}
-
 static nstat set_fattr(char *path, struct stateid *stateid, fattr4 *args, bitmap4 *res, int sizeonly, int filetype, struct server_conn *conn)
 {
 	char *oldibuf = ibuf;
@@ -765,7 +766,7 @@ static nstat set_fattr(char *path, struct stateid *stateid, fattr4 *args, bitmap
 	int setsize = 0;
 
 	ibuf = args->attr_vals.data;
-	ibufend = ibuf + args->attr_vals.size; /* FIXME - restore on error */
+	ibufend = ibuf + args->attr_vals.size;
 
 	if (path == NULL) return NFSERR_ROFS;
 
@@ -790,7 +791,8 @@ static nstat set_fattr(char *path, struct stateid *stateid, fattr4 *args, bitmap
 				}
 				/* Recommended attributes */
 				case FATTR4_ACL: {
-					foo(conn);
+					fattr4_acl acltmp;
+					process_array2(INPUT, acltmp, nfsace4, OPAQUE_MAX);
 					break;
 				}
 				case FATTR4_ARCHIVE:
@@ -853,6 +855,8 @@ static nstat set_fattr(char *path, struct stateid *stateid, fattr4 *args, bitmap
 		}
 	}
 
+	/* There is no need to restore on error because nothing further will
+	   be read from the input if this op doesn't complete successfully */
 	ibuf = oldibuf;
 	ibufend = oldibufend;
 
@@ -1328,13 +1332,21 @@ nstat NFS4_READLINK(READLINK4res *res, struct server_conn *conn)
 nstat NFS4_REMOVE(REMOVE4args *args, REMOVE4res *res, struct server_conn *conn)
 {
 	char *path;
+	os_error *err2;
 
 	if (currentfh == NULL) N4(NFSERR_ROFS);
-	/* FIXME don't delete if open with share deny */
 	if (conn->export->ro) N4(NFSERR_ROFS);
 
 	N4(lookup_filename(currentfh, &(args->target), &path, NULL, conn));
-	O4(_swix(OS_File, _INR(0,1), 6, path));
+	err2 = _swix(OS_File, _INR(0,1), 6, path);
+	if (err2 && err2->errnum == 0x117c2) {
+		/* File already open. Strictly we should only return an error
+		   if the file is open with a share deny write, but it is
+		   much simpler just to error if it is open at all */
+		return res->status = NFSERR_FILE_OPEN;
+	} else {
+		O4(err2);
+	}
 
 	res->u.resok4.cinfo.atomic = TRUE;
 	res->u.resok4.cinfo.before = changeid;
@@ -1370,11 +1382,19 @@ nstat NFS4_RENAME(RENAME4args *args, RENAME4res *res, struct server_conn *conn)
 	if ((newtype != OBJ_NONE) && (oldtype != newtype)) N4(NFSERR_EXIST);
 
 	if (strcmp(from, to) != 0) {
+		os_error *err2 = NULL;
 		if (newtype != OBJ_NONE) {
-			/* FIXME check share deny stuff as for delete */
-			O4(_swix(OS_File, _INR(0,1), 6, to));
+			err2 = _swix(OS_File, _INR(0,1), 6, to);
 		}
-		O4(_swix(OS_FSControl, _INR(0,2), 25, from, to));
+		if (err2 == NULL) err2 = _swix(OS_FSControl, _INR(0,2), 25, from, to);
+		if (err2 && err2->errnum == 0x117c2) {
+			/* File already open. Strictly we should only return an error
+			   if the file is open with a share deny write, but it is
+			   much simpler just to error if it is open at all */
+			return res->status = NFSERR_FILE_OPEN;
+		} else {
+			O4(err2);
+		}
 	}
 	if (newfiletype != oldfiletype) {
 		O4(_swix(OS_File, _INR(0,2), 18, to, newfiletype));
@@ -1405,7 +1425,6 @@ nstat NFS4_SETATTR(SETATTR4args *args, SETATTR4res *res, struct server_conn *con
 	if (currentfh == NULL) N4(NFSERR_ROFS);
 	if (conn->export->ro) N4(NFSERR_ROFS);
 
-	/* FIXME - should return error for unsupported attrs? */
 	U4(res->attrsset.data = palloc(2 * sizeof(unsigned), conn->pool));
 	res->attrsset.size = 2;
 	memset(res->attrsset.data, 0, 2 * sizeof(unsigned));
@@ -1455,18 +1474,21 @@ nstat NFS4_LOCK(LOCK4args *args, LOCK4res *res, struct server_conn *conn)
 
 	if (args->locker.new_lock_owner) {
 		N4(state_getstateid(args->locker.u.open_owner.open_stateid.seqid, args->locker.u.open_owner.open_stateid.other, &stateid, conn));
+		if ((stateid == STATEID_NONE) || (stateid == STATEID_ANY)) N4(NFSERR_BAD_STATEID);
 		N4(state_checkopenseqid(stateid, args->locker.u.open_owner.open_seqid, 0, &duplicate));
 		if (duplicate) goto duplicate;
+		if (strcmp(stateid->open->file->name, currentfh) != 0) NF(NFSERR_BAD_STATEID);
 		NF(state_newlockowner(args->locker.u.open_owner.lock_owner.clientid, args->locker.u.open_owner.lock_owner.owner.data, args->locker.u.open_owner.lock_owner.owner.size, args->locker.u.open_owner.lock_seqid, &lock_owner));
-		/*FIXME check currentfh matches stateid? */
 		NF(state_lock(stateid->open->file, stateid->open, lock_owner, write,
 		              args->offset, args->length, &lock_stateid,
 		              &deniedwrite, &deniedoffset, &deniedlength,
 		              &deniedclientid, &deniedowner, &deniedownerlen));
 	} else {
 		N4(state_getstateid(args->locker.u.lock_owner.lock_stateid.seqid, args->locker.u.lock_owner.lock_stateid.other, &stateid, conn));
+		if ((stateid == STATEID_NONE) || (stateid == STATEID_ANY)) N4(NFSERR_BAD_STATEID);
 		N4(state_checklockseqid(stateid, args->locker.u.lock_owner.lock_seqid, &duplicate));
 		if (duplicate) goto duplicate;
+		if (strcmp(stateid->open->file->name, currentfh) != 0) NF(NFSERR_BAD_STATEID);
 		NF(state_lock(stateid->open->file, stateid->open, stateid->lock->lock_owner,
 		              write, args->offset, args->length, &lock_stateid,
 		              &deniedwrite, &deniedoffset, &deniedlength,
@@ -1626,7 +1648,7 @@ nstat NFS4_SECINFO(SECINFO4args *args, SECINFO4res *res, struct server_conn *con
 {
 	(void)conn;
 	(void)args;
-	/*FIXME*/
+	/*FIXME NFS4_SECINFO */
 
 	return res->status = NFSERR_NOTSUPP;
 }
