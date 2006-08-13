@@ -316,8 +316,9 @@ enum accept_stat NFSPROC_CREATE(struct createargs *args, struct createres *res, 
 enum accept_stat NFSPROC_RMDIR(struct diropargs *args, struct removeres *res, struct server_conn *conn)
 {
 	char *path;
+	int filetype;
 
-	NE(diropargs_to_path(args, &path, NULL, conn));
+	NE(diropargs_to_path(args, &path, &filetype, conn));
 	if (conn->export->ro) NE(NFSERR_ROFS);
 	OE(_swix(OS_File, _INR(0,1), 6, path));
 
@@ -327,9 +328,11 @@ enum accept_stat NFSPROC_RMDIR(struct diropargs *args, struct removeres *res, st
 enum accept_stat NFSPROC_REMOVE(struct diropargs *args, struct removeres *res, struct server_conn *conn)
 {
 	char *path;
+	int filetype;
 
-	NE(diropargs_to_path(args, &path, NULL, conn));
+	NE(diropargs_to_path(args, &path, &filetype, conn));
 	if (conn->export->ro) NE(NFSERR_ROFS);
+	NE(filecache_closecache(path));
 	OE(_swix(OS_File, _INR(0,1), 6, path));
 
 	return SUCCESS;
@@ -344,7 +347,9 @@ enum accept_stat NFSPROC_RENAME(struct renameargs *args, struct renameres *res, 
 
 	NE(diropargs_to_path(&(args->from), &from, &oldfiletype, conn));
 	if (conn->export->ro) NE(NFSERR_ROFS);
+	NE(filecache_closecache(from));
 	NE(diropargs_to_path(&(args->to), &to, &newfiletype, conn));
+	NE(filecache_closecache(to));
 	if (strcmp(from, to) != 0) {
 		OE(_swix(OS_FSControl, _INR(0,2), 25, from, to));
 	}

@@ -1338,6 +1338,8 @@ nstat NFS4_REMOVE(REMOVE4args *args, REMOVE4res *res, struct server_conn *conn)
 	if (conn->export->ro) N4(NFSERR_ROFS);
 
 	N4(lookup_filename(currentfh, &(args->target), &path, NULL, conn));
+	N4(filecache_closecache(path));
+
 	err2 = _swix(OS_File, _INR(0,1), 6, path);
 	if (err2 && err2->errnum == 0x117c2) {
 		/* File already open. Strictly we should only return an error
@@ -1371,6 +1373,9 @@ nstat NFS4_RENAME(RENAME4args *args, RENAME4res *res, struct server_conn *conn)
 
 	N4(lookup_filename(savedfh, &(args->oldname), &from, &oldfiletype, conn));
 	N4(lookup_filename(currentfh, &(args->newname), &to, &newfiletype, conn));
+
+	N4(filecache_closecache(from));
+	N4(filecache_closecache(to));
 
 	O4(_swix(OS_File, _INR(0,1) | _OUT(0), 17, from, &oldtype));
 	O4(_swix(OS_File, _INR(0,1) | _OUT(0), 17, to, &newtype));

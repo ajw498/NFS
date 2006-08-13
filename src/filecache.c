@@ -323,6 +323,20 @@ enum nstat filecache_opendowngrade(char *path, struct stateid *stateid, unsigned
 	return NFS_OK;
 }
 
+/* Flush the file from the cache, so it can be removed or renamed */
+enum nstat filecache_closecache(char *path)
+{
+	int index;
+	struct openfile *file;
+
+	NR(filecache_opencached(path, STATEID_ANY, ACC_EITHER, &index, &file, 1));
+
+	/* Don't flush if there is NFS4 state open on it */
+	if ((file == NULL) && (index != -1)) filecache_evict(index, file);
+
+	return NFS_OK;
+}
+
 enum nstat filecache_close(char *path, struct stateid *stateid)
 {
 	int index;

@@ -44,6 +44,8 @@ enum nstat filecache_open(char *path, struct open_owner *open_owner, unsigned ac
 
 enum nstat filecache_opendowngrade(char *path, struct stateid *stateid, unsigned access, unsigned deny, unsigned *ownerseqid);
 
+enum nstat filecache_closecache(char *path);
+
 enum nstat filecache_close(char *path, struct stateid *stateid);
 
 enum nstat filecache_read(char *path, struct stateid *stateid, unsigned int count, unsigned int offset, char **data, unsigned int *read, int *eof);

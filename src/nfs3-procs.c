@@ -445,9 +445,11 @@ enum accept_stat NFSPROC3_MKNOD(struct MKNOD3args *args, struct MKNOD3res *res, 
 enum accept_stat NFSPROC3_REMOVE(struct diropargs *args, struct removeres *res, struct server_conn *conn)
 {
 	char *path;
+	int filetype;
 
-	NF(diropargs_to_path(args, &path, NULL, conn));
+	NF(diropargs_to_path(args, &path, &filetype, conn));
 	if (conn->export->ro) NF(NFSERR_ROFS);
+	NF(filecache_closecache(path));
 	OF(_swix(OS_File, _INR(0,1), 6, path));
 
 	res->u.resok.dir_wcc.before.attributes_follow = FALSE;
@@ -465,8 +467,9 @@ failure:
 enum accept_stat NFSPROC3_RMDIR(struct diropargs *args, struct removeres *res, struct server_conn *conn)
 {
 	char *path;
+	int filetype;
 
-	NF(diropargs_to_path(args, &path, NULL, conn));
+	NF(diropargs_to_path(args, &path, &filetype, conn));
 	if (conn->export->ro) NF(NFSERR_ROFS);
 	OF(_swix(OS_File, _INR(0,1), 6, path));
 
@@ -491,7 +494,9 @@ enum accept_stat NFSPROC3_RENAME(struct renameargs *args, struct renameres *res,
 
 	NF(diropargs_to_path(&(args->from), &from, &oldfiletype, conn));
 	if (conn->export->ro) NF(NFSERR_ROFS);
+	NF(filecache_closecache(from));
 	NF(diropargs_to_path(&(args->to), &to, &newfiletype, conn));
+	NF(filecache_closecache(to));
 	if (strcmp(from, to) != 0) {
 		OF(_swix(OS_FSControl, _INR(0,2), 25, from, to));
 	}
