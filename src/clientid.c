@@ -51,12 +51,6 @@ struct clientid {
 static unsigned nextclientid = 0;
 static struct clientid *clients = NULL;
 
-
-void clientid_init(void)
-{
-	/*FIXME - remove?*/
-}
-
 enum nstat clientid_setclientid(char *cid, int cidlen, char *clientverf, uint64_t *clientid)
 {
 	struct clientid *confirmed = NULL;

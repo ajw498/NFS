@@ -105,7 +105,7 @@ static enum nstat get_fattr(char *path, int filetype, struct fattr *fattr, int *
 	unsigned int attr;
 	int cached;
 
-	NR(filecache_getattr(path, &load, &exec, &len, &attr, &cached));
+	NR(nfserr_removenfs4(filecache_getattr(path, &load, &exec, &len, &attr, &cached)));
 	if (cached) {
 		type = OBJ_FILE;
 	} else {
@@ -181,7 +181,7 @@ static enum nstat set_attr(char *path, struct sattrguard3 *guard, struct sattr3 
 
 	if (type == OBJ_FILE) {
 		/* Write through the cache to ensure consistency */
-		NR(filecache_setattr(path, STATEID_NONE, load, exec, attr, size, setsize));
+		NR(nfserr_removenfs4(filecache_setattr(path, STATEID_NONE, load, exec, attr, size, setsize)));
 	}
 	OR(_swix(OS_File, _INR(0,3) | _IN(5), 1, path, load, exec, attr));
 
@@ -289,13 +289,13 @@ enum accept_stat NFSPROC3_READ(struct readargs *args, struct readres *res, struc
 
 	NF(nfs3fh_to_path(&(args->file), &path, conn));
 	if (args->offset > 0x7FFFFFFFLL) NF(NFSERR_FBIG);
-	NF(filecache_read(path, STATEID_NONE, args->count, (unsigned int)args->offset, &data, &read, &eof));
+	NF(nfserr_removenfs4(filecache_read(path, STATEID_NONE, args->count, (unsigned int)args->offset, &data, &read, &eof)));
 	res->u.resok.data.data = data;
 	res->u.resok.data.size = read;
 	res->u.resok.count = read;
 	res->u.resok.eof = eof ? TRUE : FALSE;
 	res->u.resok.file_attributes.attributes_follow = TRUE;
-	NF(filecache_getattr(path, &load, &exec, &size, &attr, NULL));
+	NF(nfserr_removenfs4(filecache_getattr(path, &load, &exec, &size, &attr, NULL)));
 	parse_fattr(path, OBJ_FILE, load, exec, size, attr, &(res->u.resok.file_attributes.u.attributes), conn);
 
 	return SUCCESS;
@@ -324,10 +324,10 @@ enum accept_stat NFSPROC3_WRITE(struct writeargs *args, struct writeres *res, st
 	if (amount > args->data.size) amount = args->data.size;
 
 	if (args->offset > 0x7FFFFFFFLL) NF(NFSERR_FBIG);
-	NF(filecache_write(path, STATEID_NONE, amount, (unsigned int)args->offset, args->data.data, sync, res->u.resok.verf));
+	NF(nfserr_removenfs4(filecache_write(path, STATEID_NONE, amount, (unsigned int)args->offset, args->data.data, sync, res->u.resok.verf)));
 
 	res->u.resok.file_wcc.after.attributes_follow = TRUE;
-	NF(filecache_getattr(path, &load, &exec, &size, &attr, NULL));
+	NF(nfserr_removenfs4(filecache_getattr(path, &load, &exec, &size, &attr, NULL)));
 	parse_fattr(path, OBJ_FILE, load, exec, size, attr, &(res->u.resok.file_wcc.after.u.attributes), conn);
 
 	res->u.resok.count = amount;
@@ -775,8 +775,8 @@ enum accept_stat NFSPROC3_COMMIT(struct COMMIT3args *args, struct COMMIT3res *re
 	NF(nfs3fh_to_path(&(args->file), &path, conn));
 
 	res->u.resok.file_wcc.before.attributes_follow = FALSE;
-	NF(filecache_commit(path, res->u.resok.verf));
-	NF(filecache_getattr(path, &load, &exec, &size, &attr, &cached));
+	NF(nfserr_removenfs4(filecache_commit(path, res->u.resok.verf)));
+	NF(nfserr_removenfs4(filecache_getattr(path, &load, &exec, &size, &attr, &cached)));
 	if (cached) {
 		res->u.resok.file_wcc.after.attributes_follow = TRUE;
 		parse_fattr(path, OBJ_FILE, load, exec, size, attr, &(res->u.resok.file_wcc.after.u.attributes), conn);

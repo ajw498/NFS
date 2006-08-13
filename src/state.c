@@ -70,8 +70,9 @@ void state_removeclientstate(struct openfile *file, uint64_t clientid)
 
 			stateid.open = open_stateid;
 			stateid.lock = NULL;
+			/* Ignore any errors. OS errors will have been logged, and we
+			   have nowhere to return the error to. */
 			filecache_close(file->name, &stateid);
-			/* FIXME log failure? */
 		}
 		open_stateid = next;
 	}
@@ -270,6 +271,8 @@ enum nstat state_checklockseqid(struct stateid *stateid, unsigned seqid, int *du
 
 static enum nstat state_getlockrange(uint64_t offset, uint64_t length, unsigned *bottom, unsigned *top)
 {
+	/* A valid lock must stay with the 32bit range, unless it includes
+	   everything upto the top of the 64bit range. */
 	if (offset > 0xFFFFFFFFULL) return NFSERR_INVAL;
 	*bottom = (unsigned)offset;
 
@@ -422,6 +425,7 @@ enum nstat state_lock(struct openfile *file, struct open_stateid *open_stateid,
 			lock = next;
 		}
 	} else {
+		/* No existing stateid for this owner/file pair, so create one */
 		*lock_stateid = matching = malloc(sizeof(struct lock_stateid));
 		if (matching == NULL) {
 			free(newlock);
@@ -435,6 +439,7 @@ enum nstat state_lock(struct openfile *file, struct open_stateid *open_stateid,
 		HASH_ADD(lock_hash, matching);
 		lock_owner->refcount++;
 	}
+
 	LL_ADD(matching->locks, newlock);
 	return NFS_OK;
 }
@@ -539,7 +544,7 @@ enum nstat state_checkpermissions(struct openfile *file, struct stateid *stateid
 
 		while (id) {
 			if (id->deny & (access == ACC_READ ? 1 : 2)) {
-				return NFSERR_OPENMODE; /*FIXME NFS2/3 error? */
+				return NFSERR_OPENMODE;
 			}
 			id = id->next;
 		}
@@ -571,11 +576,15 @@ enum nstat state_createopenstateid(struct openfile *file, struct open_owner *ope
 	/* Check share request is satisfiable */
 	if (access == 0) return NFSERR_INVAL;
 	if ((access & currentdeny) || (deny & currentaccess)) return NFSERR_DENIED;
+
 	if (matching) {
+		/* There is already a stateid for this open owner, so just
+		   upgrade the share details */
 		matching->access |= access;
 		matching->deny |= deny;
 		*open_stateid = matching;
 	} else {
+		/* No existing stateid for this owner, so create a new one */
 		struct open_stateid *newstateid;
 		UR(newstateid = malloc(sizeof(struct open_stateid)));
 		newstateid->file = file;
@@ -620,6 +629,7 @@ static void state_removesingleopenstateid(struct openfile *file, struct open_sta
 void state_removeopenstateid(struct openfile *file, struct open_stateid *open_stateid)
 {
 	if (open_stateid == NULL) {
+		/* Remove all stateids */
 		while (file->open_stateids) {
 			state_removesingleopenstateid(file, file->open_stateids);
 		}
@@ -674,8 +684,16 @@ void state_reap(int all, clock_t now)
 		}
 	}
 
-/*FIXME	if (all && open_hash) syslogf(LOGNAME, LOG_SERIOUS, "filecache_reap files still open");*/
-	if (all && open_owners) syslogf(LOGNAME, LOG_SERIOUS, "state_reap open_owners still allocated");
-	if (all && lock_owners) syslogf(LOGNAME, LOG_SERIOUS, "state_reap lock_owners still allocated");
+	if (all) {
+		/* Sanity checking */
+		int i;
+
+		for (i = 0; i < HASH_SIZE; i++) {
+			if (open_hash[i]) syslogf(LOGNAME, LOG_SERIOUS, "state_reap open stateids still hashed");
+			if (lock_hash[i]) syslogf(LOGNAME, LOG_SERIOUS, "state_reap lock stateids still hashed");
+		}
+		if (open_owners) syslogf(LOGNAME, LOG_SERIOUS, "state_reap open_owners still allocated");
+		if (lock_owners) syslogf(LOGNAME, LOG_SERIOUS, "state_reap lock_owners still allocated");
+	}
 }
 

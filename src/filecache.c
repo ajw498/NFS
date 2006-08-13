@@ -28,6 +28,7 @@
 #include <swis.h>
 #include <kernel.h>
 #include <ctype.h>
+#include <unixlib.h>
 
 #include "moonfish.h"
 #include "utils.h"
@@ -266,12 +267,18 @@ enum nstat filecache_open(char *path, struct open_owner *open_owner, unsigned ac
 		file->open_stateids = NULL;
 		file->lock_stateids = NULL;
 
+		file->name = strdup(path);
+		if (file->name == NULL) {
+			free(file);
+			UR(NULL);
+		}
+
 		nerr = state_createopenstateid(file, open_owner, access, deny, &open_stateid);
 		if (nerr != NFS_OK) {
+			free(file->name);
 			free(file);
 			return nerr;
 		}
-		snprintf(file->name, MAX_PATHNAME, "%s", path);
 
 		err2 = _swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, path, &type,
 		             &(file->load),
@@ -284,10 +291,9 @@ enum nstat filecache_open(char *path, struct open_owner *open_owner, unsigned ac
 
 		if ((type == 0) || err2) {
 			state_removeopenstateid(file, open_stateid);
+			free(file->name);
 			free(file);
 			if (type == 0) return NFSERR_NOENT;
-			/* Check for file already open error FIXME - add to OR function */
-			if (err2->errnum == 0x117c2) return NFSERR_SHARE_DENIED;
 			OR(err2);
 		}
 
@@ -338,6 +344,7 @@ enum nstat filecache_close(char *path, struct stateid *stateid)
 
 		/* Close the file */
 		handle = file->handle;
+		free(file->name);
 		free(file);
 		OR(_swix(OS_Find, _INR(0,1), 0, handle));
 	}
@@ -391,7 +398,7 @@ enum nstat filecache_read(char *path, struct stateid *stateid, unsigned int coun
 	unsigned int bufferread;
 	unsigned int bufferoffset;
 
-	if (graceperiod) return NFSERR_GRACE; /*FIXME NFS3? */
+	if (graceperiod) return NFSERR_GRACE;
 
 	NR(filecache_opencached(path, stateid, ACC_READ, &index, &file, 0));
 	NR(state_checklocks(file, stateid, 0, offset, count));
@@ -462,7 +469,7 @@ enum nstat filecache_write(char *path, struct stateid *stateid, unsigned int cou
 	int index;
 	struct openfile *file;
 
-	if (graceperiod) return NFSERR_GRACE; /*FIXME NFS3? */
+	if (graceperiod) return NFSERR_GRACE;
 
 	if (verf) memcpy(verf, verifier, 8);
 
@@ -556,7 +563,7 @@ enum nstat filecache_setattr(char *path, struct stateid *stateid, unsigned int l
 	int index;
 	struct openfile *file;
 
-	if (graceperiod && setsize) return NFSERR_GRACE; /*FIXME NFS3? */
+	if (graceperiod && setsize) return NFSERR_GRACE;
 
 	if (!setsize) stateid = STATEID_ANY;
 

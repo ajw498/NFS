@@ -92,6 +92,7 @@ enum nstat oserr_to_nfserr(int errnum)
 	switch (errnum) {
 	case 0x117b4: return NFSERR_NOTEMPTY;
 	case 0x117bd: return NFSERR_ACCESS;
+	case 0x117c2: return NFSERR_SHARE_DENIED;
 	case 0x117c3: return NFSERR_ACCESS;
 	case 0x117c6: return NFSERR_NOSPC;
 	case 0x80344a: return NFSERR_ROFS;
@@ -100,6 +101,19 @@ enum nstat oserr_to_nfserr(int errnum)
 	case 0xd6: return NFSERR_NOENT;
 	}
 	return NFSERR_IO;
+}
+
+/* Convert NFSv4 specific errors to their nearest NFSv2/NFSv3 equivalent */
+enum nstat nfserr_removenfs4(enum nstat errnum)
+{
+	switch (errnum) {
+	case NFSERR_OPENMODE:      return NFSERR_ACCESS;
+	case NFSERR_LOCKED:        return NFSERR_ACCESS;
+	case NFSERR_SHARE_DENIED:  return NFSERR_ACCESS;
+	case NFSERR_GRACE:         return NFSERR_DELAY;
+	}
+	if (errnum > NFSERR_DELAY) return NFSERR_IO;
+	return errnum;
 }
 
 char *filename_unixify(char *name, unsigned int len, unsigned int *newlen, struct pool *pool)

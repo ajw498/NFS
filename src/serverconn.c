@@ -420,7 +420,6 @@ int conn_init(void)
 	}
 
 	filecache_init();
-	clientid_init();
 
 	BR(portmapper_set(100000, 2, IPPROTO_UDP, 111,  portmapper_decode, gpool));
 	BR(portmapper_set(100000, 2, IPPROTO_TCP, 111,  portmapper_decode, gpool));

@@ -21,8 +21,6 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-void clientid_init(void);
-
 enum nstat clientid_setclientid(char *cid, int cidlen, char *clientverf, uint64_t *clientid);
 
 enum nstat clientid_setclientidconfirm(uint64_t clientid);

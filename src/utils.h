@@ -323,6 +323,9 @@ char *host_to_str(unsigned int host, struct pool *pool);
 /* Convert a RISC OS error number to an NFS error */
 enum nstat oserr_to_nfserr(int errnum);
 
+/* Convert NFSv4 specific errors to their nearest NFSv2/NFSv3 equivalent */
+enum nstat nfserr_removenfs4(enum nstat errnum);
+
 /* Convert a RISC OS load and execution address into a unix timestamp */
 void loadexec_to_timeval(unsigned int load, unsigned int exec, struct ntimeval *unixtime, int mult);
 #ifdef NFS3

@@ -26,12 +26,38 @@
 
 #include "serverconn.h"
 
+/* An open file is associated with an open owner. There can be many open
+   files per open owner. A lock is associated with an open file and a
+   lock owner. There can be many locks per file and many locks per lock
+   owner. There can be many lock owners per open owner, and many open
+   owners per lock owner.
+
+   A stateid returned by the client can be a stateid resulting from an
+   open or resulting from a lock, and we need to be able to distinguish
+   between the two.
+
+   There are three types of sequence ids.
+   The first id is the sequence id in open, open confirm, open downgrade,
+   lock, and close requests. This is one sequence per open owner, starts
+   when the open owner is first created and continues until the open owner
+   is deallocated.
+   The second is in lock and locku requests which is one sequence per lock
+   owner. It starts when the lock owner is first created by a lock request.
+   The third is the sequence id in the stateid structure, and is unrelated
+   to the first two (why couldn't it have been named differently?). It is
+   incremented everytime the stateid represents a new state, i.e. an open
+   downgrade, lock, locku is successful.
+*/
+
+/* The fields in the opaque 'other' part of a stateid */
 struct stateid_other {
 	void *id;
 	unsigned verifier;
 	int lock;
 };
 
+/* Record the results of the last request in the open or lock sequence.
+   Allows duplicate answers to be generated on duplicate requests. */
 union duplicate {
 	struct {
 		enum nstat status;
@@ -69,6 +95,7 @@ union duplicate {
 	} locku;
 };
 
+
 /* Identifies an entity on the client that has opened one or more files */
 struct open_owner {
 	uint64_t clientid;
@@ -82,6 +109,7 @@ struct open_owner {
 	struct open_owner *next;
 };
 
+/* A stateid created by an open request */
 struct open_stateid {
 	struct openfile *file;
 	unsigned access;
@@ -92,6 +120,9 @@ struct open_stateid {
 	struct open_stateid *hashnext;
 };
 
+/* Identifies an entity on the client that may have locked files.
+   This is independant of the open owners, although they may be
+   the same entity on the client. */
 struct lock_owner {
 	uint64_t clientid;
 	char *owner;
@@ -102,7 +133,7 @@ struct lock_owner {
 	struct lock_owner *next;
 };
 
-/* Bottom and top are inclusive */
+/* An individual locked region. Bottom and top are inclusive */
 struct lock {
 	int write;
 	unsigned bottom;
@@ -110,6 +141,7 @@ struct lock {
 	struct lock *next;
 };
 
+/* A stateid created by an lock request */
 struct lock_stateid {
 	struct open_stateid *open_stateid;
 	struct lock_owner *lock_owner;
@@ -119,6 +151,7 @@ struct lock_stateid {
 	struct lock_stateid *hashnext;
 };
 
+/* Internal stateid structure for either open or lock stateids */
 struct stateid {
 	struct lock_stateid *lock;
 	struct open_stateid *open;
@@ -131,7 +164,7 @@ enum accesstype {
 };
 
 struct openfile {
-	char name[MAX_PATHNAME]; /* Could make this dynamic? */
+	char *name;
 	int handle;
 	unsigned int filesize;
 	unsigned int load;
@@ -141,6 +174,9 @@ struct openfile {
 	struct lock_stateid *lock_stateids;
 	struct openfile *next;
 };
+
+
+/* Macros for manipulating state structures */
 
 #define LL_ADD(start, item) do { \
 	item->next = start; \
@@ -160,7 +196,7 @@ struct openfile {
 				ptr = ptr->next; \
 			} \
 		} \
-		/* FIXME - if ptr == NULL syslog an error */ \
+		if (ptr == NULL) syslogf(LOGNAME, LOG_SERIOUS, "Item to remove not found in list %s %d", __FILE__, __LINE__); \
 	} \
 } while (0)
 
@@ -195,7 +231,7 @@ struct openfile {
 				ptr = ptr->hashnext; \
 			} \
 		} \
-		/* FIXME - if ptr == NULL syslog an error */ \
+		if (ptr == NULL) syslogf(LOGNAME, LOG_SERIOUS, "Item to remove not found in list %s %d", __FILE__, __LINE__); \
 	} \
 } while (0)
 
