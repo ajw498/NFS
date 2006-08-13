@@ -170,6 +170,7 @@ struct openfile {
 	unsigned int load;
 	unsigned int exec;
 	unsigned int attr;
+	enum nstat writeerror;
 	struct open_stateid *open_stateids;
 	struct lock_stateid *lock_stateids;
 	struct openfile *next;

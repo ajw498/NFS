@@ -124,7 +124,9 @@ static void filecache_evict(int index, struct openfile *file)
 	filecache_flush(index);
 
 	if (file) {
-		/* FIXME do something with writeerror? */
+		if (cachedfiles[index].writeerror != NFS_OK) {
+			file->writeerror = cachedfiles[index].writeerror;
+		}
 	} else {
 		/* Close the file */
 		err = _swix(OS_Find, _INR(0,1), 0, cachedfiles[index].handle);
@@ -266,6 +268,7 @@ enum nstat filecache_open(char *path, struct open_owner *open_owner, unsigned ac
 
 		file->open_stateids = NULL;
 		file->lock_stateids = NULL;
+		file->writeerror = NFS_OK;
 
 		file->name = strdup(path);
 		if (file->name == NULL) {
@@ -339,6 +342,7 @@ enum nstat filecache_close(char *path, struct stateid *stateid)
 			filecache_evict(index, file);
 			ret = cachedfiles[index].writeerror;
 		}
+		if (file->writeerror != NFS_OK) ret = file->writeerror; 
 
 		LL_REMOVE(openfiles, struct openfile, file);
 
