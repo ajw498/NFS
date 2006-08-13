@@ -46,11 +46,12 @@ enum accept_stat nfs4_decode_proc(int proc, struct server_conn *conn)
 		struct COMPOUND4res res;
 		char *initobuf = obuf;
 
-		/*FIXME access control */
+		/*FIXME host access control */
 
-		currentfh = "";
+		currentfh = NULL;
 		savedfh = "";
 		conn->export = conn->exports;
+		conn->nfs4 = 1;
 
 		process_COMPOUND4args(INPUT, args);
 		res.status = NFS_OK;
@@ -104,20 +105,22 @@ nstat NFS4_ACCESS(ACCESS4args *args, ACCESS4res *res, struct server_conn *conn)
 
 	res->u.resok4.supported = args->access & 0x1F;
 	res->u.resok4.access = args->access & 0x1F;
-	if (conn->export->ro) res->u.resok4.access &= ACCESS4_READ | ACCESS4_LOOKUP;
+	if (conn->export->ro || (currentfh == NULL)) res->u.resok4.access &= ACCESS4_READ | ACCESS4_LOOKUP;
 
-	N4(filecache_getattr(currentfh, &load, &exec, &len, &attr, &cached));
-	if (cached) {
-		type = OBJ_FILE;
-	} else {
-		O4(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, currentfh, &type, &load, &exec, &len, &attr));
-		if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
-	}
-	if (type == OBJ_NONE) return res->status = NFSERR_NOENT;
+	if (currentfh) {
+		N4(filecache_getattr(currentfh, &load, &exec, &len, &attr, &cached));
+		if (cached) {
+			type = OBJ_FILE;
+		} else {
+			O4(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, currentfh, &type, &load, &exec, &len, &attr));
+			if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
+		}
+		if (type == OBJ_NONE) return res->status = NFSERR_NOENT;
 
-	if (type == OBJ_FILE) {
-		if ((attr & 0x1) == 0) res->u.resok4.access &= ~ACCESS4_READ;
-		if ((attr & 0x2) == 0) res->u.resok4.access &= ~(ACCESS4_MODIFY | ACCESS4_EXTEND);
+		if (type == OBJ_FILE) {
+			if ((attr & 0x1) == 0) res->u.resok4.access &= ~ACCESS4_READ;
+			if ((attr & 0x2) == 0) res->u.resok4.access &= ~(ACCESS4_MODIFY | ACCESS4_EXTEND);
+		}
 	}
 
 	return res->status = NFS_OK;
@@ -152,20 +155,22 @@ nstat NFS4_RENEW(RENEW4args *args, RENEW4res *res, struct server_conn *conn)
 
 nstat NFS4_PUTPUBFH(PUTPUBFH4res *res, struct server_conn *conn)
 {
-	currentfh = conn->export->basedir; /*FIXME*/
+	(void)conn;
 
-	res->status = NFS_OK;
+	currentfh = NULL;
+	conn->export = conn->exports;
 
-	return NFS_OK;
+	return res->status = NFS_OK;
 }
 
 nstat NFS4_PUTROOTFH(PUTROOTFH4res *res, struct server_conn *conn)
 {
-	currentfh = conn->export->basedir; /*FIXME*/
+	(void)conn;
 
-	res->status = NFS_OK;
+	currentfh = NULL;
+	conn->export = conn->exports;
 
-	return NFS_OK;
+	return res->status = NFS_OK;
 }
 
 nstat NFS4_GETFH(GETFH4res *res, struct server_conn *conn)
@@ -187,7 +192,7 @@ nstat NFS4_PUTFH(PUTFH4args *args, PUTFH4res *res, struct server_conn *conn)
 static nstat lookup_filename(char *base, component4 *leafname, char **res, int *filetype, struct server_conn *conn)
 {
 	int leaflen;
-	int cfhlen = strlen(base);
+	int cfhlen;
 	static char buffer[FILENAME_MAX];
 	char *filename;
 
@@ -196,13 +201,32 @@ static nstat lookup_filename(char *base, component4 *leafname, char **res, int *
 
 	leaflen = filename_riscosify(leafname->data, leafname->size, buffer, sizeof(buffer), filetype, conn->export->defaultfiletype, conn->export->xyzext);
 
-	UR(filename = palloc(cfhlen + leaflen + 2, conn->pool));
-	memcpy(filename, base, cfhlen);
-	filename[cfhlen++] = '.';
-	memcpy(filename + cfhlen, buffer, leaflen);
-	filename[cfhlen + leafname->size] = '\0';
+	if (base == NULL) {
+		/* base should only ever be NULL when called from LOOKUP, so
+		   the currentfh is being updated. Make sure conn->export is
+		   updated at the same time */
+		struct export *export = conn->exports;
+		while (export) {
+			char *leaf = export->exportname;
+			if (leaf && (leaf[0] == '/')) leaf++;
+			if (leaf && (strcmp(buffer, leaf) == 0)) {
+				*res = export->basedir;
+				conn->export = export;
+				return NFS_OK;
+			}
+			export = export->next;
+		}
+		return NFSERR_NOENT;
+	} else {
+		cfhlen = strlen(base);
 
-	*res = filename;
+		UR(filename = palloc(cfhlen + leaflen + 2, conn->pool));
+		memcpy(filename, base, cfhlen);
+		filename[cfhlen++] = '.';
+		memcpy(filename + cfhlen, buffer, leaflen);
+		filename[cfhlen + leafname->size] = '\0';
+		*res = filename;
+	}
 
 	return NFS_OK;
 }
@@ -228,12 +252,18 @@ nstat NFS4_LOOKUPP(LOOKUPP4res *res, struct server_conn *conn)
 	int type;
 	char *lastdot;
 
+	if (currentfh == NULL) return res->status = NFSERR_NOENT;
+
 	O4(_swix(OS_File, _INR(0,1) | _OUT(0), 17, currentfh, &type));
 	if ((type != OBJ_DIR) && (type != OBJ_IMAGE)) return res->status = NFSERR_NOTDIR;
 
 	lastdot = strrchr(currentfh, '.');
-	if ((lastdot == NULL) || (lastdot - currentfh < conn->export->basedirlen)) return res->status = NFSERR_NOENT;
-	*lastdot = '\0';
+	if ((lastdot == NULL) || (lastdot - currentfh < conn->export->basedirlen)) {
+		currentfh = NULL;
+		conn->export = conn->exports;
+	} else {
+		*lastdot = '\0';
+	}
 
 	return res->status = NFS_OK;
 }
@@ -277,10 +307,15 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 	                           (1LL << FATTR4_SPACE_FREE) |
 	                           (1LL << FATTR4_SPACE_TOTAL) |
 	                           (1LL << FATTR4_SPACE_USED)))) {
-		if (_swix(OS_FSControl, _INR(0,1) | _OUTR(0,1) | _OUTR(3,4), 55, path, &freelo, &freehi, &sizelo, &sizehi)) {
-			OR(_swix(OS_FSControl, _INR(0,1) | _OUT(0) | _OUT(2), 49, path, &freelo, &sizelo));
-			freehi = 0;
-			sizehi = 0;
+		if (path == NULL) {
+			freelo = freehi = 0;
+			sizelo = sizehi = 0;
+		} else {
+			if (_swix(OS_FSControl, _INR(0,1) | _OUTR(0,1) | _OUTR(3,4), 55, path, &freelo, &freehi, &sizelo, &sizehi)) {
+				OR(_swix(OS_FSControl, _INR(0,1) | _OUT(0) | _OUT(2), 49, path, &freelo, &sizelo));
+				freehi = 0;
+				sizehi = 0;
+			}
 		}
 	}
 
@@ -524,6 +559,14 @@ buffer_overflow:
 }
 
 
+#define setrootattrs() do { \
+	type = OBJ_DIR; \
+	load = 0xFFFFFD00; \
+	exec = 0x00000000; \
+	len  = 0; \
+	attr = 0; \
+} while (0)
+
 static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn *conn)
 {
 	char *oldibuf = ibuf;
@@ -532,16 +575,20 @@ static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn
 	int i;
 	int j;
 	int filetype;
-	unsigned int load;
-	unsigned int exec;
-	int type;
-	int attr;
-	int len;
+	unsigned load;
+	unsigned exec;
+	unsigned type;
+	unsigned attr;
+	unsigned len;
 
 	ibuf = args->attr_vals.data;
 	ibufend = ibuf + args->attr_vals.size; /* FIXME - restore on error */
 
-	OR(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, path, &type, &load, &exec, &len, &attr));
+	if (path == NULL) {
+		setrootattrs();
+	} else {
+		OR(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, path, &type, &load, &exec, &len, &attr));
+	}
 	if (type == OBJ_NONE) return NFSERR_NOENT;
 
 	if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
@@ -708,6 +755,8 @@ static nstat set_fattr(char *path, struct stateid *stateid, fattr4 *args, bitmap
 	ibuf = args->attr_vals.data;
 	ibufend = ibuf + args->attr_vals.size; /* FIXME - restore on error */
 
+	if (path == NULL) return NFSERR_ROFS;
+
 	OR(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, path, &type, &load, &exec, &size, &attr));
 	if (type == OBJ_NONE) return NFSERR_NOENT;
 	filetype = (load & 0x000FFF00) >> 8;
@@ -814,18 +863,23 @@ nstat NFS4_GETATTR(GETATTR4args *args, GETATTR4res *res, struct server_conn *con
 	unsigned int exec;
 	unsigned int len;
 	unsigned int attr;
-	int cached;
 
-	N4(filecache_getattr(currentfh, &load, &exec, &len, &attr, &cached));
-	if (cached) {
-		type = OBJ_FILE;
+	if (currentfh == NULL) {
+		setrootattrs();
 	} else {
-		O4(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, currentfh, &type, &load, &exec, &len, &attr));
+		int cached;
+
+		N4(filecache_getattr(currentfh, &load, &exec, &len, &attr, &cached));
+		if (cached) {
+			type = OBJ_FILE;
+		} else {
+			O4(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUTR(2,5), 17, currentfh, &type, &load, &exec, &len, &attr));
+		}
 	}
 	if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
 	if (type == OBJ_NONE) {
 		return res->status = NFSERR_NOENT;
-/*	} else {
+/*	} else { FIXME?
 		int ftype = (load & 0x000FFF00) >> 8;
 		if ((type == OBJ_FILE) && (filetype != -1) && (filetype != ftype)) return NFSERR_NOENT;*/
 	}
@@ -840,14 +894,23 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 	int cookie = (int)(args->cookie >> 2);
 	int bytes = 0;
 	int tbytes = 0;
-	int pathlen;
+	int pathlen = 0;
 	char pathbuffer[MAX_PATHNAME];
 	struct entry4 **lastentry = &(res->u.resok4.reply.entries);
+	struct export *export = conn->exports;
 
-	pathlen = strlen(currentfh);
-	if (pathlen + 2 > MAX_PATHNAME) N4(NFSERR_NAMETOOLONG);
-	memcpy(pathbuffer, currentfh, pathlen);
-	pathbuffer[pathlen] = '.';
+	if (currentfh) {
+		pathlen = strlen(currentfh);
+		if (pathlen + 2 > MAX_PATHNAME) N4(NFSERR_NAMETOOLONG);
+		memcpy(pathbuffer, currentfh, pathlen);
+		pathbuffer[pathlen] = '.';
+	} else {
+		int count = 0;
+		while (export && (count <= cookie)) {
+			export = export->next;
+			count++;
+		}
+	}
 
 	res->u.resok4.reply.entries = NULL;
 	res->u.resok4.reply.eof = FALSE;
@@ -860,17 +923,41 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 		/* We have to read one entry at a time, which is less
 		   efficient than reading several, as we need to return
 		   a cookie for every entry. */
-		O4(_swix(OS_GBPB, _INR(0,6) | _OUTR(3,4), 10, currentfh, buffer, 1, cookie, sizeof(buffer), 0, &read, &cookie));
+		if (currentfh) {
+			O4(_swix(OS_GBPB, _INR(0,6) | _OUTR(3,4), 10, currentfh, buffer, 1, cookie, sizeof(buffer), 0, &read, &cookie));
+		} else {
+			if (export == NULL) {
+				cookie = -1;
+				read = 0;
+			} else {
+				read = 1;
+			}
+		}
 		if (read > 0) {
 			struct entry4 *entry;
-			char *leaf = buffer + 20;
-			unsigned int leaflen;
+			char *leaf;
+			unsigned leaflen;
 			int filetype;
-			unsigned int load = ((unsigned int *)buffer)[0];
-			unsigned int exec = ((unsigned int *)buffer)[1];
-			unsigned int len  = ((unsigned int *)buffer)[2];
-			unsigned int attr = ((unsigned int *)buffer)[3];
-			unsigned int type = ((unsigned int *)buffer)[4];
+			unsigned load;
+			unsigned exec;
+			unsigned len;
+			unsigned attr;
+			unsigned type;
+
+			if (currentfh) {
+				load = ((unsigned int *)buffer)[0];
+				exec = ((unsigned int *)buffer)[1];
+				len  = ((unsigned int *)buffer)[2];
+				attr = ((unsigned int *)buffer)[3];
+				type = ((unsigned int *)buffer)[4];
+				leaf = buffer + 20;
+			} else {
+				setrootattrs();
+				leaf = export->exportname;
+				if (leaf[0] == '/') leaf++;
+				strcpy(pathbuffer, export->basedir);
+				pathlen = export->basedirlen;
+			}
 
 			if ((load & 0xFFF00000) == 0xFFF00000) {
 				filetype = (load & 0x000FFF00) >> 8;
@@ -880,8 +967,10 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 			U4(entry = palloc(sizeof(struct entry4), conn->pool));
 
 			leaflen = strlen(leaf);
-			if (pathlen + 2 + leaflen > MAX_PATHNAME) N4(NFSERR_NAMETOOLONG);
-			memcpy(pathbuffer + pathlen + 1, leaf, leaflen + 1);
+			if (currentfh) {
+				if (pathlen + 2 + leaflen > MAX_PATHNAME) N4(NFSERR_NAMETOOLONG);
+				memcpy(pathbuffer + pathlen + 1, leaf, leaflen + 1);
+			}
 			U4(leaf = filename_unixify(leaf, leaflen, &leaflen, conn->pool));
 			if (type == OBJ_FILE || (type == OBJ_IMAGE && conn->export->imagefs == 0)) {
 				U4(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, conn->pool));
@@ -903,6 +992,7 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 			entry->next = NULL;
 			*lastentry = entry;
 			lastentry = &(entry->next);
+			if (currentfh == NULL) export = export->next;
 		}
 		if (cookie == -1) res->u.resok4.reply.eof = TRUE;
 	}
@@ -917,6 +1007,7 @@ nstat NFS4_RESTOREFH(RESTOREFH4res *res, struct server_conn *conn)
 	if (savedfh[0] == '\0') return res->status = NFSERR_RESTOREFH;
 
 	currentfh = savedfh;
+	if (currentfh == NULL) conn->export = conn->exports;
 
 	return res->status = NFS_OK;
 }
@@ -940,11 +1031,13 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 	int confirmrequired;
 	struct open_owner *open_owner;
 
+	if (currentfh == NULL) N4(NFSERR_ROFS);
+
 	if ((args->share_access == 0) ||
 	    (args->share_access & ~OPEN4_SHARE_ACCESS_BOTH) ||
-	    (args->share_deny   & ~OPEN4_SHARE_ACCESS_BOTH)) return NFSERR_INVAL;
+	    (args->share_deny   & ~OPEN4_SHARE_ACCESS_BOTH)) N4(NFSERR_INVAL);
 
-	if (graceperiod && (args->claim.claim != CLAIM_PREVIOUS)) return NFSERR_GRACE;
+	if (graceperiod && (args->claim.claim != CLAIM_PREVIOUS)) N4(NFSERR_GRACE);
 
 	NR(state_newopenowner(args->owner.clientid, args->owner.owner.data, args->owner.owner.size, args->seqid, &open_owner, &confirmrequired, &duplicate));
 
@@ -969,7 +1062,7 @@ nstat NFS4_OPEN(OPEN4args *args, OPEN4res *res, struct server_conn *conn)
 		NF(lookup_filename(currentfh, &(args->claim.u.file), &currentfh, &filetype, conn));
 		break;
 	case CLAIM_PREVIOUS:
-		if (args->claim.u.delegate_type != OPEN_DELEGATE_NONE) return NFSERR_RECLAIM_BAD;
+		if (args->claim.u.delegate_type != OPEN_DELEGATE_NONE) NF(NFSERR_RECLAIM_BAD);
 		break;
 	default:
 		NF(NFSERR_RECLAIM_BAD);
@@ -1100,6 +1193,8 @@ nstat NFS4_READ(READ4args *args, READ4res *res, struct server_conn *conn)
 	char *data;
 	struct stateid *stateid;
 
+	if (currentfh == NULL) N4(NFSERR_ISDIR);
+
 	if (args->offset > 0x7FFFFFFFULL) N4(NFSERR_FBIG);
 
 	N4(state_getstateid(args->stateid.seqid, args->stateid.other, &stateid, conn));
@@ -1115,6 +1210,8 @@ nstat NFS4_WRITE(WRITE4args *args, WRITE4res *res, struct server_conn *conn)
 {
 	int sync = args->stable != UNSTABLE4;
 	struct stateid *stateid;
+
+	if (currentfh == NULL) N4(NFSERR_ISDIR);
 
 	if (conn->export->ro) N4(NFSERR_ROFS);
 
@@ -1135,6 +1232,8 @@ nstat NFS4_COMMIT(COMMIT4args *args, COMMIT4res *res, struct server_conn *conn)
 	(void)args;
 	(void)conn;
 
+	if (currentfh == NULL) N4(NFSERR_ISDIR);
+
 	N4(filecache_commit(currentfh, res->u.resok4.writeverf));
 
 	return res->status = NFS_OK;
@@ -1144,6 +1243,8 @@ nstat NFS4_CREATE(CREATE4args *args, CREATE4res *res, struct server_conn *conn)
 {
 	int filetype;
 	int type;
+
+	if (currentfh == NULL) N4(NFSERR_ROFS);
 
 	N4(lookup_filename(currentfh, &(args->objname), &currentfh, &filetype, conn));
 
@@ -1216,6 +1317,7 @@ nstat NFS4_REMOVE(REMOVE4args *args, REMOVE4res *res, struct server_conn *conn)
 {
 	char *path;
 
+	if (currentfh == NULL) N4(NFSERR_ROFS);
 	/* FIXME don't delete if open with share deny */
 	if (conn->export->ro) N4(NFSERR_ROFS);
 
@@ -1240,6 +1342,7 @@ nstat NFS4_RENAME(RENAME4args *args, RENAME4res *res, struct server_conn *conn)
 	int oldtype;
 	int newtype;
 
+	if (currentfh == NULL) N4(NFSERR_ROFS);
 	if (conn->export->ro) N4(NFSERR_ROFS);
 
 	N4(lookup_filename(savedfh, &(args->oldname), &from, &oldfiletype, conn));
@@ -1287,6 +1390,7 @@ nstat NFS4_SETATTR(SETATTR4args *args, SETATTR4res *res, struct server_conn *con
 
 	res->attrsset.size = 0;
 
+	if (currentfh == NULL) N4(NFSERR_ROFS);
 	if (conn->export->ro) N4(NFSERR_ROFS);
 
 	/* FIXME - should return error for unsupported attrs? */
@@ -1324,6 +1428,8 @@ nstat NFS4_LOCK(LOCK4args *args, LOCK4res *res, struct server_conn *conn)
 	int deniedownerlen;
 	struct lock_owner *lock_owner;
 	union duplicate *dup;
+
+	if (currentfh == NULL) N4(NFSERR_ISDIR);
 
 	if ((args->locktype == READ_LT) || (args->locktype == READW_LT)) {
 		write = 0;
@@ -1429,6 +1535,8 @@ nstat NFS4_LOCKT(LOCKT4args *args, LOCKT4res *res, struct server_conn *conn)
 
 	(void)conn;
 
+	if (currentfh == NULL) N4(NFSERR_ISDIR);
+
 	if ((args->locktype == READ_LT) || (args->locktype == READW_LT)) {
 		write = 0;
 	} else if ((args->locktype != WRITE_LT) || (args->locktype != WRITEW_LT)) {
@@ -1470,6 +1578,8 @@ nstat NFS4_LOCKU(LOCKU4args *args, LOCKU4res *res, struct server_conn *conn)
 	    (args->locktype != WRITEW_LT)) {
 		return NFSERR_INVAL;
 	}
+
+	if (currentfh == NULL) N4(NFSERR_ISDIR);
 
 	N4(state_getstateid(args->lock_stateid.seqid, args->lock_stateid.other, &stateid, conn));
 	N4(state_checklockseqid(stateid, args->seqid, &duplicate));

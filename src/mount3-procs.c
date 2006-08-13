@@ -39,7 +39,7 @@ enum accept_stat MOUNTPROC3_MNT(struct mountargs *args, struct mountres *res, st
 	export = conn->exports;
 
 	while (export) {
-		if (strncmp(export->exportname, args->dirpath.data, args->dirpath.size) == 0) {
+		if ((export->exportnum > 0) && (strncmp(export->exportname, args->dirpath.data, args->dirpath.size) == 0)) {
 			int i;
 			static unsigned int auth = AUTH_UNIX;
 
@@ -82,7 +82,7 @@ enum accept_stat MOUNTPROC3_DUMP(struct mountlist2 *res, struct server_conn *con
 		int i;
 
 		for (i = 0; i < MAXHOSTS; i++) {
-			if (export->hosts[i] != 0) {
+			if ((export->exportnum > 0) && (export->hosts[i] != 0)) {
 				struct mountlist *mount;
 
 				mount = palloc(sizeof(struct mountlist), conn->pool);
@@ -109,7 +109,7 @@ enum accept_stat MOUNTPROC3_UMNT(struct mountargs *args, struct server_conn *con
 	struct export *export = conn->exports;
 
 	while (export) {
-		if (strncmp(export->exportname, args->dirpath.data, args->dirpath.size) == 0) {
+		if ((export->exportnum > 0) && (strncmp(export->exportname, args->dirpath.data, args->dirpath.size) == 0)) {
 			for (i = 0; i < MAXHOSTS; i++) {
 				if (export->hosts[i] == conn->host) {
 					export->hosts[i] = 0;
@@ -130,7 +130,7 @@ enum accept_stat MOUNTPROC3_UMNTALL(struct server_conn *conn)
 
 	while (export) {
 		for (i = 0; i < MAXHOSTS; i++) {
-			if (export->hosts[i] == conn->host) {
+			if ((export->exportnum > 0) && (export->hosts[i] == conn->host)) {
 				export->hosts[i] = 0;
 				break;
 			}
@@ -147,16 +147,18 @@ enum accept_stat MOUNTPROC3_EXPORT(struct exportlist2 *res, struct server_conn *
 
 	res->list = NULL;
 	while (export) {
-		struct exportlist *list;
+		if (export->exportnum > 0) {
+			struct exportlist *list;
 
-		list = palloc(sizeof(struct exportlist), conn->pool);
-		if (list == NULL) return SUCCESS;
+			list = palloc(sizeof(struct exportlist), conn->pool);
+			if (list == NULL) return SUCCESS;
 
-		list->filesys.data = export->exportname;
-		list->filesys.size = strlen(export->exportname);
-		list->groups = NULL;
-		list->next = res->list;
-		res->list = list;
+			list->filesys.data = export->exportname;
+			list->filesys.size = strlen(export->exportname);
+			list->groups = NULL;
+			list->next = res->list;
+			res->list = list;
+		}
 		export = export->next;
 	}
 	return SUCCESS;

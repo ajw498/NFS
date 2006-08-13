@@ -80,6 +80,8 @@ void request_decode(struct server_conn *conn)
 	reply_header.xid = call_header.xid;
 	reply_header.body.mtype = REPLY;
 
+	conn->nfs4 = 0;
+
 	if (call_header.body.mtype != CALL || call_header.body.u.cbody.rpcvers != RPC_VERSION) {
 		reply_header.body.u.rbody.stat = MSG_DENIED;
 		reply_header.body.u.rbody.u.rreply.stat = RPC_MISMATCH;

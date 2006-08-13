@@ -52,7 +52,7 @@ static struct export *parse_line(char *line, struct pool *pool)
 	char *exportname;
 	char *host;
 	struct export *export;
-	static int exportnum = 0;
+	static int exportnum = 1; /* 0 is reserved for the NFS4 root */
 	char *maskstart;
 
 	while (isspace(*line)) line++;
@@ -92,8 +92,8 @@ static struct export *parse_line(char *line, struct pool *pool)
 	UU(export->basedir = pstrdup(basedir, pool));
 	export->basedirlen = strlen(basedir);
 	export->exportnum = exportnum++;
-	if (exportnum > 128) {
-		syslogf(LOGNAME, LOG_SERIOUS, "Only 128 export directories are supported");
+	if (exportnum > 127) {
+		syslogf(LOGNAME, LOG_SERIOUS, "Only 127 export directories are supported");
 		return NULL;
 	}
 
@@ -158,6 +158,30 @@ static struct export *parse_line(char *line, struct pool *pool)
 	return export;
 }
 
+static struct export root = {
+	.ro = 1,
+	.matchuid = 0,
+	.uid = 0,
+	.matchgid = 0,
+	.gid = 0,
+	.imagefs = 0,
+	.defaultfiletype = 0xFFF,
+	.xyzext = NEEDED,
+	.fakedirtimes = 0,
+	.udpsize = 4096,
+	.umask = 0,
+	.unumask = 0,
+	.next = NULL,
+	.pathentry = NULL,
+	.pool = NULL,
+	.basedir = NULL,
+	.basedirlen = 0,
+	.exportnum = 0,
+	.exportname = NULL,
+	.host = 0,
+	.mask = 0,
+};
+
 struct export *parse_exports_file(struct pool *pool)
 {
 	char line[1024];
@@ -180,6 +204,10 @@ struct export *parse_exports_file(struct pool *pool)
 		}
 	}
 	fclose(file);
+
+	/* Add the NFS4 root export to the head of the list */
+	root.next = exports;
+	exports = &root;
 
 	return exports;
 }
@@ -240,7 +268,9 @@ enum nstat fh_to_path(char *fhandle, int fhandlelen, char **path, struct server_
 	exportnum = fhandle[0] & 0x7F;
 	hash = fhandle[1];
 
-	if (conn->export == NULL) {
+	if ((exportnum == 0) && (conn->nfs4 == 0)) return NFSERR_STALE;
+
+	if ((conn->export == NULL) || conn->nfs4) {
 		conn->export = conn->exports;
 		while (conn->export && (conn->export->exportnum != exportnum)) {
 			conn->export = conn->export->next;
@@ -307,6 +337,8 @@ enum nstat fh_to_path(char *fhandle, int fhandlelen, char **path, struct server_
 				pathentry = pathentry[index].next;
 			}
 		}
+	} else if (exportnum == 0) {
+		*path = NULL;
 	} else {
 		char *dest;
 
@@ -331,7 +363,7 @@ enum nstat path_to_fh(char *path, char **fhandle, unsigned int *fhandlelen, stru
 		UR(*fhandle = palloc(*fhandlelen, conn->pool));
 	}
 	memset(*fhandle, 0, *fhandlelen);
-	len = strlen(path);
+	len = path ? strlen(path) : 0;
 	if ((len <= conn->export->basedirlen) ||
 	    (memcmp(path, conn->export->basedir, conn->export->basedirlen) != 0) ||
 	    ((path[conn->export->basedirlen] != '.') &&

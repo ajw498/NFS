@@ -63,6 +63,7 @@ struct server_conn {
 	int replylen;
 	int replysent;
 	int suppressreply;
+	int nfs4;
 };
 
 int conn_init(void);
