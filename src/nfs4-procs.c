@@ -336,7 +336,7 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					setattrmask();
 					list[0] = ((1U << FATTR4_SUPPORTED_ATTRS) | (1U << FATTR4_TYPE) | (1U << FATTR4_FH_EXPIRE_TYPE) | (1U << FATTR4_CHANGE) | (1U << FATTR4_SIZE) | (1U << FATTR4_LINK_SUPPORT) | (1U << FATTR4_SYMLINK_SUPPORT) |
 					           (1U << FATTR4_NAMED_ATTR) | (1U << FATTR4_FSID) | (1U << FATTR4_UNIQUE_HANDLES) | (1U << FATTR4_LEASE_TIME) | (1U << FATTR4_FILEHANDLE) | (1U << FATTR4_ACLSUPPORT) |
-					           (1U << FATTR4_CANSETTIME) | (1U << FATTR4_CASE_INSENSITIVE) | (1U << FATTR4_CASE_PRESERVING) | (1U << FATTR4_CHOWN_RESTRICTED) | (1U << FATTR4_HOMOGENEOUS) | (1U << FATTR4_MAXFILESIZE) |
+					           (1U << FATTR4_CANSETTIME) | (1U << FATTR4_CASE_INSENSITIVE) | (1U << FATTR4_CASE_PRESERVING) | (1U << FATTR4_CHOWN_RESTRICTED) | (1U << FATTR4_FILEID) | (1U << FATTR4_HOMOGENEOUS) | (1U << FATTR4_MAXFILESIZE) |
 					           (1U << FATTR4_MAXNAME) | (1U << FATTR4_MAXREAD) | (1U << FATTR4_MAXWRITE));
 					list[1] = (uint32_t)(((1ULL << FATTR4_MIMETYPE) | (1ULL << FATTR4_MODE) | (1ULL << FATTR4_NO_TRUNC) | (1ULL << FATTR4_OWNER) | (1ULL << FATTR4_OWNER_GROUP) | (1ULL << FATTR4_SPACE_AVAIL) | (1ULL << FATTR4_SPACE_FREE) |
 					                     (1ULL << FATTR4_SPACE_TOTAL) | (1ULL << FATTR4_SPACE_USED) | (1ULL << FATTR4_TIME_DELTA) | (1ULL << FATTR4_TIME_MODIFY)) >> 32);
@@ -430,6 +430,18 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					setattrmask();
 					process_bool(OUTPUT, false);
 					break;
+				case FATTR4_FILEID: {
+					/* Strictly we shouldn't be providing
+					   this, as it cannot be guaranteed
+					   unique. However the Linux client
+					   seems to forget files exist in
+					   directory listings if this is
+					   missing. */
+					uint64_t fileid = calc_fileid(path, NULL);
+					setattrmask();
+					process_uint64(OUTPUT, fileid);
+					break;
+				}
 				case FATTR4_HOMOGENEOUS:
 					setattrmask();
 					process_bool(OUTPUT, true);
