@@ -76,6 +76,7 @@ static struct pool *gpool = NULL;
 
 static struct export *exports;
 
+static struct iconvstate iconvstate = {(iconv_t)-1, (iconv_t)-1};
 
 static int now;
 
@@ -167,6 +168,7 @@ static int udp_read(int sock)
 			conns[i].time = now;
 			conns[i].suppressreply = 0;
 			conns[i].host = conns[i].hostaddr.sin_addr.s_addr;
+			conns[i].iconv = &iconvstate;
 			activity |= 1;
 			active = 1;
 		} else if (conns[i].requestlen == -1 && errno != EWOULDBLOCK) {
@@ -218,6 +220,7 @@ static int tcp_accept(int sock)
 		conns[i].requestread = 0;
 		conns[i].suppressreply = 0;
 		conns[i].host = conns[i].hostaddr.sin_addr.s_addr;
+		conns[i].iconv = &iconvstate;
 		return 1;
 	} else if (errno != EWOULDBLOCK) {
 		syslogf(LOGNAME, LOG_ERROR, "Error calling accept on socket (%s)",xstrerror(errno));
@@ -403,6 +406,7 @@ int conn_poll(void)
 int conn_init(void)
 {
 	int i;
+	char *local;
 
 	UR(gpool = pinit(NULL));
 
@@ -446,6 +450,14 @@ int conn_init(void)
 	nfstcpsock = conn_create_socket(2049, 1);
 	if (nfstcpsock == -1) goto error;
 
+	local = encoding_getlocal();
+	iconvstate.toutf8 = iconv_open("UTF-8", local);
+	iconvstate.fromutf8 = iconv_open(local, "UTF-8");
+	if ((iconvstate.toutf8 == (iconv_t)-1) || (iconvstate.toutf8 == (iconv_t)-1)) {
+		syslogf(LOGNAME, LOG_SERIOUS, "Iconv unable to convert between %s and %s", "UTF-8", local);
+		goto error;
+	}
+
 	return 0;
 
 error:
@@ -453,6 +465,8 @@ error:
 	if (tcpsock != -1) close(tcpsock);
 	if (nfsudpsock != -1) close(nfsudpsock);
 	if (nfstcpsock != -1) close(nfstcpsock);
+	if (iconvstate.toutf8 != (iconv_t)-1) iconv_close(iconvstate.toutf8);
+	if (iconvstate.fromutf8 != (iconv_t)-1) iconv_close(iconvstate.fromutf8);
 	return 1;
 }
 
@@ -474,6 +488,8 @@ void conn_close(void)
 	if (tcpsock != -1) close(tcpsock);
 	if (nfsudpsock != -1) close(nfsudpsock);
 	if (nfstcpsock != -1) close(nfstcpsock);
+	if (iconvstate.toutf8 != (iconv_t)-1) iconv_close(iconvstate.toutf8);
+	if (iconvstate.fromutf8 != (iconv_t)-1) iconv_close(iconvstate.fromutf8);
 
 	if (gpool) pfree(gpool);
 }

@@ -439,3 +439,31 @@ os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct hosten
 	return gen_error(RPCERRBASE + 1, "Unable to resolve hostname '%s' (%d)", host, errnum);
 }
 
+char *encoding_getlocal(void)
+{
+	int alphabet;
+
+	if (_swix(OS_Byte, _INR(0,1) | _OUT(1), 71, 127, &alphabet)) alphabet = 101;
+	switch (alphabet) {
+		case 101: return "ISO-8859-1";
+		case 102: return "ISO-8859-2";
+		case 103: return "ISO-8859-3";
+		case 104: return "ISO-8859-4";
+		case 105: return "ISO-8859-5";
+		case 106: return "ISO-8859-6";
+		case 107: return "ISO-8859-7";
+		case 108: return "ISO-8859-8";
+		case 109: return "ISO-8859-9";
+		case 110: return "ISO-IR-182";
+		case 111: return "UTF-8";
+		case 112: return "ISO-8859-15";
+		case 113: return "ISO-8859-10";
+		case 114: return "ISO-8859-13";
+		case 115: return "ISO-8859-14";
+		case 116: return "ISO-8859-16";
+		case 120: return "CP866";
+	}
+	/* Default to Latin1 */
+	return "ISO-8859-1";
+}
+

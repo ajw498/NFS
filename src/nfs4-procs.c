@@ -189,15 +189,24 @@ nstat NFS4_PUTFH(PUTFH4args *args, PUTFH4res *res, struct server_conn *conn)
 
 static nstat lookup_filename(char *base, component4 *leafname, char **res, int *filetype, struct server_conn *conn)
 {
-	int leaflen;
+	size_t utf8leaflen = leafname->size;
+	char *utf8leaf = leafname->data;
+	size_t leaflen;
+	char *leaf;
 	int cfhlen;
-	static char buffer[FILENAME_MAX];
-	char *filename;
+	static char buffer[MAX_PATHNAME];
+	static char buffer2[MAX_PATHNAME];
 
-	/*FIXME UTF8-ness */
 	if (leafname->size == 0) return NFSERR_INVAL;
+	leaf = buffer;
+	leaflen = sizeof(buffer);
+	if (iconv(conn->iconv->fromutf8, &utf8leaf, &utf8leaflen, &leaf, &leaflen) == -1) {
+		syslogf(LOGNAME, LOG_ERROR, "Error: Iconv failed (%d)", errno);
+		iconv(conn->iconv->fromutf8, NULL, NULL, NULL, NULL);
+		return (errno == E2BIG) ? NFSERR_NAMETOOLONG : NFSERR_INVAL;
+	}
 
-	leaflen = filename_riscosify(leafname->data, leafname->size, buffer, sizeof(buffer), filetype, conn->export->defaultfiletype, conn->export->xyzext);
+	leaflen = filename_riscosify(buffer, sizeof(buffer) - leaflen, buffer2, sizeof(buffer2), filetype, conn->export->defaultfiletype, conn->export->xyzext);
 
 	if (base == NULL) {
 		/* base should only ever be NULL when called from LOOKUP, so
@@ -205,9 +214,9 @@ static nstat lookup_filename(char *base, component4 *leafname, char **res, int *
 		   updated at the same time */
 		struct export *export = conn->exports;
 		while (export) {
-			char *leaf = export->exportname;
-			if (leaf && (leaf[0] == '/')) leaf++;
-			if (leaf && (strcmp(buffer, leaf) == 0)) {
+			char *leaf2 = export->exportname;
+			if (leaf2 && (leaf2[0] == '/')) leaf2++;
+			if (leaf2 && (strcmp(buffer2, leaf2) == 0)) {
 				if ((conn->host & export->mask) != export->host) return NFSERR_ACCESS;
 				*res = export->basedir;
 				conn->export = export;
@@ -217,12 +226,14 @@ static nstat lookup_filename(char *base, component4 *leafname, char **res, int *
 		}
 		return NFSERR_NOENT;
 	} else {
+		char *filename;
+
 		cfhlen = strlen(base);
 
 		UR(filename = palloc(cfhlen + leaflen + 2, conn->pool));
 		memcpy(filename, base, cfhlen);
 		filename[cfhlen++] = '.';
-		memcpy(filename + cfhlen, buffer, leaflen);
+		memcpy(filename + cfhlen, buffer2, leaflen);
 		filename[cfhlen + leafname->size] = '\0';
 		*res = filename;
 	}
@@ -973,6 +984,9 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 			struct entry4 *entry;
 			char *leaf;
 			unsigned leaflen;
+			char *utf8leaf;
+			unsigned utf8leaflen;
+			static char buffer2[MAX_PATHNAME];
 			int filetype;
 			unsigned load;
 			unsigned exec;
@@ -1012,11 +1026,6 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 				U4(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, conn->pool));
 			}
 
-			entry->name.data = leaf; /*FIXME - UTF8*/
-			entry->name.size = leaflen;
-			entry->cookie = ((uint64_t)cookie) << 2;
-			N4(get_fattr(pathbuffer, type, load, exec, len, attr, &(args->attr_request), &(entry->attrs), conn));
-
 			bytes += 4 + ((leaflen + 3) & ~3);
 			if (bytes > args->dircount) {
 				return res->status = NFS_OK;
@@ -1025,6 +1034,26 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 			if (tbytes > args->maxcount) {
 				return res->status = NFS_OK;
 			}
+
+			utf8leaf = buffer2;
+			utf8leaflen = sizeof(buffer2);
+			if (iconv(conn->iconv->toutf8, &leaf, &leaflen, &utf8leaf, &utf8leaflen) == -1) {
+				iconv(conn->iconv->toutf8, NULL, NULL, NULL, NULL);
+				syslogf(LOGNAME, LOG_ERROR, "Error: Iconv failed (%d)", errno);
+				if (errno == E2BIG) {
+					N4(NFSERR_NAMETOOLONG);
+				} else {
+					N4(NFSERR_BADCHAR);
+				}
+			}
+
+			utf8leaflen = sizeof(buffer2) - utf8leaflen;
+			U4(entry->name.data = palloc(utf8leaflen, conn->pool));
+			memcpy(entry->name.data, buffer2, utf8leaflen);
+			entry->name.size = utf8leaflen;
+			entry->cookie = ((uint64_t)cookie) << 2;
+			N4(get_fattr(pathbuffer, type, load, exec, len, attr, &(args->attr_request), &(entry->attrs), conn));
+
 			entry->next = NULL;
 			*lastentry = entry;
 			lastentry = &(entry->next);

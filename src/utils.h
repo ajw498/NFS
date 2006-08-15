@@ -299,6 +299,9 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 /* Convert a RISC OS leafname into unix format */
 char *filename_unixify(char *name, unsigned int len, unsigned int *newlen, struct pool *pool);
 
+/* Get the local alphabet encoding */
+char *encoding_getlocal(void);
+
 /* Use MimeMap to lookup a filetype from an extension */
 int ext_to_filetype(char *ext, int defaultfiletype);
 

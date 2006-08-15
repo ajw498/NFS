@@ -30,6 +30,7 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <iconv.h>
 
 #include "pools.h"
 
@@ -39,6 +40,12 @@ enum conn_state {
 	READ,
 	DECODE,
 	WRITE
+};
+
+struct iconvstate {
+	iconv_t toutf8;
+	iconv_t fromutf8;
+	/* FIXME - other for NFS2/3? */
 };
 
 struct server_conn {
@@ -64,6 +71,7 @@ struct server_conn {
 	int replysent;
 	int suppressreply;
 	int nfs4;
+	struct iconvstate *iconv;
 };
 
 int conn_init(void);
