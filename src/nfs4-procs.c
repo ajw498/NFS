@@ -1700,10 +1700,14 @@ nstat NFS4_RELEASE_LOCKOWNER(RELEASE_LOCKOWNER4args *args, RELEASE_LOCKOWNER4res
 
 nstat NFS4_SECINFO(SECINFO4args *args, SECINFO4res *res, struct server_conn *conn)
 {
+	static unsigned flavours[2] = {AUTH_UNIX, AUTH_NULL};
+
 	(void)conn;
 	(void)args;
-	/*FIXME NFS4_SECINFO */
 
-	return res->status = NFSERR_NOTSUPP;
+	res->u.resok4.data = flavours;
+	res->u.resok4.size = 2;
+
+	return res->status = NFS_OK;
 }
 
