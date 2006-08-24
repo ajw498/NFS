@@ -40,8 +40,6 @@ struct clientid {
 	uint64_t clientid;
 	int unconfirmed;
 	time_t lastactivity;
-/*	char *r_netid; FIXME
-	char *r_addr;       */
 	char clientverf[8];
 	char *id;
 	int idlen;
@@ -135,7 +133,6 @@ enum nstat clientid_setclientidconfirm(uint64_t clientid)
 	if ((confirmed == NULL) && (unconfirmed == NULL)) {
 		return NFSERR_STALE_CLIENTID;
 	} else {
-		/* FIXME - Check security principals match */
 		if (confirmed && unconfirmed) {
 			/* Remove the old confirmed entry */
 			if (clients == confirmed) {
@@ -185,7 +182,6 @@ enum nstat clientid_renew(uint64_t clientid)
 {
 	struct clientid *id = clients;
 
-	/* FIXME check security principal */
 	while (id) {
 		if ((id->clientid == clientid) && !id->unconfirmed) {
 			id->lastactivity = clock();
