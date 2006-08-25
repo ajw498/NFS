@@ -372,7 +372,7 @@ enum nstat filecache_close(char *path, struct stateid *stateid)
 
 void filecache_savegrace(void)
 {
-	if (openfiles == NULL) {
+	if ((graceperiod == 0) && (openfiles == NULL)) {
 		/* We are shutting down with no open state, so record this
 		   fact to avoid the grace period on startup.
 		   Ignore errors creating the file */
