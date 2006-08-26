@@ -116,6 +116,8 @@ enum nstat nfserr_removenfs4(enum nstat errnum)
 	return errnum;
 }
 
+static int localutf8 = 0;
+
 char *filename_unixify(char *name, unsigned int len, unsigned int *newlen, struct pool *pool)
 {
 	char *namebuffer;
@@ -130,8 +132,16 @@ char *filename_unixify(char *name, unsigned int len, unsigned int *newlen, struc
 			case '/':
 				namebuffer[j++] = '.';
 				break;
-			case 160: /*hard space*/
-				namebuffer[j++] = ' ';
+			case 0xC2: /* UTF8 hard space is 0xC0 0xA0 */
+				if (localutf8 && (i + 1 < len) && (name[i + 1] == 0xA0)) {
+					namebuffer[j++] = ' ';
+					i++;
+				} else {
+					namebuffer[j++] = 0xC2;
+				}
+				break;
+			case 0xA0: /* Non UTF8 hard space */
+				namebuffer[j++] = localutf8 ? 0xA0 : ' ';
 				break;
 			case '?':
 				if (i + 2 < len && isxdigit(name[i+1]) && !islower(name[i+1]) && isxdigit(name[i+2]) && !islower(name[i+2])) {
@@ -203,7 +213,9 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 			buffer[j++] = '/';
 			dotext = buffer + j;
 		} else if (name[i] == ' ') {
-			buffer[j++] = 160; /* spaces to hard spaces */
+			/* spaces to hard spaces */
+			if (localutf8) buffer[j++] = 0xC2;
+			buffer[j++] = 0xA0;
 		} else if (name[i] == ',') {
 			if (xyzext != NEVER && namelen - i == 4
 			     && isxdigit(name[i+1])
@@ -229,7 +241,7 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 				|| name[i] == '@'
 				|| name[i] == '\\'
 				|| name[i] == 127
-				|| name[i] == 160) {
+				|| ((name[i] == 160) && (localutf8 == 0))) {
 			int val;
 
 			/* Turn illegal chars into ?XX escape sequences */
@@ -248,7 +260,7 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 
 	if (i < namelen) return 0; /* Buffer overflow */
 
-	buffer[j++] = '\0';
+	buffer[j] = '\0';
 
 	if (filetyperet) {
 		if (xyzext != NEVER) {
@@ -444,6 +456,7 @@ char *encoding_getlocal(void)
 	int alphabet;
 
 	if (_swix(OS_Byte, _INR(0,1) | _OUT(1), 71, 127, &alphabet)) alphabet = 101;
+	if (alphabet == 111) localutf8 = 1;
 	switch (alphabet) {
 		case 101: return "ISO-8859-1";
 		case 102: return "ISO-8859-2";
