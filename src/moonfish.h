@@ -46,6 +46,9 @@ extern int logging;
 #define EXPORTSREAD  "Choices:Moonfish.exports"
 #define EXPORTSWRITE "<Choices$Write>.Moonfish.exports"
 
+#define CHOICESREAD  "Choices:Moonfish.Choices"
+#define CHOICESWRITE "<Choices$Write>.Moonfish.Choices"
+
 #define NE(x) do { \
 	res->status = x; \
 	if (res->status != NFS_OK) return SUCCESS; \

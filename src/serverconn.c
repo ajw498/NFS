@@ -76,7 +76,19 @@ static struct pool *gpool = NULL;
 
 static struct export *exports;
 
-static struct iconvstate iconvstate = {(iconv_t)-1, (iconv_t)-1};
+struct choices choices = {
+	.encoding = NULL,
+	.portmapper = 1,
+	.nfs2 = 1,
+	.nfs3 = 1,
+	.nfs4 = 1,
+	.udp = 1,
+	.tcp = 1,
+	.toutf8 = (iconv_t)-1,
+	.fromutf8 = (iconv_t)-1,
+	.toenc = (iconv_t)-1,
+	.fromenc = (iconv_t)-1,
+};
 
 static int now;
 
@@ -150,6 +162,8 @@ static int udp_read(int sock)
 	int activity = 0;
 	int active = 0;
 
+	if (sock == -1) return 0;
+
 	do {
 
 		for (i = 0; i < MAXCONNS; i++) {
@@ -168,7 +182,6 @@ static int udp_read(int sock)
 			conns[i].time = now;
 			conns[i].suppressreply = 0;
 			conns[i].host = conns[i].hostaddr.sin_addr.s_addr;
-			conns[i].iconv = &iconvstate;
 			activity |= 1;
 			active = 1;
 		} else if (conns[i].requestlen == -1 && errno != EWOULDBLOCK) {
@@ -203,6 +216,8 @@ static int tcp_accept(int sock)
 {
 	int i;
 
+	if (sock == -1) return 0;
+
 	/* Find a free connection entry */
 	for (i = 0; i < MAXCONNS; i++) {
 		if (conns[i].state == IDLE) break;
@@ -220,7 +235,6 @@ static int tcp_accept(int sock)
 		conns[i].requestread = 0;
 		conns[i].suppressreply = 0;
 		conns[i].host = conns[i].hostaddr.sin_addr.s_addr;
-		conns[i].iconv = &iconvstate;
 		return 1;
 	} else if (errno != EWOULDBLOCK) {
 		syslogf(LOGNAME, LOG_ERROR, "Error calling accept on socket (%s)",xstrerror(errno));
@@ -403,6 +417,72 @@ int conn_poll(void)
 	return activity;
 }
 
+#define CHECK(str) (strncasecmp(opt,str,sizeof(str) - 1)==0)
+
+static enum bool read_choices(struct pool *pool)
+{
+	char line[1024];
+	FILE *file;
+
+	file = fopen(CHOICESREAD, "r");
+	if (file == NULL) {
+		syslogf(LOGNAME, LOG_SERIOUS, "Unable to open choices file (%s)", CHOICESREAD);
+		return TRUE; /* Don't prevent startup, just use defaults */
+	}
+
+	while (fgets(line, sizeof(line), file)) {
+		char *ch = line;
+		char *opt;
+
+		while (isspace(*ch)) ch++;
+		if (*ch == '#') *ch = '\0';
+		opt = ch;
+		while (*ch && (*ch != ':')) ch++;
+		if (*ch) *ch++ = '\0';
+		while (isspace(*ch)) ch++;
+
+		if (CHECK("Encoding")) {
+			choices.encoding = pstrdup(ch, pool);
+			if (choices.encoding == NULL) {
+				syslogf(LOGNAME, LOG_MEM, OUTOFMEM);
+				return FALSE;
+			}
+		} else if (CHECK("NFS2")) {
+			choices.nfs2 = atoi(ch);
+		} else if (CHECK("NFS3")) {
+			choices.nfs3 = atoi(ch);
+		} else if (CHECK("NFS4")) {
+			choices.nfs4 = atoi(ch);
+		} else if (CHECK("Portmapper")) {
+			choices.portmapper = atoi(ch);
+		} else if (CHECK("UDP")) {
+			choices.udp = atoi(ch);
+		} else if (CHECK("TCP")) {
+			choices.tcp = atoi(ch);
+		}
+	}
+	fclose(file);
+
+	if ((choices.udp || choices.tcp) == 0) {
+		syslogf(LOGNAME, LOG_SERIOUS, "Both UDP and TCP disabled, nothing to do");
+		return FALSE;
+	}
+	if (choices.nfs2 || choices.nfs3) choices.portmapper = 1;
+	if ((choices.nfs2 || choices.nfs3 || choices.nfs4 || choices.portmapper) == 0) {
+		syslogf(LOGNAME, LOG_SERIOUS, "No NFS protocols enabled, nothing to do");
+		return FALSE;
+	}
+	return TRUE;
+}
+
+#define open_encoding(dest, to, from) do { \
+	dest = iconv_open(to, from); \
+	if (dest == (iconv_t)-1) { \
+		syslogf(LOGNAME, LOG_SERIOUS, "Iconv unable to convert encodings from %s to %s  (%d)", from, to, errno); \
+		goto error; \
+	} \
+} while (0)
+
 int conn_init(void)
 {
 	int i;
@@ -425,37 +505,53 @@ int conn_init(void)
 
 	filecache_init();
 
-	BR(portmapper_set(100000, 2, IPPROTO_UDP, 111,  portmapper_decode, gpool));
-	BR(portmapper_set(100000, 2, IPPROTO_TCP, 111,  portmapper_decode, gpool));
-	BR(portmapper_set(100005, 1, IPPROTO_UDP, 111,  mount1_decode, gpool));
-	BR(portmapper_set(100005, 1, IPPROTO_TCP, 111,  mount1_decode, gpool));
-	BR(portmapper_set(100005, 3, IPPROTO_UDP, 111,  mount3_decode, gpool));
-	BR(portmapper_set(100005, 3, IPPROTO_TCP, 111,  mount3_decode, gpool));
-	BR(portmapper_set(100003, 2, IPPROTO_UDP, 2049, nfs2_decode, gpool));
-	BR(portmapper_set(100003, 2, IPPROTO_TCP, 2049, nfs2_decode, gpool));
-	BR(portmapper_set(100003, 3, IPPROTO_UDP, 2049, nfs3_decode, gpool));
-	BR(portmapper_set(100003, 3, IPPROTO_TCP, 2049, nfs3_decode, gpool));
-	BR(portmapper_set(100003, 4, IPPROTO_UDP, 2049, nfs4_decode_proc, gpool));
-	BR(portmapper_set(100003, 4, IPPROTO_TCP, 2049, nfs4_decode_proc, gpool));
+	BR(read_choices(gpool));
 
-	udpsock = conn_create_socket(111, 0);
-	if (udpsock == -1) goto error;
+	if (choices.portmapper) BR(portmapper_set(100000, 2, IPPROTO_UDP, 111,  portmapper_decode, gpool));
+	if (choices.portmapper) BR(portmapper_set(100000, 2, IPPROTO_TCP, 111,  portmapper_decode, gpool));
+	if (choices.udp && choices.nfs2) BR(portmapper_set(100005, 1, IPPROTO_UDP, 111,  mount1_decode, gpool));
+	if (choices.tcp && choices.nfs2) BR(portmapper_set(100005, 1, IPPROTO_TCP, 111,  mount1_decode, gpool));
+	if (choices.udp && choices.nfs3) BR(portmapper_set(100005, 3, IPPROTO_UDP, 111,  mount3_decode, gpool));
+	if (choices.tcp && choices.nfs3) BR(portmapper_set(100005, 3, IPPROTO_TCP, 111,  mount3_decode, gpool));
+	if (choices.udp && choices.nfs2) BR(portmapper_set(100003, 2, IPPROTO_UDP, 2049, nfs2_decode, gpool));
+	if (choices.tcp && choices.nfs2) BR(portmapper_set(100003, 2, IPPROTO_TCP, 2049, nfs2_decode, gpool));
+	if (choices.udp && choices.nfs3) BR(portmapper_set(100003, 3, IPPROTO_UDP, 2049, nfs3_decode, gpool));
+	if (choices.tcp && choices.nfs3) BR(portmapper_set(100003, 3, IPPROTO_TCP, 2049, nfs3_decode, gpool));
+	if (choices.udp && choices.nfs4) BR(portmapper_set(100003, 4, IPPROTO_UDP, 2049, nfs4_decode_proc, gpool));
+	if (choices.tcp && choices.nfs4) BR(portmapper_set(100003, 4, IPPROTO_TCP, 2049, nfs4_decode_proc, gpool));
 
-	tcpsock = conn_create_socket(111, 1);
-	if (tcpsock == -1) goto error;
+	if (choices.portmapper) {
+		udpsock = conn_create_socket(111, 0);
+		if (udpsock == -1) goto error;
+	}
 
-	nfsudpsock = conn_create_socket(2049, 0);
-	if (nfsudpsock == -1) goto error;
+	if (choices.portmapper) {
+		tcpsock = conn_create_socket(111, 1);
+		if (tcpsock == -1) goto error;
+	}
 
-	nfstcpsock = conn_create_socket(2049, 1);
-	if (nfstcpsock == -1) goto error;
+	if (choices.udp) {
+		nfsudpsock = conn_create_socket(2049, 0);
+		if (nfsudpsock == -1) goto error;
+	}
+
+	if (choices.tcp) {
+		nfstcpsock = conn_create_socket(2049, 1);
+		if (nfstcpsock == -1) goto error;
+	}
 
 	local = encoding_getlocal();
-	iconvstate.toutf8 = iconv_open("UTF-8", local);
-	iconvstate.fromutf8 = iconv_open(local, "UTF-8");
-	if ((iconvstate.toutf8 == (iconv_t)-1) || (iconvstate.toutf8 == (iconv_t)-1)) {
-		syslogf(LOGNAME, LOG_SERIOUS, "Iconv unable to convert between %s and %s", "UTF-8", local);
-		goto error;
+	if (choices.nfs4) {
+		if (strcmp(local, "UTF-8") != 0) {
+			open_encoding(choices.toutf8, "UTF-8", local);
+			open_encoding(choices.fromutf8, local, "UTF-8");
+		}
+	}
+	if ((choices.nfs2 || choices.nfs3) && choices.encoding) {
+		if (strcmp(choices.encoding, local) != 0) {
+			open_encoding(choices.toenc, choices.encoding, local);
+			open_encoding(choices.fromenc, local, choices.encoding);
+		}
 	}
 
 	return 0;
@@ -465,8 +561,10 @@ error:
 	if (tcpsock != -1) close(tcpsock);
 	if (nfsudpsock != -1) close(nfsudpsock);
 	if (nfstcpsock != -1) close(nfstcpsock);
-	if (iconvstate.toutf8 != (iconv_t)-1) iconv_close(iconvstate.toutf8);
-	if (iconvstate.fromutf8 != (iconv_t)-1) iconv_close(iconvstate.fromutf8);
+	if (choices.toutf8 != (iconv_t)-1)   iconv_close(choices.toutf8);
+	if (choices.fromutf8 != (iconv_t)-1) iconv_close(choices.fromutf8);
+	if (choices.toenc != (iconv_t)-1)    iconv_close(choices.toenc);
+	if (choices.fromenc != (iconv_t)-1)  iconv_close(choices.fromenc);
 	return 1;
 }
 
@@ -488,8 +586,10 @@ void conn_close(void)
 	if (tcpsock != -1) close(tcpsock);
 	if (nfsudpsock != -1) close(nfsudpsock);
 	if (nfstcpsock != -1) close(nfstcpsock);
-	if (iconvstate.toutf8 != (iconv_t)-1) iconv_close(iconvstate.toutf8);
-	if (iconvstate.fromutf8 != (iconv_t)-1) iconv_close(iconvstate.fromutf8);
+	if (choices.toutf8 != (iconv_t)-1)   iconv_close(choices.toutf8);
+	if (choices.fromutf8 != (iconv_t)-1) iconv_close(choices.fromutf8);
+	if (choices.toenc != (iconv_t)-1)    iconv_close(choices.toenc);
+	if (choices.fromenc != (iconv_t)-1)  iconv_close(choices.fromenc);
 
 	if (gpool) pfree(gpool);
 }

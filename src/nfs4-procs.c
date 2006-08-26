@@ -198,15 +198,22 @@ static nstat lookup_filename(char *base, component4 *leafname, char **res, int *
 	static char buffer2[MAX_PATHNAME];
 
 	if (leafname->size == 0) return NFSERR_INVAL;
-	leaf = buffer;
-	leaflen = sizeof(buffer);
-	if (iconv(conn->iconv->fromutf8, &utf8leaf, &utf8leaflen, &leaf, &leaflen) == -1) {
-		syslogf(LOGNAME, LOG_ERROR, "Error: Iconv failed (%d)", errno);
-		iconv(conn->iconv->fromutf8, NULL, NULL, NULL, NULL);
-		return (errno == E2BIG) ? NFSERR_NAMETOOLONG : NFSERR_INVAL;
+	if (choices.fromutf8 != (iconv_t)-1) {
+		leaf = buffer;
+		leaflen = sizeof(buffer);
+		if (iconv(choices.fromutf8, &utf8leaf, &utf8leaflen, &leaf, &leaflen) == -1) {
+			syslogf(LOGNAME, LOG_ERROR, "Error: Iconv failed (%d)", errno);
+			iconv(choices.fromutf8, NULL, NULL, NULL, NULL);
+			return (errno == E2BIG) ? NFSERR_NAMETOOLONG : NFSERR_INVAL;
+		}
+		leaf = buffer;
+		leaflen = sizeof(buffer) - leaflen;
+	} else {
+		leaf = utf8leaf;
+		leaflen = utf8leaflen;
 	}
 
-	leaflen = filename_riscosify(buffer, sizeof(buffer) - leaflen, buffer2, sizeof(buffer2), filetype, conn->export->defaultfiletype, conn->export->xyzext);
+	leaflen = filename_riscosify(leaf, leaflen, buffer2, sizeof(buffer2), filetype, conn->export->defaultfiletype, conn->export->xyzext);
 
 	if (base == NULL) {
 		/* base should only ever be NULL when called from LOOKUP, so
@@ -234,7 +241,7 @@ static nstat lookup_filename(char *base, component4 *leafname, char **res, int *
 		memcpy(filename, base, cfhlen);
 		filename[cfhlen++] = '.';
 		memcpy(filename + cfhlen, buffer2, leaflen);
-		filename[cfhlen + leafname->size] = '\0';
+		filename[cfhlen + leaflen] = '\0';
 		*res = filename;
 	}
 
@@ -308,7 +315,7 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 	if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
 	if (type == OBJ_NONE) {
 		return NFSERR_NOENT;
-/*	} else {
+/*	} else { FIXME
 		int ftype = (load & 0x000FFF00) >> 8;
 		if ((type == OBJ_FILE) && (filetype != -1) && (filetype != ftype)) return NFSERR_NOENT;*/
 	}
@@ -984,9 +991,6 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 			struct entry4 *entry;
 			char *leaf;
 			unsigned leaflen;
-			char *utf8leaf;
-			unsigned utf8leaflen;
-			static char buffer2[MAX_PATHNAME];
 			int filetype;
 			unsigned load;
 			unsigned exec;
@@ -1026,6 +1030,34 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 				U4(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, conn->pool));
 			}
 
+			if (choices.toutf8 != (iconv_t)-1) {
+				char *utf8leaf;
+				unsigned utf8leaflen;
+				static char buffer2[MAX_PATHNAME];
+
+				utf8leaf = buffer2;
+				utf8leaflen = sizeof(buffer2);
+				if (iconv(choices.toutf8, &leaf, &leaflen, &utf8leaf, &utf8leaflen) == -1) {
+					iconv(choices.toutf8, NULL, NULL, NULL, NULL);
+					syslogf(LOGNAME, LOG_ERROR, "Error: Iconv failed (%d)", errno);
+					if (errno == E2BIG) {
+						N4(NFSERR_NAMETOOLONG);
+					} else {
+						N4(NFSERR_BADCHAR);
+					}
+				}
+
+				utf8leaflen = sizeof(buffer2) - utf8leaflen;
+				U4(entry->name.data = palloc(utf8leaflen, conn->pool));
+				memcpy(entry->name.data, buffer2, utf8leaflen);
+				entry->name.size = leaflen = utf8leaflen;
+			} else {
+				entry->name.data = leaf;
+				entry->name.size = leaflen;
+			}
+			entry->cookie = ((uint64_t)cookie) << 2;
+			N4(get_fattr(pathbuffer, type, load, exec, len, attr, &(args->attr_request), &(entry->attrs), conn));
+
 			bytes += 4 + ((leaflen + 3) & ~3);
 			if (bytes > args->dircount) {
 				return res->status = NFS_OK;
@@ -1034,25 +1066,6 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 			if (tbytes > args->maxcount) {
 				return res->status = NFS_OK;
 			}
-
-			utf8leaf = buffer2;
-			utf8leaflen = sizeof(buffer2);
-			if (iconv(conn->iconv->toutf8, &leaf, &leaflen, &utf8leaf, &utf8leaflen) == -1) {
-				iconv(conn->iconv->toutf8, NULL, NULL, NULL, NULL);
-				syslogf(LOGNAME, LOG_ERROR, "Error: Iconv failed (%d)", errno);
-				if (errno == E2BIG) {
-					N4(NFSERR_NAMETOOLONG);
-				} else {
-					N4(NFSERR_BADCHAR);
-				}
-			}
-
-			utf8leaflen = sizeof(buffer2) - utf8leaflen;
-			U4(entry->name.data = palloc(utf8leaflen, conn->pool));
-			memcpy(entry->name.data, buffer2, utf8leaflen);
-			entry->name.size = utf8leaflen;
-			entry->cookie = ((uint64_t)cookie) << 2;
-			N4(get_fattr(pathbuffer, type, load, exec, len, attr, &(args->attr_request), &(entry->attrs), conn));
 
 			entry->next = NULL;
 			*lastentry = entry;

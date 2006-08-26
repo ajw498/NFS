@@ -42,11 +42,21 @@ enum conn_state {
 	WRITE
 };
 
-struct iconvstate {
+struct choices {
+	char *encoding;
+	int portmapper;
+	int nfs2;
+	int nfs3;
+	int nfs4;
+	int udp;
+	int tcp;
 	iconv_t toutf8;
 	iconv_t fromutf8;
-	/* FIXME - other for NFS2/3? */
+	iconv_t toenc;
+	iconv_t fromenc;
 };
+
+extern struct choices choices;
 
 struct server_conn {
 	struct export *export;
@@ -71,7 +81,6 @@ struct server_conn {
 	int replysent;
 	int suppressreply;
 	int nfs4;
-	struct iconvstate *iconv;
 };
 
 int conn_init(void);

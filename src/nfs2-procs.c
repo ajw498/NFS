@@ -161,11 +161,33 @@ static enum nstat diropargs_to_path(struct diropargs *where, char **path, int *f
 	int len;
 	char *dirpath;
 	char buffer[MAX_PATHNAME];
-	int leaflen;
+	char *leaf = where->name.data;
+	unsigned leaflen = where->name.size;
 
 	NR(nfs2fh_to_path(&(where->dir), &dirpath, conn));
 
-	leaflen = filename_riscosify(where->name.data, where->name.size, buffer, sizeof(buffer), filetype, conn->export->defaultfiletype, conn->export->xyzext);
+	if (choices.fromenc != (iconv_t)-1) {
+		char *encleaf;
+		unsigned encleaflen;
+		static char buffer2[MAX_PATHNAME];
+
+		encleaf = buffer2;
+		encleaflen = sizeof(buffer2);
+		if (iconv(choices.fromenc, &leaf, &leaflen, &encleaf, &encleaflen) == -1) {
+			iconv(choices.fromenc, NULL, NULL, NULL, NULL);
+			syslogf(LOGNAME, LOG_ERROR, "Error: Iconv failed (%d)", errno);
+			if (errno == E2BIG) {
+				NR(NFSERR_NAMETOOLONG);
+			} else {
+				NR(NFSERR_IO);
+			}
+		}
+
+		leaf = buffer2;
+		leaflen = sizeof(buffer2) - encleaflen;
+	}
+
+	leaflen = filename_riscosify(leaf, leaflen, buffer, sizeof(buffer), filetype, conn->export->defaultfiletype, conn->export->xyzext);
 
 	len = strlen(dirpath);
 	UR(*path = palloc(len + leaflen + 2, conn->pool));
@@ -239,8 +261,31 @@ enum accept_stat NFSPROC_READDIR(struct readdirargs *args, struct readdirres *re
 			if (type == 1 || (type == 3 && conn->export->imagefs == 0)) {
 				UE(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, conn->pool));
 			}
-			entry->name.data = leaf;
-			entry->name.size = leaflen;
+			if (choices.toenc != (iconv_t)-1) {
+				char *encleaf;
+				unsigned encleaflen;
+				static char buffer2[MAX_PATHNAME];
+
+				encleaf = buffer2;
+				encleaflen = sizeof(buffer2);
+				if (iconv(choices.toenc, &leaf, &leaflen, &encleaf, &encleaflen) == -1) {
+					iconv(choices.toenc, NULL, NULL, NULL, NULL);
+					syslogf(LOGNAME, LOG_ERROR, "Error: Iconv failed (%d)", errno);
+					if (errno == E2BIG) {
+						NE(NFSERR_NAMETOOLONG);
+					} else {
+						NE(NFSERR_IO);
+					}
+				}
+
+				encleaflen = sizeof(buffer2) - encleaflen;
+				UE(entry->name.data = palloc(encleaflen, conn->pool));
+				memcpy(entry->name.data, buffer2, encleaflen);
+				entry->name.size = leaflen = encleaflen;
+			} else {
+				entry->name.data = leaf;
+				entry->name.size = leaflen;
+			}
 			entry->cookie = cookie;
 
 			bytes += 16 + ((leaflen + 3) & ~3);
