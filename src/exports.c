@@ -98,6 +98,15 @@ static struct export *parse_line(char *line, struct pool *pool)
 	}
 
 	UU(export->exportname = pstrdup(exportname, pool));
+	/* Check the export name only contains alphanumeric or _ characters,
+	   and an optional / at the start */
+	if (*exportname == '/') exportname++;
+	do {
+		if (!isalnum(*exportname) && (*exportname != '_')) {
+			syslogf(LOGNAME, LOG_SERIOUS, "Export name '%s' should only contain alphanumeric and _ characters, and optionally start with a /", export->exportname);
+			return NULL;
+		}
+	} while (*++exportname);
 
 	maskstart = strchr(host, '/');
 	if (maskstart) {
