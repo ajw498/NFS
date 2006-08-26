@@ -320,13 +320,13 @@ enum nstat fh_to_path(char *fhandle, int fhandlelen, char **path, struct server_
 					index = *fh++;
 					fhremain--;
 				}
-				if (pathentry == NULL) return NFSERR_STALE;
+				if (pathentry == NULL) return conn->nfs4 ? NFSERR_FHEXPIRED : NFSERR_STALE;
 				while (index >= PATHENTRIES) {
 					pathentry = pathentry[PATHENTRIES].next;
-					if (pathentry == NULL) return NFSERR_STALE;
+					if (pathentry == NULL) return conn->nfs4 ? NFSERR_FHEXPIRED : NFSERR_STALE;
 					index -= PATHENTRIES;
 				}
-				if (pathentry[index].name == NULL) return NFSERR_STALE;
+				if (pathentry[index].name == NULL) return conn->nfs4 ? NFSERR_FHEXPIRED : NFSERR_STALE;
 				namelen = strlen(pathentry[index].name);
 				if (pathremain < namelen + 2) return NFSERR_NAMETOOLONG;
 				pathremain -= namelen + 1;

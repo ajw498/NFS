@@ -313,12 +313,7 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 	filetype = (load & 0xFFF00000) ? ((load & 0x000FFF00) >> 8) : 0xFFD;
 
 	if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
-	if (type == OBJ_NONE) {
-		return NFSERR_NOENT;
-/*	} else { FIXME
-		int ftype = (load & 0x000FFF00) >> 8;
-		if ((type == OBJ_FILE) && (filetype != -1) && (filetype != ftype)) return NFSERR_NOENT;*/
-	}
+	if (type == OBJ_NONE) return NFSERR_NOENT;
 
 	if ((args->size >= 2) && (args->data[1] &
 	                          ((1LL << FATTR4_SPACE_AVAIL) |
@@ -373,9 +368,9 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					break;
 				}
 				case FATTR4_FH_EXPIRE_TYPE: {
-					uint32_t fhtype = FH4_PERSISTENT;
+					uint32_t fhtype = FH4_VOLATILE_ANY;
 					setattrmask();
-					process_uint32(OUTPUT, fhtype);/*FIXME*/
+					process_uint32(OUTPUT, fhtype);
 					break;
 				}
 				case FATTR4_CHANGE: {
