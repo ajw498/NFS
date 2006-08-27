@@ -78,9 +78,9 @@ struct export *parse_exports_file(struct pool *pool);
 
 int calc_fileid(char *path, char *leaf);
 
-enum nstat fh_to_path(char *fhandle, int fhandlelen, char **path, struct server_conn *conn);
+nstat fh_to_path(char *fhandle, int fhandlelen, char **path, struct server_conn *conn);
 
-enum nstat path_to_fh(char *path, char **fhandle, unsigned int *fhandlelen, struct server_conn *conn);
+nstat path_to_fh(char *path, char **fhandle, unsigned int *fhandlelen, struct server_conn *conn);
 
 #endif
 

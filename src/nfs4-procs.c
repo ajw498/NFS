@@ -51,19 +51,19 @@ enum accept_stat nfs4_decode_proc(int proc, struct server_conn *conn)
 		conn->export = conn->exports;
 		conn->nfs4 = 1;
 
-		process_COMPOUND4args(INPUT, args);
+		if (process_COMPOUND4args(INPUT, &args, conn->pool)) return GARBAGE_ARGS;
 		res.status = NFS_OK;
 		res.tag = args.tag;
 		res.numres = args.numargs;
-		process_COMPOUND4res(OUTPUT, res);
+		if (process_COMPOUND4res(OUTPUT, &res, conn->pool)) return GARBAGE_ARGS;
 		res.numres = 0;
 		while (args.numargs-- > 0) {
 			int compoundproc;
 			nstat stat;
 
-			process_int(INPUT, compoundproc);
+			if (process_int(INPUT, &compoundproc, conn->pool)) return GARBAGE_ARGS;
 			if (args.minorversion == 0) {
-				process_int(OUTPUT, compoundproc);
+				if (process_int(OUTPUT, &compoundproc, conn->pool)) return GARBAGE_ARGS;
 				stat = nfs4_decode(compoundproc, conn);
 			} else {
 				stat = NFSERR_MINOR_VERS_MISMATCH;
@@ -77,7 +77,7 @@ enum accept_stat nfs4_decode_proc(int proc, struct server_conn *conn)
 				char *endobuf = obuf;
 				res.status = stat;
 				obuf = initobuf;
-				process_COMPOUND4res(OUTPUT, res);
+				if (process_COMPOUND4res(OUTPUT, &res, conn->pool)) return GARBAGE_ARGS;
 				args.numargs = 0;
 				obuf = endobuf;
 			}
@@ -87,9 +87,6 @@ enum accept_stat nfs4_decode_proc(int proc, struct server_conn *conn)
 	}
 
 	return PROC_UNAVAIL;
-
-buffer_overflow:
-	return GARBAGE_ARGS;
 }
 
 nstat NFS4_ACCESS(ACCESS4args *args, ACCESS4res *res, struct server_conn *conn)
@@ -306,7 +303,7 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 	int i;
 	int j;
 	int filetype;
-	enum nstat ret = NFS_OK;
+	nstat ret = NFS_OK;
 
 	UR(attrdata = palloc(ATTRSIZE, conn->pool));
 
@@ -358,19 +355,19 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					                     (1ULL << FATTR4_SPACE_TOTAL) | (1ULL << FATTR4_SPACE_USED) | (1ULL << FATTR4_TIME_DELTA) | (1ULL << FATTR4_TIME_MODIFY)) >> 32);
 					bitmap.data = list;
 					bitmap.size = 2;
-					process_array(OUTPUT, bitmap, uint32_t, 2);
+					if (process_bitmap4(OUTPUT, &bitmap, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_TYPE: {
 					nfs_ftype4 ftype = type == OBJ_FILE ? NF4REG : NF4DIR;
 					setattrmask();
-					process_nfs_ftype4(OUTPUT, ftype);
+					if (process_nfs_ftype4(OUTPUT, &ftype, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_FH_EXPIRE_TYPE: {
 					uint32_t fhtype = FH4_VOLATILE_ANY;
 					setattrmask();
-					process_uint32(OUTPUT, fhtype);
+					if (process_uint32(OUTPUT, &fhtype, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_CHANGE: {
@@ -382,76 +379,92 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					} else {
 						change = ((uint64_t)load << 32) | exec;
 					}
-					process_uint64(OUTPUT, change);
+					if (process_uint64(OUTPUT, &change, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_SIZE: {
 					uint64_t size = (uint64_t)len;
 					if (type == OBJ_DIR) break;
 					setattrmask();
-					process_uint64(OUTPUT, size);
+					if (process_uint64(OUTPUT, &size, conn->pool)) goto buffer_overflow;
 					break;
 				}
-				case FATTR4_LINK_SUPPORT:
+				case FATTR4_LINK_SUPPORT: {
+					bool link = false;
 					setattrmask();
-					process_bool(OUTPUT, false);
+					if (process_bool(OUTPUT, &link, conn->pool)) goto buffer_overflow;
 					break;
-				case FATTR4_SYMLINK_SUPPORT:
+				}
+				case FATTR4_SYMLINK_SUPPORT: {
+					bool symlink = false;
 					setattrmask();
-					process_bool(OUTPUT, false);
+					if (process_bool(OUTPUT, &symlink, conn->pool)) goto buffer_overflow;
 					break;
-				case FATTR4_NAMED_ATTR:
+				}
+				case FATTR4_NAMED_ATTR: {
+					bool named = false;
 					setattrmask();
-					process_bool(OUTPUT, false);
+					if (process_bool(OUTPUT, &named, conn->pool)) goto buffer_overflow;
 					break;
+				}
 				case FATTR4_FSID: {
 					fsid4 id;
 					setattrmask();
 					id.major = conn->export->exportnum;
 					id.minor = 0;
-					process_fsid4(OUTPUT, id);
+					if (process_fsid4(OUTPUT, &id, conn->pool)) goto buffer_overflow;
 					break;
 				}
-				case FATTR4_UNIQUE_HANDLES:
+				case FATTR4_UNIQUE_HANDLES: {
+					bool unique = true;
 					setattrmask();
-					process_bool(OUTPUT, true);
+					if (process_bool(OUTPUT, &unique, conn->pool)) goto buffer_overflow;
 					break;
+				}
 				case FATTR4_LEASE_TIME: {
 					uint32_t lease = LEASE_TIMEOUT;
 					setattrmask();
-					process_uint32(OUTPUT, lease);
+					if (process_uint32(OUTPUT, &lease, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_FILEHANDLE: {
 					nfs_fh4 fh = {NULL, NFS4_FHSIZE};
 					setattrmask();
 					if ((ret = path_to_fh(path, &(fh.data), &(fh.size), conn)) != NFS_OK) goto failure;
-					process_nfs_fh4(OUTPUT, fh);
+					if (process_nfs_fh4(OUTPUT, &fh, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				/* Recommended attributes */
 				case FATTR4_ACLSUPPORT: {
 					uint32_t aclsupport = 0;
 					setattrmask();
-					process_uint32(OUTPUT, aclsupport);
+					if (process_uint32(OUTPUT, &aclsupport, conn->pool)) goto buffer_overflow;
 					break;
 				}
-				case FATTR4_CANSETTIME:
+				case FATTR4_CANSETTIME: {
+					bool canset = true;
 					setattrmask();
-					process_bool(OUTPUT, true);
+					if (process_bool(OUTPUT, &canset, conn->pool)) goto buffer_overflow;
 					break;
-				case FATTR4_CASE_INSENSITIVE:
+				}
+				case FATTR4_CASE_INSENSITIVE: {
+					bool insensitive = true;
 					setattrmask();
-					process_bool(OUTPUT, true);
+					if (process_bool(OUTPUT, &insensitive, conn->pool)) goto buffer_overflow;
 					break;
-				case FATTR4_CASE_PRESERVING:
+				}
+				case FATTR4_CASE_PRESERVING: {
+					bool preserving = true;
 					setattrmask();
-					process_bool(OUTPUT, true);
+					if (process_bool(OUTPUT, &preserving, conn->pool)) goto buffer_overflow;
 					break;
-				case FATTR4_CHOWN_RESTRICTED:
+				}
+				case FATTR4_CHOWN_RESTRICTED: {
+					bool restricted = false;
 					setattrmask();
-					process_bool(OUTPUT, false);
+					if (process_bool(OUTPUT, &restricted, conn->pool)) goto buffer_overflow;
 					break;
+				}
 				case FATTR4_FILEID: {
 					/* Strictly we shouldn't be providing
 					   this, as it cannot be guaranteed
@@ -461,35 +474,37 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					   missing. */
 					uint64_t fileid = calc_fileid(path, NULL);
 					setattrmask();
-					process_uint64(OUTPUT, fileid);
+					if (process_uint64(OUTPUT, &fileid, conn->pool)) goto buffer_overflow;
 					break;
 				}
-				case FATTR4_HOMOGENEOUS:
+				case FATTR4_HOMOGENEOUS: {
+					bool homogeneous = true;
 					setattrmask();
-					process_bool(OUTPUT, true);
+					if (process_bool(OUTPUT, &homogeneous, conn->pool)) goto buffer_overflow;
 					break;
+				}
 				case FATTR4_MAXFILESIZE: {
 					uint64_t size = 0x7FFFFFFFLL;
 					setattrmask();
-					process_uint64(OUTPUT, size);
+					if (process_uint64(OUTPUT, &size, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_MAXNAME: {
 					uint32_t size = MAX_PATHNAME;
 					setattrmask();
-					process_uint32(OUTPUT, size);
+					if (process_uint32(OUTPUT, &size, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_MAXREAD: {
 					uint64_t size = conn->tcp ? MAX_DATABUFFER : conn->export->udpsize;
 					setattrmask();
-					process_uint64(OUTPUT, size);
+					if (process_uint64(OUTPUT, &size, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_MAXWRITE: {
 					uint64_t size = conn->tcp ? MAX_DATABUFFER : conn->export->udpsize;
 					setattrmask();
-					process_uint64(OUTPUT, size);
+					if (process_uint64(OUTPUT, &size, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_MIMETYPE: {
@@ -498,7 +513,7 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					mimetype.data = filetype_to_mimetype(filetype, conn->pool);
 					if (mimetype.data == NULL) goto buffer_overflow;
 					mimetype.size = strlen(mimetype.data);
-					process_array(OUTPUT, mimetype, char, mimetype.size);
+					if (process_fattr4_mimetype(OUTPUT, &mimetype, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_MODE: {
@@ -514,13 +529,15 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					if (type == OBJ_DIR) mode |= (mode & 0444) >> 2;
 					/* Remove bits requested by the umask */
 					mode &= ~conn->export->umask;
-					process_mode4(OUTPUT, mode);
+					if (process_mode4(OUTPUT, &mode, conn->pool)) goto buffer_overflow;
 					break;
 				}
-				case FATTR4_NO_TRUNC:
+				case FATTR4_NO_TRUNC: {
+					bool trunc = true;
 					setattrmask();
-					process_bool(OUTPUT, true);
+					if (process_bool(OUTPUT, &trunc, conn->pool)) goto buffer_overflow;
 					break;
+				}
 				case FATTR4_OWNER: {
 					char str[10];
 					fattr4_owner owner;
@@ -528,7 +545,7 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					snprintf(str, sizeof(str), "%d", conn->uid);
 					owner.data = str;
 					owner.size = strlen(str);
-					process_array(OUTPUT, owner, char, owner.size);
+					if (process_fattr4_owner(OUTPUT, &owner, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_OWNER_GROUP: {
@@ -538,27 +555,27 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					snprintf(str, sizeof(str), "%d", conn->gid);
 					group.data = str;
 					group.size = strlen(str);
-					process_array(OUTPUT, group, char, group.size);
+					if (process_fattr4_owner_group(OUTPUT, &group, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_SPACE_AVAIL:
 				case FATTR4_SPACE_FREE: {
 					uint64_t space = ((uint64_t)freehi << 32) | freelo;
 					setattrmask();
-					process_uint64(OUTPUT, space);
+					if (process_uint64(OUTPUT, &space, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_SPACE_TOTAL: {
 					uint64_t space = ((uint64_t)freehi << 32) | freelo;
 					setattrmask();
-					process_uint64(OUTPUT, space);
+					if (process_uint64(OUTPUT, &space, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_SPACE_USED: {
 					uint64_t size = (uint64_t)len;
 					if (type == OBJ_DIR) break;
 					setattrmask();
-					process_uint64(OUTPUT, size);
+					if (process_uint64(OUTPUT, &size, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_TIME_DELTA: {
@@ -566,14 +583,16 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					setattrmask();
 					delta.seconds = 0;
 					delta.nseconds = 10000000;
-					process_nfstime4(OUTPUT, delta);
+					if (process_nfstime4(OUTPUT, &delta, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_TIME_MODIFY: {
 					nfstime4 mtime;
+					unsigned seconds;
 					setattrmask();
-					loadexec_to_timeval(load, exec, ((struct ntimeval *)&mtime));
-					process_nfstime4(OUTPUT, mtime);
+					loadexec_to_timeval(load, exec, &seconds, &(mtime.nseconds), 0);
+					mtime.seconds = (uint64_t)seconds;
+					if (process_nfstime4(OUTPUT, &mtime, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_TIME_ACCESS_SET:
@@ -646,14 +665,14 @@ static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn
 				/* Mandatory attributes */
 				case FATTR4_TYPE: {
 					nfs_ftype4 ftype;
-					process_nfs_ftype4(INPUT, ftype);
+					if (process_nfs_ftype4(INPUT, &ftype, conn->pool)) goto buffer_overflow;
 					differ |= ftype != (type == OBJ_FILE ? NF4REG : NF4DIR);
 					break;
 				}
 				case FATTR4_CHANGE: {
 					uint64_t change;
 					uint64_t newchange;
-					process_uint64(INPUT, change);
+					if (process_uint64(INPUT, &change, conn->pool)) goto buffer_overflow;
 					if (type == OBJ_DIR) {
 						newchange = changeid;
 						changeid++;
@@ -666,19 +685,19 @@ static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn
 				case FATTR4_SPACE_USED:
 				case FATTR4_SIZE: {
 					uint64_t size;
-					process_uint64(INPUT, size);
+					if (process_uint64(INPUT, &size, conn->pool)) goto buffer_overflow;
 					differ |= (uint64_t)len != size;
 					break;
 				}
 				case FATTR4_NAMED_ATTR: {
 					bool attr;
-					process_bool(INPUT, attr);
+					if (process_bool(INPUT, &attr, conn->pool)) goto buffer_overflow;
 					differ |= attr != FALSE;
 					break;
 				}
 				case FATTR4_FSID: {
 					fsid4 id;
-					process_fsid4(INPUT, id);
+					if (process_fsid4(INPUT, &id, conn->pool)) goto buffer_overflow;
 					differ |= id.major != conn->export->exportnum;
 					differ |= id.minor != 0;
 					break;
@@ -687,7 +706,7 @@ static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn
 					nfs_fh4 fh = {NULL, NFS4_FHSIZE};
 					nfs_fh4 fh2 = {NULL, NFS4_FHSIZE};
 					NR(path_to_fh(path, &(fh.data), &(fh.size), conn));
-					process_nfs_fh4(INPUT, fh2);
+					if (process_nfs_fh4(INPUT, &fh2, conn->pool)) goto buffer_overflow;
 					if (fh.size == fh2.size) {
 						differ |= memcmp(fh.data, fh2.data, fh.size);
 					} else {
@@ -699,7 +718,7 @@ static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn
 				case FATTR4_MIMETYPE: {
 					fattr4_mimetype mimetype;
 					char *mimetype2 = filetype_to_mimetype(filetype, conn->pool);
-					process_array(INPUT, mimetype, char, mimetype.size);
+					if (process_fattr4_mimetype(INPUT, &mimetype, conn->pool)) goto buffer_overflow;
 					if (mimetype.size == strlen(mimetype2)) {
 						differ |= memcmp(mimetype2, mimetype.data, mimetype.size);
 					} else {
@@ -720,7 +739,7 @@ static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn
 					if (type == OBJ_DIR) mode |= (mode & 0444) >> 2;
 					/* Remove bits requested by the umask */
 					mode &= ~conn->export->umask;
-					process_mode4(INPUT, mode2);
+					if (process_mode4(INPUT, &mode2, conn->pool)) goto buffer_overflow;
 					differ |= mode != mode2;
 					break;
 				}
@@ -728,7 +747,7 @@ static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn
 					char str[10];
 					fattr4_owner owner;
 					snprintf(str, sizeof(str), "%d", conn->uid);
-					process_array(INPUT, owner, char, owner.size);
+					if (process_fattr4_owner(INPUT, &owner, conn->pool)) goto buffer_overflow;
 					if (owner.size == strlen(str)) {
 						differ |= memcmp(str, owner.data, owner.size);
 					} else {
@@ -740,7 +759,7 @@ static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn
 					char str[10];
 					fattr4_owner_group group;
 					snprintf(str, sizeof(str), "%d", conn->gid);
-					process_array(INPUT, group, char, group.size);
+					if (process_fattr4_owner_group(INPUT, &group, conn->pool)) goto buffer_overflow;
 					if (group.size == strlen(str)) {
 						differ |= memcmp(str, group.data, group.size);
 					} else {
@@ -751,8 +770,10 @@ static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn
 				case FATTR4_TIME_MODIFY: {
 					nfstime4 mtime;
 					nfstime4 mtime2;
-					loadexec_to_timeval(load, exec, ((struct ntimeval *)&mtime));
-					process_nfstime4(INPUT, mtime2);
+					unsigned seconds;
+					loadexec_to_timeval(load, exec, &seconds, &(mtime.nseconds), 0);
+					mtime.seconds = (uint64_t)seconds;
+					if (process_nfstime4(INPUT, &mtime2, conn->pool)) goto buffer_overflow;
 					differ |= mtime.seconds != mtime2.seconds;
 					differ |= mtime.nseconds != mtime2.nseconds;
 					break;
@@ -816,7 +837,7 @@ static nstat set_fattr(char *path, struct stateid *stateid, fattr4 *args, bitmap
 					uint64_t fsize;
 					if (type == OBJ_DIR) break;
 					setfattrmask();
-					process_uint64(INPUT, fsize);
+					if (process_uint64(INPUT, &fsize, conn->pool)) goto buffer_overflow;
 					if (fsize > 0x7FFFFFFFULL) return NFSERR_FBIG;
 					setsize = 1;
 					size = (int)fsize;
@@ -825,54 +846,54 @@ static nstat set_fattr(char *path, struct stateid *stateid, fattr4 *args, bitmap
 				/* Recommended attributes */
 				case FATTR4_ACL: {
 					fattr4_acl acltmp;
-					process_array2(INPUT, acltmp, nfsace4, OPAQUE_MAX);
+					if (process_fattr4_acl(INPUT, &acltmp, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_ARCHIVE:
 				case FATTR4_HIDDEN:
 				case FATTR4_SYSTEM: {
 					bool flagtmp;
-					process_bool(INPUT, flagtmp);
+					if (process_bool(INPUT, &flagtmp, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_MIMETYPE:
 				case FATTR4_OWNER:
 				case FATTR4_OWNER_GROUP: {
 					fattr4_owner_group grptmp;
-					process_array2(INPUT, grptmp, char, OPAQUE_MAX);
+					if (process_fattr4_owner_group(INPUT, &grptmp, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_TIME_ACCESS_SET: {
 					settime4 timetmp;
-					process_settime4(INPUT, timetmp);
+					if (process_settime4(INPUT, &timetmp, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_TIME_BACKUP: {
 					settime4 timetmp;
-					process_settime4(INPUT, timetmp);
+					if (process_settime4(INPUT, &timetmp, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_MODE: {
 					mode4 mode;
 					setfattrmask();
-					process_mode4(INPUT, mode);
+					if (process_mode4(INPUT, &mode, conn->pool)) goto buffer_overflow;
 					if (!sizeonly) attr = mode_to_attr(mode);
 					break;
 				}
 				case FATTR4_TIME_CREATE: {
 					nfstime4 mtime;
 					setfattrmask();
-					process_nfstime4(INPUT, mtime);
-					if (!sizeonly) timeval_to_loadexec((struct ntimeval *)&mtime, filetype, &load, &exec);
+					if (process_nfstime4(INPUT, &mtime, conn->pool)) goto buffer_overflow;
+					if (!sizeonly) timeval_to_loadexec((unsigned)mtime.seconds, mtime.nseconds, filetype, &load, &exec, 0);
 					break;
 				}
 				case FATTR4_TIME_MODIFY_SET: {
 					settime4 settime;
 					setfattrmask();
-					process_settime4(INPUT, settime);
+					if (process_settime4(INPUT, &settime, conn->pool)) goto buffer_overflow;
 					if (!sizeonly) {
 						if (settime.set_it == SET_TO_CLIENT_TIME4) {
-							timeval_to_loadexec((struct ntimeval *)&(settime.u.time), filetype, &load, &exec);
+							timeval_to_loadexec((unsigned)settime.u.time.seconds, settime.u.time.nseconds, filetype, &load, &exec, 0);
 						} else {
 							unsigned int block[2];
 							block[0] = 3;

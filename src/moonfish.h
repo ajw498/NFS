@@ -91,7 +91,7 @@ extern int logging;
 } while (0)
 
 #define NR(x) do { \
-	enum nstat status = x; \
+	nstat status = x; \
 	if (status != NFS_OK) return status; \
 } while (0)
 

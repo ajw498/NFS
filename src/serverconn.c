@@ -42,8 +42,7 @@
 
 
 #include "rpc-structs.h"
-#include "rpc-process1.h"
-#include "rpc-process2.h"
+#include "rpc-process.h"
 
 #include "portmapper-decode.h"
 #include "mount1-decode.h"

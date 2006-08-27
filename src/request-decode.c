@@ -40,8 +40,7 @@
 #include <stdarg.h>
 
 #include "rpc-structs.h"
-#include "rpc-process1.h"
-#include "rpc-process2.h"
+#include "rpc-process.h"
 
 #include "moonfish.h"
 #include "utils.h"
@@ -67,16 +66,14 @@ static void init_output(struct server_conn *conn)
 	/* Leave room for the record marker */
 	if (conn->tcp) obuf += 4;
 
-	process_rpc_msg(OUTPUT, reply_header);
-buffer_overflow:
-	return;
+	process_rpc_msg(OUTPUT, &reply_header, conn->pool);
 }
 
 void request_decode(struct server_conn *conn)
 {
 	ibuf = conn->request;
 	ibufend = ibuf + conn->requestlen;
-	process_rpc_msg(INPUT, call_header);
+	if (process_rpc_msg(INPUT, &call_header, conn->pool)) goto buffer_overflow;
 	reply_header.xid = call_header.xid;
 	reply_header.body.mtype = REPLY;
 
@@ -105,7 +102,7 @@ void request_decode(struct server_conn *conn)
 
 			ibuf = call_header.body.u.cbody.cred.body.data;
 			ibufend = ibuf + call_header.body.u.cbody.cred.body.size;
-			process_auth_unix(INPUT, auth);
+			if (process_auth_unix(INPUT, &auth, conn->pool)) goto buffer_overflow;
 			ibuf = oldibuf;
 			ibufend = oldibufend;
 
@@ -141,7 +138,7 @@ void request_decode(struct server_conn *conn)
 		unsigned recordmarker = 0x80000000 | (conn->replylen - 4);
 		obuf = conn->reply;
 		obufend = obuf + 4;
-		process_unsigned(OUTPUT, recordmarker);
+		process_unsigned(OUTPUT, &recordmarker, conn->pool);
 	}
 
 	return;

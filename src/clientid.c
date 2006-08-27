@@ -49,7 +49,7 @@ struct clientid {
 static unsigned nextclientid = 0;
 static struct clientid *clients = NULL;
 
-enum nstat clientid_setclientid(char *cid, int cidlen, char *clientverf, uint64_t *clientid)
+nstat clientid_setclientid(char *cid, int cidlen, char *clientverf, uint64_t *clientid)
 {
 	struct clientid *confirmed = NULL;
 	struct clientid *unconfirmed = NULL;
@@ -109,7 +109,7 @@ enum nstat clientid_setclientid(char *cid, int cidlen, char *clientverf, uint64_
 	return NFS_OK;
 }
 
-enum nstat clientid_setclientidconfirm(uint64_t clientid)
+nstat clientid_setclientidconfirm(uint64_t clientid)
 {
 	struct clientid *confirmed = NULL;
 	struct clientid *unconfirmed = NULL;
@@ -178,7 +178,7 @@ enum nstat clientid_setclientidconfirm(uint64_t clientid)
 	return NFS_OK;
 }
 
-enum nstat clientid_renew(uint64_t clientid)
+nstat clientid_renew(uint64_t clientid)
 {
 	struct clientid *id = clients;
 

@@ -215,10 +215,8 @@ static os_error *create_auth(struct conn_info *conn)
 
 	obuf = conn->auth;
 	obufend = conn->auth + conn->authsize;
-	process_auth_unix(0, auth_unix);
+	process_auth_unix(OUTPUT, &auth_unix, conn->pool);
 	conn->authsize = obuf - conn->auth;
-
-buffer_overflow: /* Should never occur */
 	return NULL;
 }
 

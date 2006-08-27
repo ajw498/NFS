@@ -15,16 +15,13 @@ const MNTPATHLEN = 1024;  /* Maximum bytes in a path name */
 const MNTNAMLEN  = 255;   /* Maximum bytes in a name */
 const FHSIZE3    = 64;    /* Maximum bytes in a V3 file handle */
 
-#ifndef NFS_FH
-#define NFS_FH
-struct nfs_fh {
+struct nfs_fhm3 {
    opaque       data<FHSIZE3>;
 };
-#endif
 
 /*typedef opaque fhandle3<FHSIZE3>;*/
-typedef opaque dirpath<MNTPATHLEN>;
-typedef opaque name<MNTNAMLEN>;
+typedef opaque dirpath3<MNTPATHLEN>;
+typedef opaque name3<MNTNAMLEN>;
 
 enum mountstat3 {
    MNT3_OK = 0,                 /* no error */
@@ -43,58 +40,58 @@ enum mountstat3 {
 void MOUNTPROC3_NULL(void) = 0;
 
 struct mountres3_ok {
-        nfs_fh fhandle;
+        nfs_fhm3 fhandle;
         unsigned auth_flavours<>;
 };
 
-union mountres switch (mountstat3 status) {
+union mountres3 switch (mountstat3 status) {
 case MNT3_OK:
      mountres3_ok mountinfo;
 default:
      void;
 };
 
-struct mountargs {
-        dirpath dirpath;
+struct mountargs3 {
+        dirpath3 dirpath;
 };
 
-mountres MOUNTPROC3_MNT(mountargs) = 1;
+mountres3 MOUNTPROC3_MNT(mountargs3) = 1;
 
 
-struct *mountlist {
-        name hostname;
-        dirpath directory;
-        mountlist *next;
+struct *mountlist3 {
+        name3 hostname;
+        dirpath3 directory;
+        mountlist3 *next;
 };
 
-struct mountlist2 {
-        mountlist *list;
+struct mountlist32 {
+        mountlist3 *list;
 };
 
-mountlist2 MOUNTPROC3_DUMP(void) = 2;
+mountlist32 MOUNTPROC3_DUMP(void) = 2;
 
 
-void MOUNTPROC3_UMNT(mountargs) = 3;
+void MOUNTPROC3_UMNT(mountargs3) = 3;
 
 void MOUNTPROC3_UMNTALL(void) = 4;
 
 
-struct *groups {
-        name grname;
-        groups *next;
+struct *groups3 {
+        name3 grname;
+        groups3 *next;
 };
 
-struct *exportlist {
-        dirpath filesys;
-        groups *groups;
-        exportlist *next;
+struct *exportlist3 {
+        dirpath3 filesys;
+        groups3 *groups;
+        exportlist3 *next;
 };
 
-struct exportlist2 {
-	exportlist *list;
+struct exportlist32 {
+	exportlist3 *list;
 };
 
-exportlist2 MOUNTPROC3_EXPORT(void) = 5;
+exportlist32 MOUNTPROC3_EXPORT(void) = 5;
 
 
 

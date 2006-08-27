@@ -32,7 +32,7 @@ enum accept_stat MOUNTPROC3_NULL(struct server_conn *conn)
 	return SUCCESS;
 }
 
-enum accept_stat MOUNTPROC3_MNT(struct mountargs *args, struct mountres *res, struct server_conn *conn)
+enum accept_stat MOUNTPROC3_MNT(struct mountargs3 *args, struct mountres3 *res, struct server_conn *conn)
 {
 	struct export *export;
 
@@ -73,9 +73,9 @@ enum accept_stat MOUNTPROC3_MNT(struct mountargs *args, struct mountres *res, st
 	return SUCCESS;
 }
 
-enum accept_stat MOUNTPROC3_DUMP(struct mountlist2 *res, struct server_conn *conn)
+enum accept_stat MOUNTPROC3_DUMP(struct mountlist32 *res, struct server_conn *conn)
 {
-	struct mountlist *mounts = NULL;
+	struct mountlist3 *mounts = NULL;
 	struct export *export = conn->exports;
 
 	while (export) {
@@ -83,9 +83,9 @@ enum accept_stat MOUNTPROC3_DUMP(struct mountlist2 *res, struct server_conn *con
 
 		for (i = 0; i < MAXHOSTS; i++) {
 			if ((export->exportnum > 0) && (export->hosts[i] != 0)) {
-				struct mountlist *mount;
+				struct mountlist3 *mount;
 
-				mount = palloc(sizeof(struct mountlist), conn->pool);
+				mount = palloc(sizeof(struct mountlist3), conn->pool);
 				if (mount == NULL) break;
 				mount->hostname.data = host_to_str(export->hosts[i], conn->pool);
 				if (mount->hostname.data == NULL) break;
@@ -103,7 +103,7 @@ enum accept_stat MOUNTPROC3_DUMP(struct mountlist2 *res, struct server_conn *con
 	return SUCCESS;
 }
 
-enum accept_stat MOUNTPROC3_UMNT(struct mountargs *args, struct server_conn *conn)
+enum accept_stat MOUNTPROC3_UMNT(struct mountargs3 *args, struct server_conn *conn)
 {
 	int i;
 	struct export *export = conn->exports;
@@ -141,16 +141,16 @@ enum accept_stat MOUNTPROC3_UMNTALL(struct server_conn *conn)
 	return SUCCESS;
 }
 
-enum accept_stat MOUNTPROC3_EXPORT(struct exportlist2 *res, struct server_conn *conn)
+enum accept_stat MOUNTPROC3_EXPORT(struct exportlist32 *res, struct server_conn *conn)
 {
 	struct export *export = conn->exports;
 
 	res->list = NULL;
 	while (export) {
 		if (export->exportnum > 0) {
-			struct exportlist *list;
+			struct exportlist3 *list;
 
-			list = palloc(sizeof(struct exportlist), conn->pool);
+			list = palloc(sizeof(struct exportlist3), conn->pool);
 			if (list == NULL) return SUCCESS;
 
 			list->filesys.data = export->exportname;

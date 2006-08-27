@@ -22,15 +22,15 @@ const FHSIZE = 32;
 
 #ifndef NFS_FH
 #define NFS_FH
-typedef opaque fhdata[FHSIZE];
+typedef opaque fhdata1[FHSIZE];
 
-struct nfs_fh {
-   fhdata data;
+struct nfs_fh1 {
+   fhdata1 data;
 };
 #endif
 
 struct mountres_ok {
-        nfs_fh fhandle;
+        nfs_fh1 fhandle;
 };
 
 union mountres switch (unsigned status) {

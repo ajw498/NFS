@@ -27,13 +27,13 @@ my $state = "none";
 my $name = "";
 my $spectype = shift @ARGV;
 my $firstcase;
-my $llcount = 0;
 my $prevstate = "none";
 my $unionfields = 0;
 my $rettype = ($spectype eq "nfs4") ? "nstat" : "enum accept_stat";
 
-open(PROCS,  ">auto/$spectype-process1.h") or die $^E;
-open(UNIONS, ">auto/$spectype-process2.h") or die $^E;
+open(PROCS,  ">auto/$spectype-process.h") or die $^E;
+open(PROCSC, ">auto/$spectype-process1.c") or die $^E;
+open(UNIONSC,">auto/$spectype-process2.c") or die $^E;
 open(STRUCTS,">auto/$spectype-structs.h") or die $^E;
 open(CALLS,  ">auto/$spectype-calls.c") or die $^E;
 open(CALLSH, ">auto/$spectype-calls.h") or die $^E;
@@ -46,7 +46,11 @@ open(RECVPROCSH,  ">auto/$spectype-procs.h") or die $^E;
 my $header = "/* Automatically generated */\n\n";
 
 print PROCS   $header;
-print UNIONS  $header;
+print PROCS   "#include \"$spectype-structs.h\"\n\n";
+print PROCSC  $header;
+print PROCSC  "#include \"$spectype-process.h\"\n\n";
+print UNIONSC $header;
+print UNIONSC  "#include \"$spectype-process.h\"\n\n";
 print STRUCTS $header;
 print STRUCTS "#ifndef ${spectype}_structs_h\n";
 print STRUCTS "#define ${spectype}_structs_h\n\n";
@@ -58,8 +62,7 @@ print CALLSH  "#ifndef ${spectype}_calls_h\n";
 print CALLSH  "#define ${spectype}_calls_h\n\n";
 print CALLSH  "#include <sys/types.h>\n";
 print CALLSH  "#include \"$spectype-structs.h\"\n";
-print CALLSH  "#include \"$spectype-process1.h\"\n";
-print CALLSH  "#include \"$spectype-process2.h\"\n\n";
+print CALLSH  "#include \"$spectype-process.h\"\n";
 print CALLSH  "#include \"rpc.h\"\n";
 
 print RECV   $header;
@@ -76,8 +79,7 @@ print RECVPROCSH   $header;
 print RECVPROCSH  "#include <sys/types.h>\n";
 print RECVPROCSH  "#include \"rpc-structs.h\"\n";
 print RECVPROCSH  "#include \"$spectype-structs.h\"\n";
-print RECVPROCSH  "#include \"$spectype-process1.h\"\n";
-print RECVPROCSH  "#include \"$spectype-process2.h\"\n\n";
+print RECVPROCSH  "#include \"$spectype-process.h\"\n";
 print RECVPROCSH  "#include \"request-decode.h\"\n";
 
 print RECVH   $header;
@@ -90,7 +92,7 @@ print RECV2H  "#include <sys/types.h>\n";
 print RECV2H  "#include \"rpc-structs.h\"\n\n";
 print RECV2H  "#include \"serverconn.h\"\n\n";
 
-$structbase = "structbase.";
+$structbase = "structbase";
 
 $line = 0;
 
@@ -106,39 +108,43 @@ while (<>) {
     if (/\}\;*/) {
       if ($state eq "union") {
         print STRUCTS "} u;\n} $name;\n";
-        print UNIONS "}} while (0)\n\n";
+        print UNIONSC "}\nreturn 0;\n}\n\n";
       } elsif ($state eq "linklist") {
         print STRUCTS "} *$name;\n";
-        print PROCS "ptr$llcount = &((*ptr$llcount)->next);\\\n";
-        print PROCS "}\\\n";
-        print PROCS "} while (opted);\\\n";
-        print PROCS "if (input) {\\\n";
-        print PROCS "*ptr$llcount = NULL;\\\n";
-        print PROCS "}\\\n";
-        $structbase = "structbase.";
+        print PROCSC "structbase = &((*structbase)->next);\n";
+        print PROCSC "}\n";
+        print PROCSC "} while (opted);\n";
+        print PROCSC "if (input) {\n";
+        print PROCSC "*structbase = NULL;\n";
+        print PROCSC "}\n";
       } else {
         print STRUCTS "} $name;\n";
       }
-      print PROCS "} while (0)\n#endif\n\n";
+      print PROCSC "return 0;\n}\n\n";
+      $structbase = "";
       $state = "none";
     } elsif (/\}.+\;/) {
       die "struct/union instance: $_";
     } elsif (/case +(\w*)\: *$/) {
-      print UNIONS "break;\\\n" if (!$firstcase);
-      print UNIONS "case $1:\\\n";
-      print UNIONS "process_union_body_${name}_$1(input,${structbase}u);\\\n";
-      print PROCS "} while (0)\n#endif\n" if (!$firstcase);
-      print PROCS "#ifndef process_union_body_${name}_$1\n";
-      print PROCS "#define process_union_body_${name}_$1(input,structbase) do {\\\n";
+      print UNIONSC "break;\n" if (!$firstcase);
+      print UNIONSC "case $1:\n";
+      print UNIONSC "PR(process_union_body_${name}_$1(input, structbase, pool));\n";
+      print PROCSC "return 0;\n}\n\n" if (!$firstcase);
+      print PROCS  "int process_union_body_${name}_$1(int input, $name *structbase, struct pool *pool);\n\n";
+      print PROCSC "int process_union_body_${name}_$1(int input, $name *structbase, struct pool *pool)\n{\n";
+      print PROCSC "(void)input;(void)structbase;(void)pool;\n";
+      $structbase = "structbase->u.";
       $firstcase = 0;
       $unionfields = 0;
     } elsif (/default\:/) {
-      print UNIONS "break;\\\n" if (!$firstcase);
-      print UNIONS "default:\\\n";
-      print UNIONS "process_union_body_${name}_default(input,${structbase}u);\\\n";
-      print PROCS "} while (0)\n#endif\n" if (!$firstcase);
-      print PROCS "#ifndef process_union_body_${name}_default\n";
-      print PROCS "#define process_union_body_${name}_default(input,structbase) do {\\\n";
+      print UNIONSC "break;\n" if (!$firstcase);
+      print UNIONSC "default:\n";
+      print UNIONSC "PR(process_union_body_${name}_default(input, structbase, pool));\n";
+      print PROCSC "return 0;\n}\n\n" if (!$firstcase);
+      print PROCS  "int process_union_body_${name}_default(int input, $name *structbase, struct pool *pool);\n\n";
+      print PROCSC "int process_union_body_${name}_default(int input, $name *structbase, struct pool *pool)\n{\n";
+      print PROCSC "(void)input;(void)structbase;(void)pool;\n";
+      $structbase = "structbase->u.";
       $firstcase = 0;
       $unionfields = 0;
     } elsif (/\s*void\;/) {
@@ -150,7 +156,7 @@ while (<>) {
       my $maxsize = $5;
       $arraytype =~ s/opaque/char/;
       print STRUCTS "${ws}$arraytype ${opaquename}[$maxsize];\n";
-      print PROCS "process_fixedarray(input,${structbase}$opaquename,$arraytype,$maxsize);\\\n";
+      print PROCSC "process_fixedarray_macro(input, ${structbase}$opaquename,$arraytype,$maxsize, pool);\n";
       die if ($unionfields++ > 1 and $state eq "union");
     } elsif (/(\s*)(\w+(\s+\w+)*) +(\w*)\<(\w*)\>\;/) {
       my $ws = $1;
@@ -160,7 +166,7 @@ while (<>) {
       $arraytype =~ s/opaque/char/;
       $maxsize = "OPAQUE_MAX" if ($maxsize =~ /^$/);
       print STRUCTS "${ws}struct {$arraytype *data; unsigned size;} $opaquename;\n";
-      print PROCS "process_array(input,${structbase}$opaquename,$arraytype,$maxsize);\\\n";
+      print PROCSC "process_array_macro(input, ${structbase}$opaquename, $arraytype, $maxsize, pool);\n";
       die if ($unionfields++ > 1 and $state eq "union");
     } elsif (/(\s*)(\w+(\s+\w+)*)\s+(\*?)(\w+)\;$/) {
       my $ws = $1;
@@ -173,7 +179,7 @@ while (<>) {
         print STRUCTS "${ws}struct $elementtype *next;\n";
       } else {
         print STRUCTS "${ws}$elementtype $element;\n";
-        print PROCS "process_$elementtype(input, ${structbase}$element);\\\n";
+        print PROCSC "PR(process_$elementtype(input, &(${structbase}$element), pool));\n";
       }
       die if ($unionfields++ > 1 and $state eq "union");
     } elsif (/\/\*.*\*\//) {
@@ -186,8 +192,12 @@ while (<>) {
   } elsif ($state eq "enum") {
     if (/\}\;/) {
       $state = "none";
+      $structbase = "";
       print STRUCTS "} $name;\n";
-      print PROCS "#define process_$name(input,structbase) process_enum(input,structbase, $name)\n\n";
+      print PROCS  "int process_$name(int input, $name *structbase, struct pool *pool);\n\n";
+      print PROCSC "int process_$name(int input, $name *structbase, struct pool *pool)\n{\n";
+      print PROCSC "(void)pool;\n";
+      print PROCSC "process_enum_macro(input, (*structbase), $name);\nreturn 0;\n}\n\n";
     } else {
       print STRUCTS;
     }
@@ -204,67 +214,72 @@ while (<>) {
       $name = $1;
       $state = "union";
       print STRUCTS "typedef struct ${name} {\n";
-      print STRUCTS "enum " if ($2 ne "unsigned");
+      print STRUCTS "enum " if ($2 ne "unsigned" and $2 ne "nstat");
       print STRUCTS "$2 $3;\n";
       print STRUCTS "union {\n";
       $firstcase = 1;
-      print UNIONS "#define process_${name}(input,structbase) do {\\\n";
+      print PROCS   "int process_${name}(int input, $name *structbase, struct pool *pool);\n\n";
+      print UNIONSC "int process_${name}(int input, $name *structbase, struct pool *pool)\n{\n";
       if ($2 eq "unsigned") {
-        print UNIONS "process_int(input,${structbase}$3);\\\n";
+        print UNIONSC "PR(process_unsigned(input, &(structbase->$3), pool));\n";
+      } elsif ($2 eq "nstat") {
+        print UNIONSC "PR(process_int(input, &(structbase->$3), pool));\n";
       } else {
-        print UNIONS "process_enum(input,${structbase}$3, $2);\\\n";
+        print UNIONSC "process_enum_macro(input, structbase->$3, $2);\n";
       }
-      print UNIONS "switch (${structbase}$3) {\\\n";
+      print UNIONSC "switch (structbase->$3) {\n";
+      $structbase = "structbase->";
     } elsif (/^\s*struct *\*(\w*) /) {
       # Linked list
       $name = $1;
       $state = "linklist";
-      $llcount++;
       print STRUCTS "typedef struct ${name} {\n";
-      print PROCS "#ifndef process_${name}\n";
-      print PROCS "#define process_${name}(input, structbase) do {\\\n";
-      print PROCS "struct $name **ptr$llcount = &structbase;\\\n";
-      print PROCS "int opted = 0;\\\n";
-      print PROCS "do {\\\n";
-      print PROCS "if (!input) {\\\n";
-      print PROCS "opted = (*ptr$llcount) != NULL;\\\n";
-      print PROCS "}\\\n";
-      print PROCS "process_int(input, opted);\\\n";
-      print PROCS "if (opted) {\\\n";
-      print PROCS "if (input) {\\\n";
-      print PROCS "*ptr$llcount = palloc(sizeof(struct $name), conn->pool);\\\n";
-      print PROCS "if (*ptr$llcount == NULL) goto buffer_overflow;\\\n";
-      print PROCS "}\\\n";
-      $structbase = "(*ptr$llcount)->";
+      print PROCS  "int process_${name}(int input, struct $name **structbase, struct pool *pool);\n\n";
+      print PROCSC "int process_${name}(int input, struct $name **structbase, struct pool *pool)\n{\n";
+      print PROCSC "int opted = 0;\n";
+      print PROCSC "do {\n";
+      print PROCSC "if (!input) {\n";
+      print PROCSC "opted = (*structbase) != NULL;\n";
+      print PROCSC "}\n";
+      print PROCSC "PR(process_int(input, &opted, pool));\n";
+      print PROCSC "if (opted) {\n";
+      print PROCSC "if (input) {\n";
+      print PROCSC "*structbase = palloc(sizeof(struct $name), pool);\n";
+      print PROCSC "if (*structbase == NULL) return 1;\n";
+      print PROCSC "}\n";
+      $structbase = "(*structbase)->";
     } elsif (/^\s*struct *(\w*) /) {
       print STRUCTS "typedef $_";
       $name = $1;
       $state = "struct";
-      print PROCS "#ifndef process_${name}\n";
-      print PROCS "#define process_${name}(input,structbase) do {\\\n";
+      print PROCS  "int process_${name}(int input, $name *structbase, struct pool *pool);\n\n";
+      print PROCSC "int process_${name}(int input, $name *structbase, struct pool *pool)\n{\n";
+      $structbase = "structbase->";
     } elsif (/^\s*\#((define)|(ifndef)|(if)|(ifdef)|(endif)|(pragma))/) {
       print STRUCTS;
     } elsif (/^\s*typedef +(\S+) +(\S+)\[(\w*)\]\;/) {
       print STRUCTS;
-      print PROCS "#ifndef process_$2\n";
-      print PROCS "#define process_$2(input, structbase) process_fixedarray(input, structbase, $1, $3)\n\n";
-      print PROCS "#endif\n";
+      print PROCS  "int process_$2(int input, $2 *structbase, struct pool *pool);\n\n";
+      print PROCSC "int process_$2(int input, $2 *structbase, struct pool *pool)\n{\n";
+      print PROCSC "(void)pool;\n";
+      print PROCSC "process_fixedarray_macro(input, *structbase, $1, $3, pool);\nreturn 0;\n}\n\n";
     } elsif (/^\s*typedef +(\S+) +(\S+)\<(\w*)\>\;/) {
       my $size = $3;
       $size = "OPAQUE_MAX" if ($size eq "");
       print STRUCTS "typedef struct $2 { $1 *data; unsigned size; } $2;\n";
-      print PROCS "#ifndef process_$2\n";
-      print PROCS "#define process_$2(input, structbase) process_array(input, structbase, $1,  $size)\n\n";
-      print PROCS "#endif\n";
+      print PROCS  "int process_$2(int input, $2 *structbase, struct pool *pool);\n\n";
+      print PROCSC "int process_$2(int input, $2 *structbase, struct pool *pool)\n{\n";
+      print PROCSC "(void)pool;\n";
+      print PROCSC "process_array_macro(input, *structbase, $1, $size, pool);\nreturn 0;\n}\n\n";
     } elsif (/^\s*typedef +(\S+) +(\S+)\;/) {
       print STRUCTS;
       print PROCS "#ifndef process_$2\n";
-      print PROCS "#define process_$2(input, structbase) process_$1(input, structbase)\n\n";
-      print PROCS "#endif\n";
+      print PROCS "#define process_$2(input, structbase, pool) process_$1(input, structbase, pool)\n";
+      print PROCS "#endif\n\n";
     } elsif (/^\s*const +(\w+) *= *(\w+)\;/) {
       print STRUCTS "#ifndef $1\n";
       print STRUCTS "#define $1 $2\n";
-      print STRUCTS "#endif\n";
+      print STRUCTS "#endif\n\n";
     } elsif (/^\s*(\w*) (\w*)\((\w*)\) = (\w*)\;/) {
       my $res = $1;
       my $procname = $2;
@@ -303,14 +318,12 @@ while (<>) {
       print CALLS  "$proto\n";
       print CALLS "{\n\tos_error *err;\n\n";
       print CALLS "\trpc_prepare_call($prog, $vers, $procno, conn);\n";
-      print CALLS "\tprocess_$args(OUTPUT, (*args));\n";
+      print CALLS "\tif (process_$args(OUTPUT, args, conn->pool)) return rpc_buffer_overflow();\n";
       print CALLS "\terr = rpc_do_call(conn, $calltype);\n";
       print CALLS "\trpc_resetfifo();\n" if ($procname =~ m/UMNT/);
       print CALLS "\tif (err) return err;\n";
-      print CALLS "\tprocess_${res}(INPUT, (*res));\n";
-      print CALLS "\treturn NULL;\n";
-      print CALLS "buffer_overflow:\n";
-      print CALLS "\treturn rpc_buffer_overflow();\n}\n";
+      print CALLS "\tif (process_${res}(INPUT, res, conn->pool)) return rpc_buffer_overflow();\n";
+      print CALLS "\treturn NULL;\n}\n";
 
       print RECVPROCSH "$rettype $procname(";
       print RECVPROCSH "$args *args, " unless ($args eq "void");
@@ -326,22 +339,20 @@ while (<>) {
       print RECV2 "\t$rettype success;\n";
       print RECV2 "\t$args args;\n" unless ($args eq "void");
       print RECV2 "\t$res res;\n" unless ($res eq "void");
-      print RECV2 "\tprocess_$args(INPUT, args);\n";
+      my $ovrret = ($procname =~ /^NFS4/) ? "return NFSERR_BADXDR;" : "return GARBAGE_ARGS;";
+      print RECV2 "\tif (process_$args(INPUT, &args, conn->pool)) $ovrret\n";
       print RECV2 "\tsuccess = $procname(";
       print RECV2 "&args, " unless ($args eq "void");
       print RECV2 "&res, " unless ($res eq "void");
       print RECV2 "conn);\n";
       print RECV2 "\tif (success == SUCCESS) {\n" unless ($procname =~ /^NFS4/);
-      print RECV2 "\t\tprocess_$res(OUTPUT, res";
-      print RECV2 ");\n";
+      print RECV2 "\t\tif (process_$res(OUTPUT, &res, conn->pool)) $ovrret\n";
       print RECV2 "\t}\n" unless ($procname =~ /^NFS4/);
       print RECV2 "#ifdef DEBUGSERVER\n";
       my $longprocname = sprintf("%.20s","$procname                    ");
       print RECV2 "\tprintf(\"$longprocname %d\\n\",success);\n";
       print RECV2 "#endif\n";
-      print RECV2 "\treturn success;\nbuffer_overflow:\n\treturn ";
-      print RECV2 ($procname =~ /^NFS4/) ? "NFSERR_BADXDR;" : "GARBAGE_ARGS;";
-      print RECV2 "\n}\n\n";
+      print RECV2 "\treturn success;\n}\n\n";
     } elsif (/\/\*.*\*\//) {
       print STRUCTS;
     } elsif (/^\s*$/) {

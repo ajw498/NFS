@@ -44,7 +44,7 @@
 
 
 /* Generate a RISC OS error block based on the NFS status code */
-os_error *ENTRYFUNC(gen_nfsstatus_error) (enum nstat stat)
+os_error *ENTRYFUNC(gen_nfsstatus_error) (nstat stat)
 {
 	char *str;
 
@@ -90,9 +90,15 @@ os_error *ENTRYFUNC(gen_nfsstatus_error) (enum nstat stat)
    to static data and should be copied before any subsequent calls. */
 static os_error *lookup_leafname(struct commonfh *dhandle, char *leafname, int leafnamelen, struct opaque **found, struct conn_info *conn)
 {
+#ifdef NFS3
+	static struct readdirargs3 rddir;
+	static struct readdirres3 rdres;
+	struct entry3 *direntry;
+#else
 	static struct readdirargs rddir;
 	static struct readdirres rdres;
 	struct entry *direntry;
+#endif
 	os_error *err;
 
 	commonfh_to_fh(rddir.dir, *dhandle);
@@ -153,10 +159,15 @@ static os_error *lookup_leafname(struct commonfh *dhandle, char *leafname, int l
 /* Convert a leafname into nfs handle and attributes.
    May follow symlinks if needed.
    Returns a pointer to static data, and updates the leafname in place. */
-os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int simple, int followsymlinks, struct commonfh *dirhandle, struct objinfo **finfo, enum nstat *status, struct conn_info *conn)
+os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int simple, int followsymlinks, struct commonfh *dirhandle, struct objinfo **finfo, nstat *status, struct conn_info *conn)
 {
+#ifdef NFS3
+	struct diropargs3 lookupargs;
+	struct diropres3 lookupres;
+#else
 	struct diropargs lookupargs;
 	struct diropres lookupres;
+#endif
 	static struct objinfo retinfo;
 	os_error *err;
 	int follow;
@@ -214,8 +225,13 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 #else
 	while (follow > 0 && lookupres.u.diropok.attributes.type == NFLNK) {
 #endif
+#ifdef NFS3
+		struct readlinkargs3 linkargs;
+		struct readlinkres3 linkres;
+#else
 		struct readlinkargs linkargs;
 		struct readlinkres linkres;
+#endif
 		char *segment;
 		unsigned int segmentmaxlen;
 		static char link[MAX_PATHNAME];
@@ -327,7 +343,7 @@ os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, stru
 	char *segmentname;
 	unsigned int segmentlen;
 	struct objinfo *segmentinfo;
-	enum nstat status;
+	nstat status;
 	os_error *err;
 
 	dirhandle = conn->rootfh;
@@ -432,7 +448,7 @@ void ENTRYFUNC(loadexec_to_setmtime) (unsigned int load, unsigned int exec, stru
 		mtime->set_it = DONT_CHANGE;
 	} else {
 		mtime->set_it = SET_TO_CLIENT_TIME;
-		loadexec_to_timeval(load, exec, &(mtime->u.mtime));
+		loadexec_to_timeval(load, exec, &(mtime->u.mtime.seconds), &(mtime->u.mtime.nseconds), 0);
 	}
 }
 #endif

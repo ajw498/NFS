@@ -60,8 +60,13 @@ os_error *ENTRYFUNC(args_zeropad) (struct file_handle *handle, unsigned int offs
 static os_error *writeextent(struct file_handle *handle, unsigned int extent)
 {
 	os_error *err;
+#ifdef NFS3
+	struct sattrargs3 args;
+	struct sattrres3 res;
+#else
 	struct sattrargs args;
 	struct sattrres res;
+#endif
 
 	commonfh_to_fh(args.file, handle->fhandle);
 #ifdef NFS3

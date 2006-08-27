@@ -37,12 +37,12 @@
 
 
 
-static inline enum nstat nfs2fh_to_path(struct nfs_fh *fhandle, char **path, struct server_conn *conn)
+static inline nstat nfs2fh_to_path(struct nfs_fh *fhandle, char **path, struct server_conn *conn)
 {
 	return fh_to_path(fhandle->data, FHSIZE, path, conn);
 }
 
-static inline enum nstat path_to_nfs2fh(char *path, struct nfs_fh *fhandle, struct server_conn *conn)
+static inline nstat path_to_nfs2fh(char *path, struct nfs_fh *fhandle, struct server_conn *conn)
 {
 	unsigned int fhsize = FHSIZE;
 	char *fh = fhandle->data;
@@ -76,12 +76,12 @@ static void parse_fattr(char *path, int type, int load, int exec, int len, int a
 	fattr->rdev = 0;
 	fattr->fsid = conn->export->exportnum;
 	fattr->fileid = calc_fileid(path, NULL);
-	loadexec_to_timeval(load, exec, &(fattr->atime));
-	loadexec_to_timeval(load, exec, &(fattr->ctime));
-	loadexec_to_timeval(load, exec, &(fattr->mtime));
+	loadexec_to_timeval(load, exec, &(fattr->atime.seconds), &(fattr->atime.useconds), 1);
+	loadexec_to_timeval(load, exec, &(fattr->ctime.seconds), &(fattr->ctime.useconds), 1);
+	loadexec_to_timeval(load, exec, &(fattr->mtime.seconds), &(fattr->mtime.useconds), 1);
 }
 
-static enum nstat get_fattr(char *path, int filetype, struct fattr *fattr, struct server_conn *conn)
+static nstat get_fattr(char *path, int filetype, struct fattr *fattr, struct server_conn *conn)
 {
 	unsigned int type;
 	unsigned int load;
@@ -119,7 +119,7 @@ static enum nstat get_fattr(char *path, int filetype, struct fattr *fattr, struc
 	return NFS_OK;
 }
 
-static enum nstat set_attr(char *path, struct sattr *sattr, struct server_conn *conn)
+static nstat set_attr(char *path, struct sattr *sattr, struct server_conn *conn)
 {
 	unsigned int load;
 	unsigned int exec;
@@ -133,7 +133,7 @@ static enum nstat set_attr(char *path, struct sattr *sattr, struct server_conn *
 	if (type == 0) return NFSERR_NOENT;
 	if (sattr->mode != -1) attr = mode_to_attr(sattr->mode);
 	filetype = (load & 0x000FFF00) >> 8;
-	if (sattr->mtime.seconds != -1) timeval_to_loadexec(&(sattr->mtime), filetype, &load, &exec);
+	if (sattr->mtime.seconds != -1) timeval_to_loadexec(sattr->mtime.seconds, sattr->mtime.useconds, filetype, &load, &exec, 1);
 
 	if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
 
@@ -156,7 +156,7 @@ static enum nstat set_attr(char *path, struct sattr *sattr, struct server_conn *
 
 
 
-static enum nstat diropargs_to_path(struct diropargs *where, char **path, int *filetype, struct server_conn *conn)
+static nstat diropargs_to_path(struct diropargs *where, char **path, int *filetype, struct server_conn *conn)
 {
 	int len;
 	char *dirpath;
@@ -488,7 +488,7 @@ enum accept_stat NFSPROC_READLINK(struct readlinkargs *args, struct readlinkres 
 }
 
 
-enum accept_stat NFSPROC_LINK(struct linkargs *args, enum nstat *res, struct server_conn *conn)
+enum accept_stat NFSPROC_LINK(struct linkargs *args, nstat *res, struct server_conn *conn)
 {
 	(void)args;
 	(void)res;
@@ -497,7 +497,7 @@ enum accept_stat NFSPROC_LINK(struct linkargs *args, enum nstat *res, struct ser
 	return PROC_UNAVAIL;
 }
 
-enum accept_stat NFSPROC_SYMLINK(struct symlinkargs *args, enum nstat *res, struct server_conn *conn)
+enum accept_stat NFSPROC_SYMLINK(struct symlinkargs *args, nstat *res, struct server_conn *conn)
 {
 	(void)args;
 	(void)res;

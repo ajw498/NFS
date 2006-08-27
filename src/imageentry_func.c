@@ -57,7 +57,11 @@ struct dir_entry {
 
 os_error *ENTRYFUNC(func_closeimage) (struct conn_info *conn)
 {
+#ifdef NFS3
+	mountargs3 dir;
+#else
 	mountargs dir;
+#endif
 	os_error *err;
 
 	dir.dirpath.size = strlen(conn->export);
@@ -79,13 +83,16 @@ os_error *ENTRYFUNC(func_closeimage) (struct conn_info *conn)
 
 os_error *ENTRYFUNC(func_newimage_mount) (struct conn_info *conn)
 {
-	mountargs dir;
-	struct mountres mountres;
-	os_error *err;
 #ifdef NFS3
+	mountargs3 dir;
+	struct mountres3 mountres;
 	struct fsinfoargs fsinfoargs;
 	struct fsinfores fsinfores;
+#else
+	mountargs dir;
+	struct mountres mountres;
 #endif
+	os_error *err;
 
 	/* Get a filehandle for the root directory */
 	dir.dirpath.size = strlen(conn->export);
@@ -94,7 +101,7 @@ os_error *ENTRYFUNC(func_newimage_mount) (struct conn_info *conn)
 	if (err) return err;
 	if (mountres.status != 0) {
 		/* status is an errno value. Probably the same as an NFS status value. */
-		return ENTRYFUNC(gen_nfsstatus_error) ((enum nstat)mountres.status);
+		return ENTRYFUNC(gen_nfsstatus_error) ((nstat)mountres.status);
 	}
 	fh_to_commonfh(conn->rootfh, mountres.u.mountinfo.fhandle);
 #ifdef NFS3
@@ -118,8 +125,8 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 {
 	char *bufferpos;
 #ifdef NFS3
-	struct readdirplusargs rddir;
-	struct readdirplusres rdres;
+	struct readdirplusargs3 rddir;
+	struct readdirplusres3 rdres;
 	struct entryplus3 *direntry = NULL;
 #else
 	struct readdirargs rddir;
@@ -213,7 +220,7 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 		
 					if (info) {
 						struct objinfo *lookupres;
-						enum nstat status;
+						nstat status;
 						struct commonfh fh;
 		
 						bufferpos = (char *)(((int)bufferpos + 3) & ~3);
@@ -221,7 +228,7 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 #ifdef NFS3
 						if (direntry->name_attributes.attributes_follow && direntry->name_attributes.u.attributes.type != NFLNK) {
 							if (direntry->name_attributes.u.attributes.type == NFDIR) filetype = DIR_FILETYPE;
-							timeval_to_loadexec(&(direntry->name_attributes.u.attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
+							timeval_to_loadexec(direntry->name_attributes.u.attributes.mtime.seconds, direntry->name_attributes.u.attributes.mtime.nseconds, filetype, &(info_entry->load), &(info_entry->exec), 0);
 							info_entry->len = filesize(direntry->name_attributes.u.attributes.size);
 							info_entry->attr = mode_to_attr(direntry->name_attributes.u.attributes.mode);
 							info_entry->type = direntry->name_attributes.u.attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
@@ -234,7 +241,11 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 							if (err) return err;
 							if (status == NFS_OK && lookupres->attributes.type != NFLNK) {
 								if (lookupres->attributes.type == NFDIR) filetype = DIR_FILETYPE;
-								timeval_to_loadexec(&(lookupres->attributes.mtime), filetype, &(info_entry->load), &(info_entry->exec));
+#ifdef NFS3
+								timeval_to_loadexec(lookupres->attributes.mtime.seconds, lookupres->attributes.mtime.nseconds, filetype, &(info_entry->load), &(info_entry->exec), 0);
+#else
+								timeval_to_loadexec(lookupres->attributes.mtime.seconds, lookupres->attributes.mtime.useconds, filetype, &(info_entry->load), &(info_entry->exec), 1);
+#endif
 								info_entry->len = filesize(lookupres->attributes.size);
 								info_entry->attr = mode_to_attr(lookupres->attributes.mode);
 								info_entry->type = lookupres->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
@@ -304,8 +315,13 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 {
 	struct objinfo *dinfo;
 	struct objinfo *finfo;
+#ifdef NFS3
+	struct renameargs3 renameargs;
+	struct renameres3 renameres;
+#else
 	struct renameargs renameargs;
 	struct renameres renameres;
+#endif
 	os_error *err;
 	char *leafname;
 	static char oldleafname[MAX_PATHNAME];

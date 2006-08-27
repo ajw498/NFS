@@ -60,20 +60,20 @@ struct stateid_other {
    Allows duplicate answers to be generated on duplicate requests. */
 union duplicate {
 	struct {
-		enum nstat status;
+		nstat status;
 		int stateidseq;
 		char stateidother[sizeof(struct stateid_other)];
 		unsigned rflags;
 		unsigned attrset[2];
 	} open;
 	struct {
-		enum nstat status;
+		nstat status;
 	} open_downgrade;
 	struct {
-		enum nstat status;
+		nstat status;
 	} close;
 	struct {
-		enum nstat status;
+		nstat status;
 		union {
 			struct {
 				int write;
@@ -90,7 +90,7 @@ union duplicate {
 		} res;
 	} lock;
 	struct {
-		enum nstat status;
+		nstat status;
 		unsigned seqid;
 	} locku;
 };
@@ -170,7 +170,7 @@ struct openfile {
 	unsigned int load;
 	unsigned int exec;
 	unsigned int attr;
-	enum nstat writeerror;
+	nstat writeerror;
 	struct open_stateid *open_stateids;
 	struct lock_stateid *lock_stateids;
 	struct openfile *next;
@@ -245,37 +245,37 @@ void state_init(void);
 
 void state_removeclientstate(struct openfile *file, uint64_t clientid);
 
-enum nstat state_newopenowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct open_owner **open_owner, int *confirmrequired, int *duplicate);
+nstat state_newopenowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct open_owner **open_owner, int *confirmrequired, int *duplicate);
 
-enum nstat state_newlockowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct lock_owner **lock_owner);
+nstat state_newlockowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct lock_owner **lock_owner);
 
-enum nstat state_getlockowner(uint64_t clientid, char *owner, int ownerlen, struct lock_owner **lock_owner);
+nstat state_getlockowner(uint64_t clientid, char *owner, int ownerlen, struct lock_owner **lock_owner);
 
-enum nstat state_releaselockowner(uint64_t clientid, char *owner, int ownerlen);
+nstat state_releaselockowner(uint64_t clientid, char *owner, int ownerlen);
 
-enum nstat state_checkopenseqid(struct stateid *stateid, unsigned seqid, int openconfirm, int *duplicate);
+nstat state_checkopenseqid(struct stateid *stateid, unsigned seqid, int openconfirm, int *duplicate);
 
-enum nstat state_checklockseqid(struct stateid *stateid, unsigned seqid, int *duplicate);
+nstat state_checklockseqid(struct stateid *stateid, unsigned seqid, int *duplicate);
 
-enum nstat state_getstateid(unsigned seqid, char *other, struct stateid **stateid, struct server_conn *conn);
+nstat state_getstateid(unsigned seqid, char *other, struct stateid **stateid, struct server_conn *conn);
 
-enum nstat state_checkpermissions(struct openfile *file, struct stateid *stateid, enum accesstype access);
+nstat state_checkpermissions(struct openfile *file, struct stateid *stateid, enum accesstype access);
 
-enum nstat state_createopenstateid(struct openfile *file, struct open_owner *open_owner, unsigned access, unsigned deny, struct open_stateid **open_stateid);
+nstat state_createopenstateid(struct openfile *file, struct open_owner *open_owner, unsigned access, unsigned deny, struct open_stateid **open_stateid);
 
 void state_removeopenstateid(struct openfile *file, struct open_stateid *open_stateid);
 
-enum nstat state_opendowngrade(struct stateid *stateid, unsigned access, unsigned deny, unsigned *ownerseqid);
+nstat state_opendowngrade(struct stateid *stateid, unsigned access, unsigned deny, unsigned *ownerseqid);
 
-enum nstat state_lock(struct openfile *file, struct open_stateid *open_stateid,
-                      struct lock_owner *lock_owner, int write, uint64_t offset,
-                      uint64_t length, struct lock_stateid **lock_stateid,
-                      int *deniedwrite, uint64_t *deniedoffset, uint64_t *deniedlength,
-                      uint64_t *deniedclientid, char **deniedowner, int *deniedownerlen);
+nstat state_lock(struct openfile *file, struct open_stateid *open_stateid,
+                 struct lock_owner *lock_owner, int write, uint64_t offset,
+                 uint64_t length, struct lock_stateid **lock_stateid,
+                 int *deniedwrite, uint64_t *deniedoffset, uint64_t *deniedlength,
+                 uint64_t *deniedclientid, char **deniedowner, int *deniedownerlen);
 
-enum nstat state_unlock(struct stateid *stateid, uint64_t offset, uint64_t length);
+nstat state_unlock(struct stateid *stateid, uint64_t offset, uint64_t length);
 
-enum nstat state_checklocks(struct openfile *file, struct stateid *stateid, int write, unsigned offset, unsigned length);
+nstat state_checklocks(struct openfile *file, struct stateid *stateid, int write, unsigned offset, unsigned length);
 
 void state_reap(int all, clock_t now);
 

@@ -87,7 +87,7 @@ char *host_to_str(unsigned int host, struct pool *pool)
 	return str;
 }
 
-enum nstat oserr_to_nfserr(int errnum)
+nstat oserr_to_nfserr(int errnum)
 {
 	switch (errnum) {
 	case 0x117b4: return NFSERR_NOTEMPTY;
@@ -104,7 +104,7 @@ enum nstat oserr_to_nfserr(int errnum)
 }
 
 /* Convert NFSv4 specific errors to their nearest NFSv2/NFSv3 equivalent */
-enum nstat nfserr_removenfs4(enum nstat errnum)
+nstat nfserr_removenfs4(nstat errnum)
 {
 	switch (errnum) {
 	case NFSERR_OPENMODE:      return NFSERR_ACCESS;
@@ -374,37 +374,36 @@ char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfile
 }
 
 /* Convert a RISC OS load and execution address into a unix timestamp */
-void (loadexec_to_timeval)(unsigned int load, unsigned int exec, struct ntimeval *unixtime, int mult)
+void loadexec_to_timeval(unsigned load, unsigned exec, unsigned *seconds, unsigned *nseconds, int nfs2)
 {
 	if ((load & 0xFFF00000) != 0xFFF00000) {
 		/* A real load/exec address */
-		unixtime->seconds = -1;
-		unixtime->nseconds = -1;
+		*seconds = -1;
+		*nseconds = -1;
 	} else {
 		uint64_t csecs;
 
 		csecs = exec;
 		csecs |= ((uint64_t)load & 0xFF) << 32;
 		csecs -= 0x336e996a00LL; /* Difference between 1900 and 1970 */
-		unixtime->seconds = (unsigned int)((csecs / 100) & 0xFFFFFFFF);
-		unixtime->nseconds = (unsigned int)((csecs % 100) * 10000 * mult);
+		*seconds = (unsigned int)((csecs / 100) & 0xFFFFFFFF);
+		*nseconds = (unsigned int)((csecs % 100) * (nfs2 ? 10000 : 10000000));
 	}
 }
 
 /* Convert a unix timestamp into a RISC OS load and execution address */
-void (timeval_to_loadexec)(struct ntimeval *unixtime, int filetype, unsigned int *load, unsigned int *exec, int mult)
+void timeval_to_loadexec(unsigned seconds, unsigned nseconds, int filetype, unsigned *load, unsigned *exec, int nfs2)
 {
 	uint64_t csecs;
 
-	csecs = unixtime->seconds;
+	csecs = seconds;
 	csecs *= 100;
-	csecs += ((int64_t)unixtime->nseconds / (10000 * (int64_t)mult));
+	csecs += ((int64_t)nseconds / (nfs2 ? 10000LL : 10000000LL));
 	csecs += 0x336e996a00LL; /* Difference between 1900 and 1970 */
 	*load = (unsigned int)((csecs >> 32) & 0xFF);
 	*load |= (0xFFF00000 | ((filetype & 0xFFF) << 8));
 	*exec = (unsigned int)(csecs & 0xFFFFFFFF);
 }
-
 
 #define Resolver_GetHost 0x46001
 

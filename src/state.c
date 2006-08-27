@@ -93,7 +93,7 @@ void state_removeclientstate(struct openfile *file, uint64_t clientid)
 	}
 }
 
-enum nstat state_newopenowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct open_owner **open_owner, int *confirmrequired, int *duplicate)
+nstat state_newopenowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct open_owner **open_owner, int *confirmrequired, int *duplicate)
 {
 	struct open_owner *id = open_owners;
 
@@ -146,7 +146,7 @@ enum nstat state_newopenowner(uint64_t clientid, char *owner, int ownerlen, unsi
 	return NFS_OK;
 }
 
-enum nstat state_newlockowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct lock_owner **lock_owner)
+nstat state_newlockowner(uint64_t clientid, char *owner, int ownerlen, unsigned seqid, struct lock_owner **lock_owner)
 {
 	struct lock_owner *id = lock_owners;
 
@@ -186,7 +186,7 @@ enum nstat state_newlockowner(uint64_t clientid, char *owner, int ownerlen, unsi
 	return NFS_OK;
 }
 
-enum nstat state_getlockowner(uint64_t clientid, char *owner, int ownerlen, struct lock_owner **lock_owner)
+nstat state_getlockowner(uint64_t clientid, char *owner, int ownerlen, struct lock_owner **lock_owner)
 {
 	struct lock_owner *id = lock_owners;
 
@@ -204,7 +204,7 @@ enum nstat state_getlockowner(uint64_t clientid, char *owner, int ownerlen, stru
 	return NFS_OK;
 }
 
-enum nstat state_releaselockowner(uint64_t clientid, char *owner, int ownerlen)
+nstat state_releaselockowner(uint64_t clientid, char *owner, int ownerlen)
 {
 	struct lock_owner *id = lock_owners;
 
@@ -227,7 +227,7 @@ enum nstat state_releaselockowner(uint64_t clientid, char *owner, int ownerlen)
 	return NFS_OK;
 }
 
-enum nstat state_checkopenseqid(struct stateid *stateid, unsigned seqid, int openconfirm, int *duplicate)
+nstat state_checkopenseqid(struct stateid *stateid, unsigned seqid, int openconfirm, int *duplicate)
 {
 	*duplicate = 0;
 
@@ -252,7 +252,7 @@ enum nstat state_checkopenseqid(struct stateid *stateid, unsigned seqid, int ope
 	return NFS_OK;
 }
 
-enum nstat state_checklockseqid(struct stateid *stateid, unsigned seqid, int *duplicate)
+nstat state_checklockseqid(struct stateid *stateid, unsigned seqid, int *duplicate)
 {
 	*duplicate = 0;
 
@@ -269,7 +269,7 @@ enum nstat state_checklockseqid(struct stateid *stateid, unsigned seqid, int *du
 	return NFS_OK;
 }
 
-static enum nstat state_getlockrange(uint64_t offset, uint64_t length, unsigned *bottom, unsigned *top)
+static nstat state_getlockrange(uint64_t offset, uint64_t length, unsigned *bottom, unsigned *top)
 {
 	/* A valid lock must stay with the 32bit range, unless it includes
 	   everything upto the top of the 64bit range. */
@@ -292,7 +292,7 @@ static enum nstat state_getlockrange(uint64_t offset, uint64_t length, unsigned 
 	return NFS_OK;
 }
 
-enum nstat state_checklocks(struct openfile *file, struct stateid *stateid, int write, unsigned offset, unsigned length)
+nstat state_checklocks(struct openfile *file, struct stateid *stateid, int write, unsigned offset, unsigned length)
 {
 	struct lock_stateid *current = file->lock_stateids;
 	struct lock_owner *lock_owner = NULL;
@@ -322,11 +322,11 @@ enum nstat state_checklocks(struct openfile *file, struct stateid *stateid, int 
 	return NFS_OK;
 }
 
-enum nstat state_lock(struct openfile *file, struct open_stateid *open_stateid,
-                      struct lock_owner *lock_owner, int write, uint64_t offset,
-                      uint64_t length, struct lock_stateid **lock_stateid,
-                      int *deniedwrite, uint64_t *deniedoffset, uint64_t *deniedlength,
-                      uint64_t *deniedclientid, char **deniedowner, int *deniedownerlen)
+nstat state_lock(struct openfile *file, struct open_stateid *open_stateid,
+                 struct lock_owner *lock_owner, int write, uint64_t offset,
+                 uint64_t length, struct lock_stateid **lock_stateid,
+                 int *deniedwrite, uint64_t *deniedoffset, uint64_t *deniedlength,
+                 uint64_t *deniedclientid, char **deniedowner, int *deniedownerlen)
 {
 	struct lock_stateid *current = file->lock_stateids;
 	struct lock_stateid *matching = NULL;
@@ -444,7 +444,7 @@ enum nstat state_lock(struct openfile *file, struct open_stateid *open_stateid,
 	return NFS_OK;
 }
 
-enum nstat state_unlock(struct stateid *stateid, uint64_t offset, uint64_t length)
+nstat state_unlock(struct stateid *stateid, uint64_t offset, uint64_t length)
 {
 	struct lock *lock = stateid->lock->locks;
 	unsigned bottom;
@@ -489,7 +489,7 @@ enum nstat state_unlock(struct stateid *stateid, uint64_t offset, uint64_t lengt
 	return NFS_OK;
 }
 
-enum nstat state_getstateid(unsigned seqid, char *other, struct stateid **stateid, struct server_conn *conn)
+nstat state_getstateid(unsigned seqid, char *other, struct stateid **stateid, struct server_conn *conn)
 {
 	struct stateid_other *other2 = (struct stateid_other *)other;
 
@@ -535,7 +535,7 @@ enum nstat state_getstateid(unsigned seqid, char *other, struct stateid **statei
 	return NFS_OK;
 }
 
-enum nstat state_checkpermissions(struct openfile *file, struct stateid *stateid, enum accesstype access)
+nstat state_checkpermissions(struct openfile *file, struct stateid *stateid, enum accesstype access)
 {
 	if ((file == NULL) || (stateid == STATEID_ANY)) return NFS_OK;
 
@@ -556,7 +556,7 @@ enum nstat state_checkpermissions(struct openfile *file, struct stateid *stateid
 	return (stateid->open->access & (access == ACC_READ ? 1 : 2)) ? NFS_OK : NFSERR_OPENMODE;
 }
 
-enum nstat state_createopenstateid(struct openfile *file, struct open_owner *open_owner, unsigned access, unsigned deny, struct open_stateid **open_stateid)
+nstat state_createopenstateid(struct openfile *file, struct open_owner *open_owner, unsigned access, unsigned deny, struct open_stateid **open_stateid)
 {
 	struct open_stateid *current = file->open_stateids;
 	struct open_stateid *matching = NULL;
@@ -638,7 +638,7 @@ void state_removeopenstateid(struct openfile *file, struct open_stateid *open_st
 	}
 }
 
-enum nstat state_opendowngrade(struct stateid *stateid, unsigned access, unsigned deny, unsigned *ownerseqid)
+nstat state_opendowngrade(struct stateid *stateid, unsigned access, unsigned deny, unsigned *ownerseqid)
 {
 	/* Upgrading access is not permitted */
 	if ((access & ~stateid->open->access) ||

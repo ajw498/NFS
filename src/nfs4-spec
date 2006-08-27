@@ -45,76 +45,76 @@
    /*
     * Error status
     */
-   enum nstat {
-           NFS_OK                 = 0,    /* everything is okay      */
-           NFSERR_PERM            = 1,    /* caller not privileged   */
-           NFSERR_NOENT           = 2,    /* no such file/directory  */
-           NFSERR_IO              = 5,    /* hard I/O error          */
-           NFSERR_NXIO            = 6,    /* no such device          */
-           NFSERR_ACCESS          = 13,   /* access denied           */
-           NFSERR_EXIST           = 17,   /* file already exists     */
-           NFSERR_XDEV            = 18,   /* different filesystems   */
-           /* Unused/reserved       19 */
-           NFSERR_NOTDIR          = 20,   /* should be a directory   */
-           NFSERR_ISDIR           = 21,   /* should not be directory */
-           NFSERR_INVAL           = 22,   /* invalid argument        */
-           NFSERR_FBIG            = 27,   /* file exceeds server max */
-           NFSERR_NOSPC           = 28,   /* no space on filesystem  */
-           NFSERR_ROFS            = 30,   /* read-only filesystem    */
-           NFSERR_MLINK           = 31,   /* too many hard links     */
-           NFSERR_NAMETOOLONG     = 63,   /* name exceeds server max */
-           NFSERR_NOTEMPTY        = 66,   /* directory not empty     */
-           NFSERR_DQUOT           = 69,   /* hard quota limit reached*/
-           NFSERR_STALE           = 70,   /* file no longer exists   */
-           NFSERR_BADHANDLE       = 10001,/* Illegal filehandle      */
-           NFSERR_BAD_COOKIE      = 10003,/* READDIR cookie is stale */
-           NFSERR_NOTSUPP         = 10004,/* operation not supported */
-           NFSERR_TOOSMALL        = 10005,/* response limit exceeded */
-           NFSERR_SERVERFAULT     = 10006,/* undefined server error  */
-           NFSERR_BADTYPE         = 10007,/* type invalid for CREATE */
-           NFSERR_DELAY           = 10008,/* file "busy" - retry     */
-           NFSERR_SAME            = 10009,/* nverify says attrs same */
-           NFSERR_DENIED          = 10010,/* lock unavailable        */
-           NFSERR_EXPIRED         = 10011,/* lock lease expired      */
-           NFSERR_LOCKED          = 10012,/* I/O failed due to lock  */
-           NFSERR_GRACE           = 10013,/* in grace period         */
-           NFSERR_FHEXPIRED       = 10014,/* filehandle expired      */
-           NFSERR_SHARE_DENIED    = 10015,/* share reserve denied    */
-           NFSERR_WRONGSEC        = 10016,/* wrong security flavor   */
-           NFSERR_CLID_INUSE      = 10017,/* clientid in use         */
-           NFSERR_RESOURCE        = 10018,/* resource exhaustion     */
-           NFSERR_MOVED           = 10019,/* filesystem relocated    */
-           NFSERR_NOFILEHANDLE    = 10020,/* current FH is not set   */
-           NFSERR_MINOR_VERS_MISMATCH = 10021,/* minor vers not supp */
-           NFSERR_STALE_CLIENTID  = 10022,/* server has rebooted     */
-           NFSERR_STALE_STATEID   = 10023,/* server has rebooted     */
-           NFSERR_OLD_STATEID     = 10024,/* state is out of sync    */
-           NFSERR_BAD_STATEID     = 10025,/* incorrect stateid       */
-           NFSERR_BAD_SEQID       = 10026,/* request is out of seq.  */
-           NFSERR_NOT_SAME        = 10027,/* verify - attrs not same */
-           NFSERR_LOCK_RANGE      = 10028,/* lock range not supported*/
-           NFSERR_SYMLINK         = 10029,/* should be file/directory*/
-           NFSERR_RESTOREFH       = 10030,/* no saved filehandle     */
-           NFSERR_LEASE_MOVED     = 10031,/* some filesystem moved   */
-           NFSERR_ATTRNOTSUPP     = 10032,/* recommended attr not sup*/
-           NFSERR_NO_GRACE        = 10033,/* reclaim outside of grace*/
-           NFSERR_RECLAIM_BAD     = 10034,/* reclaim error at server */
-           NFSERR_RECLAIM_CONFLICT = 10035,/* conflict on reclaim    */
-           NFSERR_BADXDR          = 10036,/* XDR decode failed       */
-           NFSERR_LOCKS_HELD      = 10037,/* file locks held at CLOSE*/
-           NFSERR_OPENMODE        = 10038,/* conflict in OPEN and I/O*/
-           NFSERR_BADOWNER        = 10039,/* owner translation bad   */
-           NFSERR_BADCHAR         = 10040,/* utf-8 char not supported*/
-           NFSERR_BADNAME         = 10041,/* name not supported      */
-           NFSERR_BAD_RANGE       = 10042,/* lock range not supported*/
-           NFSERR_LOCK_NOTSUPP    = 10043,/* no atomic up/downgrade  */
-           NFSERR_OP_ILLEGAL      = 10044,/* undefined operation     */
-           NFSERR_DEADLOCK        = 10045,/* file locking deadlock   */
-           NFSERR_FILE_OPEN       = 10046,/* open file blocks op.    */
-           NFSERR_ADMIN_REVOKED   = 10047,/* lockowner state revoked */
-           NFSERR_CB_PATH_DOWN    = 10048 /* callback path down      */
-   };
+   typedef int nstat;
 #endif
+
+   const NFS_OK                 = 0;    /* everything is okay      */
+   const NFSERR_PERM            = 1;    /* caller not privileged   */
+   const NFSERR_NOENT           = 2;    /* no such file/directory  */
+   const NFSERR_IO              = 5;    /* hard I/O error          */
+   const NFSERR_NXIO            = 6;    /* no such device          */
+   const NFSERR_ACCESS          = 13;   /* access denied           */
+   const NFSERR_EXIST           = 17;   /* file already exists     */
+   const NFSERR_XDEV            = 18;   /* different filesystems   */
+         /* Unused/reserved       19 */
+   const NFSERR_NOTDIR          = 20;   /* should be a directory   */
+   const NFSERR_ISDIR           = 21;   /* should not be directory */
+   const NFSERR_INVAL           = 22;   /* invalid argument        */
+   const NFSERR_FBIG            = 27;   /* file exceeds server max */
+   const NFSERR_NOSPC           = 28;   /* no space on filesystem  */
+   const NFSERR_ROFS            = 30;   /* read-only filesystem    */
+   const NFSERR_MLINK           = 31;   /* too many hard links     */
+   const NFSERR_NAMETOOLONG     = 63;   /* name exceeds server max */
+   const NFSERR_NOTEMPTY        = 66;   /* directory not empty     */
+   const NFSERR_DQUOT           = 69;   /* hard quota limit reached*/
+   const NFSERR_STALE           = 70;   /* file no longer exists   */
+   const NFSERR_BADHANDLE       = 10001;/* Illegal filehandle      */
+   const NFSERR_BAD_COOKIE      = 10003;/* READDIR cookie is stale */
+   const NFSERR_NOTSUPP         = 10004;/* operation not supported */
+   const NFSERR_TOOSMALL        = 10005;/* response limit exceeded */
+   const NFSERR_SERVERFAULT     = 10006;/* undefined server error  */
+   const NFSERR_BADTYPE         = 10007;/* type invalid for CREATE */
+   const NFSERR_DELAY           = 10008;/* file "busy" - retry     */
+   const NFSERR_SAME            = 10009;/* nverify says attrs same */
+   const NFSERR_DENIED          = 10010;/* lock unavailable        */
+   const NFSERR_EXPIRED         = 10011;/* lock lease expired      */
+   const NFSERR_LOCKED          = 10012;/* I/O failed due to lock  */
+   const NFSERR_GRACE           = 10013;/* in grace period         */
+   const NFSERR_FHEXPIRED       = 10014;/* filehandle expired      */
+   const NFSERR_SHARE_DENIED    = 10015;/* share reserve denied    */
+   const NFSERR_WRONGSEC        = 10016;/* wrong security flavor   */
+   const NFSERR_CLID_INUSE      = 10017;/* clientid in use         */
+   const NFSERR_RESOURCE        = 10018;/* resource exhaustion     */
+   const NFSERR_MOVED           = 10019;/* filesystem relocated    */
+   const NFSERR_NOFILEHANDLE    = 10020;/* current FH is not set   */
+   const NFSERR_MINOR_VERS_MISMATCH = 10021;/* minor vers not supp */
+   const NFSERR_STALE_CLIENTID  = 10022;/* server has rebooted     */
+   const NFSERR_STALE_STATEID   = 10023;/* server has rebooted     */
+   const NFSERR_OLD_STATEID     = 10024;/* state is out of sync    */
+   const NFSERR_BAD_STATEID     = 10025;/* incorrect stateid       */
+   const NFSERR_BAD_SEQID       = 10026;/* request is out of seq.  */
+   const NFSERR_NOT_SAME        = 10027;/* verify - attrs not same */
+   const NFSERR_LOCK_RANGE      = 10028;/* lock range not supported*/
+   const NFSERR_SYMLINK         = 10029;/* should be file/directory*/
+   const NFSERR_RESTOREFH       = 10030;/* no saved filehandle     */
+   const NFSERR_LEASE_MOVED     = 10031;/* some filesystem moved   */
+   const NFSERR_ATTRNOTSUPP     = 10032;/* recommended attr not sup*/
+   const NFSERR_NO_GRACE        = 10033;/* reclaim outside of grace*/
+   const NFSERR_RECLAIM_BAD     = 10034;/* reclaim error at server */
+   const NFSERR_RECLAIM_CONFLICT = 10035;/* conflict on reclaim    */
+   const NFSERR_BADXDR          = 10036;/* XDR decode failed       */
+   const NFSERR_LOCKS_HELD      = 10037;/* file locks held at CLOSE*/
+   const NFSERR_OPENMODE        = 10038;/* conflict in OPEN and I/O*/
+   const NFSERR_BADOWNER        = 10039;/* owner translation bad   */
+   const NFSERR_BADCHAR         = 10040;/* utf-8 char not supported*/
+   const NFSERR_BADNAME         = 10041;/* name not supported      */
+   const NFSERR_BAD_RANGE       = 10042;/* lock range not supported*/
+   const NFSERR_LOCK_NOTSUPP    = 10043;/* no atomic up/downgrade  */
+   const NFSERR_OP_ILLEGAL      = 10044;/* undefined operation     */
+   const NFSERR_DEADLOCK        = 10045;/* file locking deadlock   */
+   const NFSERR_FILE_OPEN       = 10046;/* open file blocks op.    */
+   const NFSERR_ADMIN_REVOKED   = 10047;/* lockowner state revoked */
+   const NFSERR_CB_PATH_DOWN    = 10048;/* callback path down      */
 
    /*
     * Basic data types

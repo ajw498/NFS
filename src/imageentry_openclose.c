@@ -46,8 +46,13 @@ os_error *ENTRYFUNC(open_file) (char *filename, int access, struct conn_info *co
 	struct objinfo *dinfo;
 	struct objinfo *finfo;
 	struct objinfo createinfo;
+#ifdef NFS3
+	struct createargs3 createargs;
+	struct createres3 createres;
+#else
 	struct createargs createargs;
 	struct createres createres;
+#endif
 	os_error *err;
 	char *leafname;
 	int filetype;
@@ -119,8 +124,11 @@ os_error *ENTRYFUNC(open_file) (char *filename, int access, struct conn_info *co
 	handle->conn = conn;
 	handle->fhandle = finfo->objhandle;
 	handle->extent = filesize(finfo->attributes.size);
-	timeval_to_loadexec(&(finfo->attributes.mtime), filetype, &(handle->load), &(handle->exec));
-
+#ifdef NFS3
+	timeval_to_loadexec(finfo->attributes.mtime.seconds, finfo->attributes.mtime.nseconds, filetype, &(handle->load), &(handle->exec), 0);
+#else
+	timeval_to_loadexec(finfo->attributes.mtime.seconds, finfo->attributes.mtime.useconds, filetype, &(handle->load), &(handle->exec), 1);
+#endif
 	*internal_handle = handle;
 	/* It is too difficult to determine if we will have permission to read
 	   or write the file so pretend that we can and return an error on read

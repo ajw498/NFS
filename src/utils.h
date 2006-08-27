@@ -149,87 +149,7 @@ struct file_handle {
 
 #ifndef NSTAT
 #define NSTAT
-
-typedef enum nstat {
-           NFS_OK                 = 0,    /* everything is okay      */
-           NFSERR_PERM            = 1,    /* caller not privileged   */
-           NFSERR_NOENT           = 2,    /* no such file/directory  */
-           NFSERR_IO              = 5,    /* hard I/O error          */
-           NFSERR_NXIO            = 6,    /* no such device          */
-           NFSERR_ACCESS          = 13,   /* access denied           */
-           NFSERR_EXIST           = 17,   /* file already exists     */
-           NFSERR_XDEV            = 18,   /* different filesystems   */
-           /* Unused/reserved       19 */
-           NFSERR_NOTDIR          = 20,   /* should be a directory   */
-           NFSERR_ISDIR           = 21,   /* should not be directory */
-           NFSERR_INVAL           = 22,   /* invalid argument        */
-           NFSERR_FBIG            = 27,   /* file exceeds server max */
-           NFSERR_NOSPC           = 28,   /* no space on filesystem  */
-           NFSERR_ROFS            = 30,   /* read-only filesystem    */
-           NFSERR_MLINK           = 31,   /* too many hard links     */
-           NFSERR_NAMETOOLONG     = 63,   /* name exceeds server max */
-           NFSERR_NOTEMPTY        = 66,   /* directory not empty     */
-           NFSERR_DQUOT           = 69,   /* hard quota limit reached*/
-           NFSERR_STALE           = 70,   /* file no longer exists   */
-           NFSERR_BADHANDLE       = 10001,/* Illegal filehandle      */
-           NFSERR_NOT_SYNC        = 10002,/* NFS3 only */
-           NFSERR_BAD_COOKIE      = 10003,/* READDIR cookie is stale */
-           NFSERR_NOTSUPP         = 10004,/* operation not supported */
-           NFSERR_TOOSMALL        = 10005,/* response limit exceeded */
-           NFSERR_SERVERFAULT     = 10006,/* undefined server error  */
-           NFSERR_BADTYPE         = 10007,/* type invalid for CREATE */
-           NFSERR_DELAY           = 10008,/* file "busy" - retry     */
-           NFSERR_SAME            = 10009,/* nverify says attrs same */
-           NFSERR_DENIED          = 10010,/* lock unavailable        */
-           NFSERR_EXPIRED         = 10011,/* lock lease expired      */
-           NFSERR_LOCKED          = 10012,/* I/O failed due to lock  */
-           NFSERR_GRACE           = 10013,/* in grace period         */
-           NFSERR_FHEXPIRED       = 10014,/* filehandle expired      */
-           NFSERR_SHARE_DENIED    = 10015,/* share reserve denied    */
-           NFSERR_WRONGSEC        = 10016,/* wrong security flavor   */
-           NFSERR_CLID_INUSE      = 10017,/* clientid in use         */
-           NFSERR_RESOURCE        = 10018,/* resource exhaustion     */
-           NFSERR_MOVED           = 10019,/* filesystem relocated    */
-           NFSERR_NOFILEHANDLE    = 10020,/* current FH is not set   */
-           NFSERR_MINOR_VERS_MISMATCH = 10021,/* minor vers not supp */
-           NFSERR_STALE_CLIENTID  = 10022,/* server has rebooted     */
-           NFSERR_STALE_STATEID   = 10023,/* server has rebooted     */
-           NFSERR_OLD_STATEID     = 10024,/* state is out of sync    */
-           NFSERR_BAD_STATEID     = 10025,/* incorrect stateid       */
-           NFSERR_BAD_SEQID       = 10026,/* request is out of seq.  */
-           NFSERR_NOT_SAME        = 10027,/* verify - attrs not same */
-           NFSERR_LOCK_RANGE      = 10028,/* lock range not supported*/
-           NFSERR_SYMLINK         = 10029,/* should be file/directory*/
-           NFSERR_RESTOREFH       = 10030,/* no saved filehandle     */
-           NFSERR_LEASE_MOVED     = 10031,/* some filesystem moved   */
-           NFSERR_ATTRNOTSUPP     = 10032,/* recommended attr not sup*/
-           NFSERR_NO_GRACE        = 10033,/* reclaim outside of grace*/
-           NFSERR_RECLAIM_BAD     = 10034,/* reclaim error at server */
-           NFSERR_RECLAIM_CONFLICT = 10035,/* conflict on reclaim    */
-           NFSERR_BADXDR          = 10036,/* XDR decode failed       */
-           NFSERR_LOCKS_HELD      = 10037,/* file locks held at CLOSE*/
-           NFSERR_OPENMODE        = 10038,/* conflict in OPEN and I/O*/
-           NFSERR_BADOWNER        = 10039,/* owner translation bad   */
-           NFSERR_BADCHAR         = 10040,/* utf-8 char not supported*/
-           NFSERR_BADNAME         = 10041,/* name not supported      */
-           NFSERR_BAD_RANGE       = 10042,/* lock range not supported*/
-           NFSERR_LOCK_NOTSUPP    = 10043,/* no atomic up/downgrade  */
-           NFSERR_OP_ILLEGAL      = 10044,/* undefined operation     */
-           NFSERR_DEADLOCK        = 10045,/* file locking deadlock   */
-           NFSERR_FILE_OPEN       = 10046,/* open file blocks op.    */
-           NFSERR_ADMIN_REVOKED   = 10047,/* lockowner state revoked */
-           NFSERR_CB_PATH_DOWN    = 10048 /* callback path down      */
-} nstat;
-#endif
-
-#ifndef NTIMEVAL
-#define NTIMEVAL
-
-typedef struct ntimeval {
-   unsigned int seconds;
-   unsigned int nseconds;
-} ntimeval;
-
+typedef int nstat;
 #endif
 
 /* All infomation associated with a connection */
@@ -324,27 +244,16 @@ void trigger_callback(void);
 char *host_to_str(unsigned int host, struct pool *pool);
 
 /* Convert a RISC OS error number to an NFS error */
-enum nstat oserr_to_nfserr(int errnum);
+nstat oserr_to_nfserr(int errnum);
 
 /* Convert NFSv4 specific errors to their nearest NFSv2/NFSv3 equivalent */
-enum nstat nfserr_removenfs4(enum nstat errnum);
+nstat nfserr_removenfs4(nstat errnum);
 
 /* Convert a RISC OS load and execution address into a unix timestamp */
-void loadexec_to_timeval(unsigned int load, unsigned int exec, struct ntimeval *unixtime, int mult);
-#ifdef NFS3
-#define loadexec_to_timeval(load, exec, unixtime) (loadexec_to_timeval)(load, exec, unixtime, 1000)
-#else
-#define loadexec_to_timeval(load, exec, unixtime) (loadexec_to_timeval)(load, exec, unixtime, 1)
-#endif
+void loadexec_to_timeval(unsigned load, unsigned exec, unsigned *seconds, unsigned *nseconds, int nfs2);
 
 /* Convert a unix timestamp into a RISC OS load and execution address */
-void timeval_to_loadexec(struct ntimeval *unixtime, int filetype, unsigned int *load, unsigned int *exec, int mult);
-#ifdef NFS2
-#error foo
-#define timeval_to_loadexec(unixtime, filetype, load, exec) (timeval_to_loadexec)(unixtime, filetype, load, exec, 1)
-#else
-#define timeval_to_loadexec(unixtime, filetype, load, exec) (timeval_to_loadexec)(unixtime, filetype, load, exec, 1000)
-#endif
+void timeval_to_loadexec(unsigned seconds, unsigned nseconds, int filetype, unsigned *load, unsigned *exec, int nfs2);
 
 
 /* A version of gethostbyname that will timeout.
@@ -373,6 +282,271 @@ os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct hosten
 #define ENTRYFUNCDECL(ret, func, args) ret nfs3_entry_##func args; ret nfs2_entry_##func args
 
 #define CALLENTRY(name, conn, args) (conn->nfs3 ? nfs3_entry_##name args : nfs2_entry_##name args)
+
+
+#ifndef NFS_OK
+#define NFS_OK 0
+#endif
+
+#ifndef NFSERR_PERM
+#define NFSERR_PERM 1
+#endif
+
+#ifndef NFSERR_NOENT
+#define NFSERR_NOENT 2
+#endif
+
+#ifndef NFSERR_IO
+#define NFSERR_IO 5
+#endif
+
+#ifndef NFSERR_NXIO
+#define NFSERR_NXIO 6
+#endif
+
+#ifndef NFSERR_ACCESS
+#define NFSERR_ACCESS 13
+#endif
+
+#ifndef NFSERR_EXIST
+#define NFSERR_EXIST 17
+#endif
+
+#ifndef NFSERR_XDEV
+#define NFSERR_XDEV 18
+#endif
+
+#ifndef NFSERR_NOTDIR
+#define NFSERR_NOTDIR 20
+#endif
+
+#ifndef NFSERR_ISDIR
+#define NFSERR_ISDIR 21
+#endif
+
+#ifndef NFSERR_INVAL
+#define NFSERR_INVAL 22
+#endif
+
+#ifndef NFSERR_FBIG
+#define NFSERR_FBIG 27
+#endif
+
+#ifndef NFSERR_NOSPC
+#define NFSERR_NOSPC 28
+#endif
+
+#ifndef NFSERR_ROFS
+#define NFSERR_ROFS 30
+#endif
+
+#ifndef NFSERR_MLINK
+#define NFSERR_MLINK 31
+#endif
+
+#ifndef NFSERR_NAMETOOLONG
+#define NFSERR_NAMETOOLONG 63
+#endif
+
+#ifndef NFSERR_NOTEMPTY
+#define NFSERR_NOTEMPTY 66
+#endif
+
+#ifndef NFSERR_DQUOT
+#define NFSERR_DQUOT 69
+#endif
+
+#ifndef NFSERR_STALE
+#define NFSERR_STALE 70
+#endif
+
+#ifndef NFSERR_BADHANDLE
+#define NFSERR_BADHANDLE 10001
+#endif
+
+#ifndef NFSERR_BAD_COOKIE
+#define NFSERR_BAD_COOKIE 10003
+#endif
+
+#ifndef NFSERR_NOTSUPP
+#define NFSERR_NOTSUPP 10004
+#endif
+
+#ifndef NFSERR_TOOSMALL
+#define NFSERR_TOOSMALL 10005
+#endif
+
+#ifndef NFSERR_SERVERFAULT
+#define NFSERR_SERVERFAULT 10006
+#endif
+
+#ifndef NFSERR_BADTYPE
+#define NFSERR_BADTYPE 10007
+#endif
+
+#ifndef NFSERR_DELAY
+#define NFSERR_DELAY 10008
+#endif
+
+#ifndef NFSERR_SAME
+#define NFSERR_SAME 10009
+#endif
+
+#ifndef NFSERR_DENIED
+#define NFSERR_DENIED 10010
+#endif
+
+#ifndef NFSERR_EXPIRED
+#define NFSERR_EXPIRED 10011
+#endif
+
+#ifndef NFSERR_LOCKED
+#define NFSERR_LOCKED 10012
+#endif
+
+#ifndef NFSERR_GRACE
+#define NFSERR_GRACE 10013
+#endif
+
+#ifndef NFSERR_FHEXPIRED
+#define NFSERR_FHEXPIRED 10014
+#endif
+
+#ifndef NFSERR_SHARE_DENIED
+#define NFSERR_SHARE_DENIED 10015
+#endif
+
+#ifndef NFSERR_WRONGSEC
+#define NFSERR_WRONGSEC 10016
+#endif
+
+#ifndef NFSERR_CLID_INUSE
+#define NFSERR_CLID_INUSE 10017
+#endif
+
+#ifndef NFSERR_RESOURCE
+#define NFSERR_RESOURCE 10018
+#endif
+
+#ifndef NFSERR_MOVED
+#define NFSERR_MOVED 10019
+#endif
+
+#ifndef NFSERR_NOFILEHANDLE
+#define NFSERR_NOFILEHANDLE 10020
+#endif
+
+#ifndef NFSERR_MINOR_VERS_MISMATCH
+#define NFSERR_MINOR_VERS_MISMATCH 10021
+#endif
+
+#ifndef NFSERR_STALE_CLIENTID
+#define NFSERR_STALE_CLIENTID 10022
+#endif
+
+#ifndef NFSERR_STALE_STATEID
+#define NFSERR_STALE_STATEID 10023
+#endif
+
+#ifndef NFSERR_OLD_STATEID
+#define NFSERR_OLD_STATEID 10024
+#endif
+
+#ifndef NFSERR_BAD_STATEID
+#define NFSERR_BAD_STATEID 10025
+#endif
+
+#ifndef NFSERR_BAD_SEQID
+#define NFSERR_BAD_SEQID 10026
+#endif
+
+#ifndef NFSERR_NOT_SAME
+#define NFSERR_NOT_SAME 10027
+#endif
+
+#ifndef NFSERR_LOCK_RANGE
+#define NFSERR_LOCK_RANGE 10028
+#endif
+
+#ifndef NFSERR_SYMLINK
+#define NFSERR_SYMLINK 10029
+#endif
+
+#ifndef NFSERR_RESTOREFH
+#define NFSERR_RESTOREFH 10030
+#endif
+
+#ifndef NFSERR_LEASE_MOVED
+#define NFSERR_LEASE_MOVED 10031
+#endif
+
+#ifndef NFSERR_ATTRNOTSUPP
+#define NFSERR_ATTRNOTSUPP 10032
+#endif
+
+#ifndef NFSERR_NO_GRACE
+#define NFSERR_NO_GRACE 10033
+#endif
+
+#ifndef NFSERR_RECLAIM_BAD
+#define NFSERR_RECLAIM_BAD 10034
+#endif
+
+#ifndef NFSERR_RECLAIM_CONFLICT
+#define NFSERR_RECLAIM_CONFLICT 10035
+#endif
+
+#ifndef NFSERR_BADXDR
+#define NFSERR_BADXDR 10036
+#endif
+
+#ifndef NFSERR_LOCKS_HELD
+#define NFSERR_LOCKS_HELD 10037
+#endif
+
+#ifndef NFSERR_OPENMODE
+#define NFSERR_OPENMODE 10038
+#endif
+
+#ifndef NFSERR_BADOWNER
+#define NFSERR_BADOWNER 10039
+#endif
+
+#ifndef NFSERR_BADCHAR
+#define NFSERR_BADCHAR 10040
+#endif
+
+#ifndef NFSERR_BADNAME
+#define NFSERR_BADNAME 10041
+#endif
+
+#ifndef NFSERR_BAD_RANGE
+#define NFSERR_BAD_RANGE 10042
+#endif
+
+#ifndef NFSERR_LOCK_NOTSUPP
+#define NFSERR_LOCK_NOTSUPP 10043
+#endif
+
+#ifndef NFSERR_OP_ILLEGAL
+#define NFSERR_OP_ILLEGAL 10044
+#endif
+
+#ifndef NFSERR_DEADLOCK
+#define NFSERR_DEADLOCK 10045
+#endif
+
+#ifndef NFSERR_FILE_OPEN
+#define NFSERR_FILE_OPEN 10046
+#endif
+
+#ifndef NFSERR_ADMIN_REVOKED
+#define NFSERR_ADMIN_REVOKED 10047
+#endif
+
+#ifndef NFSERR_CB_PATH_DOWN
+#define NFSERR_CB_PATH_DOWN 10048
+#endif
 
 #endif
 

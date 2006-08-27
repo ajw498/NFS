@@ -51,7 +51,7 @@ static struct cachedfile {
 	unsigned int bufferoffset;
 	unsigned int buffercount;
 	int write;
-	enum nstat writeerror;
+	nstat writeerror;
 	unsigned int filesize;
 	unsigned int load;
 	unsigned int exec;
@@ -91,9 +91,9 @@ void filecache_init(void)
 	}
 }
 
-static enum nstat filecache_flush(int index)
+static nstat filecache_flush(int index)
 {
-	enum nstat ret = NFS_OK;
+	nstat ret = NFS_OK;
 
 	/* Write out any cached data */
 	if (cachedfiles[index].write && cachedfiles[index].buffercount > 0) {
@@ -157,7 +157,7 @@ void filecache_removestate(uint64_t clientid)
 	}
 }
 
-static enum nstat filecache_opencached(char *path, struct stateid *stateid, enum accesstype access, int *index, struct openfile **openfile, int dontopen)
+static nstat filecache_opencached(char *path, struct stateid *stateid, enum accesstype access, int *index, struct openfile **openfile, int dontopen)
 {
 	int i;
 	clock_t now = clock();
@@ -239,7 +239,7 @@ static enum nstat filecache_opencached(char *path, struct stateid *stateid, enum
 	return NFS_OK;
 }
 
-enum nstat filecache_getfile(char *path, struct openfile **file)
+nstat filecache_getfile(char *path, struct openfile **file)
 {
 	int index;
 
@@ -248,7 +248,7 @@ enum nstat filecache_getfile(char *path, struct openfile **file)
 	return NFS_OK;
 }
 
-enum nstat filecache_open(char *path, struct open_owner *open_owner, unsigned access, unsigned deny, unsigned *ownerseqid, char *other)
+nstat filecache_open(char *path, struct open_owner *open_owner, unsigned access, unsigned deny, unsigned *ownerseqid, char *other)
 {
 	int index;
 	struct openfile *file;
@@ -261,7 +261,7 @@ enum nstat filecache_open(char *path, struct open_owner *open_owner, unsigned ac
 		NR(state_createopenstateid(file, open_owner, access, deny, &open_stateid));
 	} else {
 		os_error *err2;
-		enum nstat nerr;
+		nstat nerr;
 		int type;
 
 		UR(file = malloc(sizeof(struct openfile)));
@@ -310,7 +310,7 @@ enum nstat filecache_open(char *path, struct open_owner *open_owner, unsigned ac
 	return NFS_OK;
 }
 
-enum nstat filecache_opendowngrade(char *path, struct stateid *stateid, unsigned access, unsigned deny, unsigned *ownerseqid)
+nstat filecache_opendowngrade(char *path, struct stateid *stateid, unsigned access, unsigned deny, unsigned *ownerseqid)
 {
 	int index;
 	struct openfile *file;
@@ -324,7 +324,7 @@ enum nstat filecache_opendowngrade(char *path, struct stateid *stateid, unsigned
 }
 
 /* Flush the file from the cache, so it can be removed or renamed */
-enum nstat filecache_closecache(char *path)
+nstat filecache_closecache(char *path)
 {
 	int index;
 	struct openfile *file;
@@ -337,11 +337,11 @@ enum nstat filecache_closecache(char *path)
 	return NFS_OK;
 }
 
-enum nstat filecache_close(char *path, struct stateid *stateid)
+nstat filecache_close(char *path, struct stateid *stateid)
 {
 	int index;
 	struct openfile *file;
-	enum nstat ret = NFS_OK;
+	nstat ret = NFS_OK;
 	int handle;
 
 	NR(filecache_opencached(path, stateid, ACC_EITHER, &index, &file, 1));
@@ -409,7 +409,7 @@ void filecache_reap(int all)
 	if (all && openfiles) syslogf(LOGNAME, LOG_SERIOUS, "filecache_reap files still open");
 }
 
-enum nstat filecache_read(char *path, struct stateid *stateid, unsigned int count, unsigned int offset, char **data, unsigned int *read, int *eof)
+nstat filecache_read(char *path, struct stateid *stateid, unsigned int count, unsigned int offset, char **data, unsigned int *read, int *eof)
 {
 	int index;
 	struct openfile *file;
@@ -482,7 +482,7 @@ enum nstat filecache_read(char *path, struct stateid *stateid, unsigned int coun
 	return NFS_OK;
 }
 
-enum nstat filecache_write(char *path, struct stateid *stateid, unsigned int count, unsigned int offset, char *data, int sync, char *verf)
+nstat filecache_write(char *path, struct stateid *stateid, unsigned int count, unsigned int offset, char *data, int sync, char *verf)
 {
 	int index;
 	struct openfile *file;
@@ -530,10 +530,10 @@ enum nstat filecache_write(char *path, struct stateid *stateid, unsigned int cou
 	return NFS_OK;
 }
 
-enum nstat filecache_commit(char *path, char *verf)
+nstat filecache_commit(char *path, char *verf)
 {
 	int index;
-	enum nstat ret = NFS_OK;
+	nstat ret = NFS_OK;
 
 	if (verf) memcpy(verf, verifier, 8);
 
@@ -548,7 +548,7 @@ enum nstat filecache_commit(char *path, char *verf)
 	return ret;
 }
 
-enum nstat filecache_getattr(char *path, unsigned int *load, unsigned int *exec, unsigned int *size, unsigned int *attr, int *cached)
+nstat filecache_getattr(char *path, unsigned int *load, unsigned int *exec, unsigned int *size, unsigned int *attr, int *cached)
 {
 	int index;
 	struct openfile *file;
@@ -576,7 +576,7 @@ enum nstat filecache_getattr(char *path, unsigned int *load, unsigned int *exec,
 	return NFS_OK;
 }
 
-enum nstat filecache_setattr(char *path, struct stateid *stateid, unsigned int load, unsigned int exec, unsigned int attr, unsigned int size, int setsize)
+nstat filecache_setattr(char *path, struct stateid *stateid, unsigned int load, unsigned int exec, unsigned int attr, unsigned int size, int setsize)
 {
 	int index;
 	struct openfile *file;

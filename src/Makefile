@@ -54,6 +54,8 @@ endif
 VPATH = auto:.
 
 SUNFISHGENOBJS = \
+pcnfsd-process1.o \
+pcnfsd-process2.o \
 portmapper-calls.o \
 pcnfsd-calls.o \
 mount1-calls.o \
@@ -80,6 +82,22 @@ nfs3-decode.o \
 nfs3-decode2.o \
 nfs4-decode.o \
 nfs4-decode2.o
+
+COMMONGENOBJS = \
+rpc-process1.o \
+rpc-process2.o \
+portmapper-process1.o \
+portmapper-process2.o \
+mount1-process1.o \
+mount1-process2.o \
+mount3-process1.o \
+mount3-process2.o \
+nfs2-process1.o \
+nfs2-process2.o \
+nfs3-process1.o \
+nfs3-process2.o \
+nfs4-process1.o \
+nfs4-process2.o
 
 SUNFISHOBJS = \
 rpc.o \
@@ -113,8 +131,10 @@ state.o \
 exports.o
 
 COMMONOBJS = \
+$(COMMONGENOBJS) \
 pools.o \
-utils.o
+utils.o \
+primitives.o
 
 ifneq (,$(findstring debug-server,$(MAKECMDGOALS)))
 

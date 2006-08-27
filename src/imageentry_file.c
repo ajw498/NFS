@@ -51,7 +51,11 @@ os_error *ENTRYFUNC(file_readcatinfo) (char *filename, struct conn_info *conn, i
 	}
 
 	*objtype = finfo->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
-	timeval_to_loadexec(&(finfo->attributes.mtime), filetype, load, exec);
+#ifdef NFS3
+	timeval_to_loadexec(finfo->attributes.mtime.seconds, finfo->attributes.mtime.nseconds, filetype, load, exec, 0);
+#else
+	timeval_to_loadexec(finfo->attributes.mtime.seconds, finfo->attributes.mtime.useconds, filetype, load, exec, 1);
+#endif
 	*len = filesize(finfo->attributes.size);
 	*attr = mode_to_attr(finfo->attributes.mode);
 
@@ -62,8 +66,13 @@ os_error *ENTRYFUNC(file_writecatinfo) (char *filename, unsigned int load, unsig
 {
 	struct objinfo *finfo;
 	struct objinfo *dinfo;
+#ifdef NFS3
+	struct sattrargs3 sattrargs;
+	struct sattrres3 sattrres;
+#else
 	struct sattrargs sattrargs;
 	struct sattrres sattrres;
+#endif
 	os_error *err;
 	int filetype;
 	int newfiletype;
@@ -89,8 +98,13 @@ os_error *ENTRYFUNC(file_writecatinfo) (char *filename, unsigned int load, unsig
 	
 	/* If the filetype has changed we may need to rename the file */
 	if (conn->xyzext != NEVER && newfiletype != filetype && finfo->attributes.type == NFREG) {
+#ifdef NFS3
+		struct renameargs3 renameargs;
+		struct renameres3 renameres;
+#else
 		struct renameargs renameargs;
 		struct renameres renameres;
+#endif
 
 		if (dinfo) {
 			commonfh_to_fh(renameargs.from.dir, dinfo->objhandle);
@@ -126,7 +140,7 @@ os_error *ENTRYFUNC(file_writecatinfo) (char *filename, unsigned int load, unsig
 	sattrargs.attributes.size = NOVALUE;
 	sattrargs.attributes.atime.seconds = NOVALUE;
 	sattrargs.attributes.atime.useconds = NOVALUE;
-	loadexec_to_timeval(load, exec, &(sattrargs.attributes.mtime));
+	loadexec_to_timeval(load, exec, &(sattrargs.attributes.mtime.seconds), &(sattrargs.attributes.mtime.useconds), 0);
 #endif
 
 	err = NFSPROC(SETATTR, (&sattrargs, &sattrres, conn));
@@ -142,8 +156,13 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 	struct objinfo *dinfo;
 	struct objinfo *finfo;
 	os_error *err;
+#ifdef NFS3
+	struct createargs3 createargs;
+	struct createres3 createres;
+#else
 	struct createargs createargs;
 	struct createres createres;
+#endif
 	static struct commonfh fh;
 	int filetype;
 	int newfiletype;
@@ -169,13 +188,23 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 
 	/* If a file already exists then we must overwrite it */
 	if (finfo && finfo->attributes.type == NFREG) {
+#ifdef NFS3
+		struct sattrargs3 sattrargs;
+		struct sattrres3 sattrres;
+#else
 		struct sattrargs sattrargs;
 		struct sattrres sattrres;
+#endif
 
 		/* If the filetype has changed we may need to rename the file */
 		if (conn->xyzext != NEVER && newfiletype != filetype) {
+#ifdef NFS3
+			struct renameargs3 renameargs;
+			struct renameres3 renameres;
+#else
 			struct renameargs renameargs;
 			struct renameres renameres;
+#endif
 
 			if (dinfo) {
 				commonfh_to_fh(renameargs.from.dir, dinfo->objhandle);
@@ -240,7 +269,7 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 	createargs.attributes.size = NOVALUE;
 	createargs.attributes.atime.seconds = NOVALUE;
 	createargs.attributes.atime.useconds = NOVALUE;
-	loadexec_to_timeval(load, exec, &(createargs.attributes.mtime));
+	loadexec_to_timeval(load, exec, &(createargs.attributes.mtime.seconds), &(createargs.attributes.mtime.useconds), 1);
 #endif
 	err = NFSPROC(CREATE, (&createargs, &createres, conn));
 
@@ -270,8 +299,13 @@ os_error *ENTRYFUNC(file_createdir) (char *filename, unsigned int load, unsigned
 	struct objinfo *dinfo;
 	struct objinfo *finfo;
 	os_error *err;
+#ifdef NFS3
+	struct createres3 createres;
+	struct mkdirargs3 mkdirargs;
+#else
 	struct createres createres;
 	struct mkdirargs mkdirargs;
+#endif
 	char *leafname;
 
 	err = ENTRYFUNC(filename_to_finfo) (filename, 1, &dinfo, &finfo, &leafname, NULL, NULL, conn);
@@ -301,7 +335,7 @@ os_error *ENTRYFUNC(file_createdir) (char *filename, unsigned int load, unsigned
 	mkdirargs.attributes.size = NOVALUE;
 	mkdirargs.attributes.atime.seconds = NOVALUE;
 	mkdirargs.attributes.atime.useconds = NOVALUE;
-	loadexec_to_timeval(load, exec, &(mkdirargs.attributes.mtime));
+	loadexec_to_timeval(load, exec, &(mkdirargs.attributes.mtime.seconds), &(mkdirargs.attributes.mtime.useconds), 1);
 #endif
 
 	err = NFSPROC(MKDIR, (&mkdirargs, &createres, conn));
@@ -339,8 +373,13 @@ os_error *ENTRYFUNC(file_delete) (char *filename, struct conn_info *conn, int *o
 		/* Object not found */
 		*objtype = 0;
 	} else {
+#ifdef NFS3
+		struct diropargs3 removeargs;
+		struct removeres3 removeres;
+#else
 		struct diropargs removeargs;
 		struct removeres removeres;
+#endif
 
 		if (dinfo) {
 			commonfh_to_fh(removeargs.dir, dinfo->objhandle);
@@ -370,7 +409,11 @@ os_error *ENTRYFUNC(file_delete) (char *filename, struct conn_info *conn, int *o
 
 		/* Treat all special files as if they were regular files */
 		*objtype = finfo->attributes.type == NFDIR ? OBJ_DIR : OBJ_FILE;
-		timeval_to_loadexec(&(finfo->attributes.mtime), filetype, load, exec);
+#ifdef NFS3
+		timeval_to_loadexec(finfo->attributes.mtime.seconds, finfo->attributes.mtime.nseconds, filetype, load, exec, 0);
+#else
+		timeval_to_loadexec(finfo->attributes.mtime.seconds, finfo->attributes.mtime.useconds, filetype, load, exec, 1);
+#endif
 		*len = filesize(finfo->attributes.size);
 		*attr = mode_to_attr(finfo->attributes.mode);
 	}

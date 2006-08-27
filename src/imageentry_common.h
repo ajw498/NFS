@@ -46,14 +46,18 @@
 
 struct objinfo {
 	struct commonfh objhandle;
+#ifdef NFS3
+	struct fattr3 attributes;
+#else
 	struct fattr attributes;
+#endif
 };
 
 /* Generate a RISC OS error block based on the NFS status code */
-ENTRYFUNCDECL(os_error *, gen_nfsstatus_error, (enum nstat stat));
+ENTRYFUNCDECL(os_error *, gen_nfsstatus_error, (nstat stat));
 
 /* Convert a leafname into an nfs handle, following symlinks as necessary */
-ENTRYFUNCDECL(os_error *, leafname_to_finfo, (char *leafname, unsigned int *len, int simple, int followsymlinks, struct commonfh *dirhandle, struct objinfo **finfo, enum nstat *status, struct conn_info *conn));
+ENTRYFUNCDECL(os_error *, leafname_to_finfo, (char *leafname, unsigned int *len, int simple, int followsymlinks, struct commonfh *dirhandle, struct objinfo **finfo, nstat *status, struct conn_info *conn));
 
 /* Convert a full filename/dirname into an nfs handle */
 ENTRYFUNCDECL(os_error *, filename_to_finfo, (char *filename, int followsymlinks, struct objinfo **dinfo, struct objinfo **finfo, char **leafname, int *filetype, int *extfound, struct conn_info *conn));

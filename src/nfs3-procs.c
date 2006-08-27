@@ -30,12 +30,12 @@
 #include "nfs3-procs.h"
 
 
-static inline enum nstat nfs3fh_to_path(struct nfs_fh *fhandle, char **path, struct server_conn *conn)
+static inline nstat nfs3fh_to_path(struct nfs_fh3 *fhandle, char **path, struct server_conn *conn)
 {
 	return fh_to_path(fhandle->data.data, fhandle->data.size, path, conn);
 }
 
-static inline enum nstat path_to_nfs3fh(char *path, struct nfs_fh *fhandle, struct server_conn *conn)
+static inline nstat path_to_nfs3fh(char *path, struct nfs_fh3 *fhandle, struct server_conn *conn)
 {
 	fhandle->data.data = NULL;
 	fhandle->data.size = NFS3_FHSIZE;
@@ -43,7 +43,7 @@ static inline enum nstat path_to_nfs3fh(char *path, struct nfs_fh *fhandle, stru
 	return path_to_fh(path, &(fhandle->data.data), &(fhandle->data.size), conn);
 }
 
-static enum nstat diropargs_to_path(struct diropargs *where, char **path, int *filetype, struct server_conn *conn)
+static nstat diropargs_to_path(struct diropargs3 *where, char **path, int *filetype, struct server_conn *conn)
 {
 	int len;
 	char *dirpath;
@@ -88,7 +88,7 @@ static enum nstat diropargs_to_path(struct diropargs *where, char **path, int *f
 	return NFS_OK;
 }
 
-static void parse_fattr(char *path, int type, int load, int exec, int len, int attr, struct fattr *fattr, struct server_conn *conn)
+static void parse_fattr(char *path, int type, int load, int exec, int len, int attr, struct fattr3 *fattr, struct server_conn *conn)
 {
 	fattr->type = type == OBJ_IMAGE ? (conn->export->imagefs ? NFDIR : NFREG) :
 	              type == OBJ_DIR ? NFDIR : NFREG;
@@ -113,12 +113,12 @@ static void parse_fattr(char *path, int type, int load, int exec, int len, int a
 	fattr->rdev.specdata2 = 0;
 	fattr->fsid = conn->export->exportnum;
 	fattr->fileid = calc_fileid(path, NULL);
-	loadexec_to_timeval(load, exec, &(fattr->atime));
-	loadexec_to_timeval(load, exec, &(fattr->ctime));
-	loadexec_to_timeval(load, exec, &(fattr->mtime));
+	loadexec_to_timeval(load, exec, &(fattr->atime.seconds), &(fattr->atime.nseconds), 0);
+	loadexec_to_timeval(load, exec, &(fattr->ctime.seconds), &(fattr->ctime.nseconds), 0);
+	loadexec_to_timeval(load, exec, &(fattr->mtime.seconds), &(fattr->mtime.nseconds), 0);
 }
 
-static enum nstat get_fattr(char *path, int filetype, struct fattr *fattr, int *access, struct server_conn *conn)
+static nstat get_fattr(char *path, int filetype, struct fattr3 *fattr, int *access, struct server_conn *conn)
 {
 	unsigned int type;
 	unsigned int load;
@@ -161,7 +161,7 @@ static enum nstat get_fattr(char *path, int filetype, struct fattr *fattr, int *
 	return NFS_OK;
 }
 
-static enum nstat set_attr(char *path, struct sattrguard3 *guard, struct sattr3 *sattr, struct wcc_data *obj_wcc, struct server_conn *conn)
+static nstat set_attr(char *path, struct sattrguard3 *guard, struct sattr3 *sattr, struct wcc_data *obj_wcc, struct server_conn *conn)
 {
 	unsigned int load;
 	unsigned int exec;
@@ -178,20 +178,20 @@ static enum nstat set_attr(char *path, struct sattrguard3 *guard, struct sattr3 
 	filetype = (load & 0x000FFF00) >> 8;
 
 	if (guard && guard->check == TRUE) {
-		timeval_to_loadexec(&(guard->u.obj_ctime), filetype, &guardload, &guardexec);
+		timeval_to_loadexec(guard->u.obj_ctime.seconds, guard->u.obj_ctime.nseconds, filetype, &guardload, &guardexec, 0);
 		if (guardload != load || guardexec != exec) return NFSERR_NOT_SYNC;
 	}
 
 	if (obj_wcc) {
 		obj_wcc->before.attributes_follow = TRUE;
 		obj_wcc->before.u.attributes.size = size;
-		loadexec_to_timeval(load, exec, &(obj_wcc->before.u.attributes.mtime));
-		loadexec_to_timeval(load, exec, &(obj_wcc->before.u.attributes.ctime));
+		loadexec_to_timeval(load, exec, &(obj_wcc->before.u.attributes.mtime.seconds), &(obj_wcc->before.u.attributes.mtime.nseconds), 0);
+		loadexec_to_timeval(load, exec, &(obj_wcc->before.u.attributes.ctime.seconds), &(obj_wcc->before.u.attributes.ctime.nseconds), 0);
 	}
 
 	if (sattr->mode.set_it) attr = mode_to_attr(sattr->mode.u.mode);
 
-	if (sattr->mtime.set_it) timeval_to_loadexec(&(sattr->mtime.u.mtime), filetype, &load, &exec);
+	if (sattr->mtime.set_it) timeval_to_loadexec(sattr->mtime.u.mtime.seconds, sattr->mtime.u.mtime.nseconds, filetype, &load, &exec, 0);
 
 	if (type == OBJ_IMAGE) type = conn->export->imagefs ? OBJ_DIR : OBJ_FILE;
 
@@ -233,7 +233,7 @@ failure:
 	return SUCCESS;
 }
 
-enum accept_stat NFSPROC3_SETATTR(struct sattrargs *args, struct sattrres *res, struct server_conn *conn)
+enum accept_stat NFSPROC3_SETATTR(struct sattrargs3 *args, struct sattrres3 *res, struct server_conn *conn)
 {
 	char *path;
 
@@ -250,7 +250,7 @@ failure:
 	return SUCCESS;
 }
 
-enum accept_stat NFSPROC3_LOOKUP(struct diropargs *args, struct diropres *res, struct server_conn *conn)
+enum accept_stat NFSPROC3_LOOKUP(struct diropargs3 *args, struct diropres3 *res, struct server_conn *conn)
 {
 	char *path;
 	int filetype;
@@ -287,7 +287,7 @@ failure:
 	return SUCCESS;
 }
 
-enum accept_stat NFSPROC3_READLINK(struct readlinkargs *args, struct readlinkres *res, struct server_conn *conn)
+enum accept_stat NFSPROC3_READLINK(struct readlinkargs3 *args, struct readlinkres3 *res, struct server_conn *conn)
 {
 	(void)args;
 	(void)conn;
@@ -298,7 +298,7 @@ enum accept_stat NFSPROC3_READLINK(struct readlinkargs *args, struct readlinkres
 	return SUCCESS;
 }
 
-enum accept_stat NFSPROC3_READ(struct readargs *args, struct readres *res, struct server_conn *conn)
+enum accept_stat NFSPROC3_READ(struct readargs3 *args, struct readres3 *res, struct server_conn *conn)
 {
 	char *path;
 	unsigned int read;
@@ -328,7 +328,7 @@ failure:
 	return SUCCESS;
 }
 
-enum accept_stat NFSPROC3_WRITE(struct writeargs *args, struct writeres *res, struct server_conn *conn)
+enum accept_stat NFSPROC3_WRITE(struct writeargs3 *args, struct writeres3 *res, struct server_conn *conn)
 {
 	char *path;
 	int sync = args->stable != UNSTABLE;
@@ -364,7 +364,7 @@ failure:
 	return SUCCESS;
 }
 
-enum accept_stat NFSPROC3_CREATE(struct createargs *args, struct createres *res, struct server_conn *conn)
+enum accept_stat NFSPROC3_CREATE(struct createargs3 *args, struct createres3 *res, struct server_conn *conn)
 {
 	char *path;
 	int filetype;
@@ -414,7 +414,7 @@ failure:
 	return SUCCESS;
 }
 
-enum accept_stat NFSPROC3_MKDIR(struct mkdirargs *args, struct createres *res, struct server_conn *conn)
+enum accept_stat NFSPROC3_MKDIR(struct mkdirargs3 *args, struct createres3 *res, struct server_conn *conn)
 {
 	char *path;
 	int filetype;
@@ -464,7 +464,7 @@ enum accept_stat NFSPROC3_MKNOD(struct MKNOD3args *args, struct MKNOD3res *res, 
 	return SUCCESS;
 }
 
-enum accept_stat NFSPROC3_REMOVE(struct diropargs *args, struct removeres *res, struct server_conn *conn)
+enum accept_stat NFSPROC3_REMOVE(struct diropargs3 *args, struct removeres3 *res, struct server_conn *conn)
 {
 	char *path;
 	int filetype;
@@ -486,7 +486,7 @@ failure:
 	return SUCCESS;
 }
 
-enum accept_stat NFSPROC3_RMDIR(struct diropargs *args, struct removeres *res, struct server_conn *conn)
+enum accept_stat NFSPROC3_RMDIR(struct diropargs3 *args, struct removeres3 *res, struct server_conn *conn)
 {
 	char *path;
 	int filetype;
@@ -507,7 +507,7 @@ failure:
 	return SUCCESS;
 }
 
-enum accept_stat NFSPROC3_RENAME(struct renameargs *args, struct renameres *res, struct server_conn *conn)
+enum accept_stat NFSPROC3_RENAME(struct renameargs3 *args, struct renameres3 *res, struct server_conn *conn)
 {
 	char *from;
 	char *to;
@@ -555,12 +555,12 @@ enum accept_stat NFSPROC3_LINK(struct LINK3args *args, struct LINK3res *res, str
 	return SUCCESS;
 }
 
-enum accept_stat NFSPROC3_READDIR(struct readdirargs *args, struct readdirres *res, struct server_conn *conn)
+enum accept_stat NFSPROC3_READDIR(struct readdirargs3 *args, struct readdirres3 *res, struct server_conn *conn)
 {
 	char *path;
 	int cookie = (int)args->cookie;
 	int bytes = 0;
-	struct entry **lastentry = &(res->u.readdirok.entries);
+	struct entry3 **lastentry = &(res->u.readdirok.entries);
 
 	NF(nfs3fh_to_path(&(args->dir), &path, conn));
 
@@ -578,7 +578,7 @@ enum accept_stat NFSPROC3_READDIR(struct readdirargs *args, struct readdirres *r
 		   a cookie for every entry. */
 		OF(_swix(OS_GBPB, _INR(0,6) | _OUTR(3,4), 10, path, buffer, 1, cookie, sizeof(buffer), 0, &read, &cookie));
 		if (read > 0) {
-			struct entry *entry;
+			struct entry3 *entry;
 			char *leaf = buffer + 20;
 			unsigned int leaflen;
 			int filetype;
@@ -590,7 +590,7 @@ enum accept_stat NFSPROC3_READDIR(struct readdirargs *args, struct readdirres *r
 			} else {
 				filetype = conn->export->defaultfiletype;
 			}
-			UF(entry = palloc(sizeof(struct entry), conn->pool));
+			UF(entry = palloc(sizeof(struct entry3), conn->pool));
 
 			entry->fileid = calc_fileid(path, leaf);
 			UF(leaf = filename_unixify(leaf, strlen(leaf), &leaflen, conn->pool));
@@ -646,7 +646,7 @@ failure:
 	return SUCCESS;
 }
 
-enum accept_stat NFSPROC3_READDIRPLUS(struct readdirplusargs *args, struct readdirplusres *res, struct server_conn *conn)
+enum accept_stat NFSPROC3_READDIRPLUS(struct readdirplusargs3 *args, struct readdirplusres3 *res, struct server_conn *conn)
 {
 	char *path;
 	int cookie = (int)args->cookie;

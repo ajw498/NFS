@@ -38,25 +38,25 @@ void filecache_reap(int all);
 
 void filecache_removestate(uint64_t clientid);
 
-enum nstat filecache_getfile(char *path, struct openfile **file);
+nstat filecache_getfile(char *path, struct openfile **file);
 
-enum nstat filecache_open(char *path, struct open_owner *open_owner, unsigned access, unsigned deny, unsigned *ownerseqid, char *other);
+nstat filecache_open(char *path, struct open_owner *open_owner, unsigned access, unsigned deny, unsigned *ownerseqid, char *other);
 
-enum nstat filecache_opendowngrade(char *path, struct stateid *stateid, unsigned access, unsigned deny, unsigned *ownerseqid);
+nstat filecache_opendowngrade(char *path, struct stateid *stateid, unsigned access, unsigned deny, unsigned *ownerseqid);
 
-enum nstat filecache_closecache(char *path);
+nstat filecache_closecache(char *path);
 
-enum nstat filecache_close(char *path, struct stateid *stateid);
+nstat filecache_close(char *path, struct stateid *stateid);
 
-enum nstat filecache_read(char *path, struct stateid *stateid, unsigned int count, unsigned int offset, char **data, unsigned int *read, int *eof);
+nstat filecache_read(char *path, struct stateid *stateid, unsigned int count, unsigned int offset, char **data, unsigned int *read, int *eof);
 
-enum nstat filecache_write(char *path, struct stateid *stateid, unsigned int count, unsigned int offset, char *data, int sync, char *verf);
+nstat filecache_write(char *path, struct stateid *stateid, unsigned int count, unsigned int offset, char *data, int sync, char *verf);
 
-enum nstat filecache_commit(char *path, char *verf);
+nstat filecache_commit(char *path, char *verf);
 
-enum nstat filecache_getattr(char *path, unsigned int *load, unsigned int *exec, unsigned int *size, unsigned int *attr, int *cached);
+nstat filecache_getattr(char *path, unsigned int *load, unsigned int *exec, unsigned int *size, unsigned int *attr, int *cached);
 
-enum nstat filecache_setattr(char *path, struct stateid *stateid, unsigned int load, unsigned int exec, unsigned int attr, unsigned int size, int setsize);
+nstat filecache_setattr(char *path, struct stateid *stateid, unsigned int load, unsigned int exec, unsigned int attr, unsigned int size, int setsize);
 
 #endif
 

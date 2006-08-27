@@ -28,29 +28,28 @@ const FHSIZE = 32;
 #ifndef NSTAT
 #define NSTAT
 
-enum nstat {
-    NFS_OK = 0,
-    NFSERR_PERM=1,
-
-    NFSERR_NOENT=2,
-    NFSERR_IO=5,
-    NFSERR_NXIO=6,
-    NFSERR_ACCES=13,
-    NFSERR_EXIST=17,
-    NFSERR_NODEV=19,
-    NFSERR_NOTDIR=20,
-    NFSERR_ISDIR=21,
-    NFSERR_FBIG=27,
-    NFSERR_NOSPC=28,
-    NFSERR_ROFS=30,
-    NFSERR_NAMETOOLONG=63,
-    NFSERR_NOTEMPTY=66,
-    NFSERR_DQUOT=69,
-    NFSERR_STALE=70,
-    NFSERR_WFLUSH=99
-};
-
+typedef int nstat;
 #endif
+
+const NFS_OK = 0;
+const NFSERR_PERM=1;
+
+const NFSERR_NOENT=2;
+const NFSERR_IO=5;
+const NFSERR_NXIO=6;
+const NFSERR_ACCES=13;
+const NFSERR_EXIST=17;
+const NFSERR_NODEV=19;
+const NFSERR_NOTDIR=20;
+const NFSERR_ISDIR=21;
+const NFSERR_FBIG=27;
+const NFSERR_NOSPC=28;
+const NFSERR_ROFS=30;
+const NFSERR_NAMETOOLONG=63;
+const NFSERR_NOTEMPTY=66;
+const NFSERR_DQUOT=69;
+const NFSERR_STALE=70;
+const NFSERR_WFLUSH=99;
 
 enum ftype {
     NFNON = 0,
@@ -61,14 +60,11 @@ enum ftype {
     NFLNK = 5
 };
 
-#ifndef NFS_FH
-#define NFS_FH
 typedef opaque fhdata[FHSIZE];
 
 struct nfs_fh {
    fhdata data;
 };
-#endif
 
 #ifndef NTIMEVAL
 #define NTIMEVAL

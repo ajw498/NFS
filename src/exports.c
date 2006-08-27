@@ -221,7 +221,7 @@ struct export *parse_exports_file(struct pool *pool)
 	return exports;
 }
 
-static enum nstat copypath(char *dest, int destlen, char *src, int srclen)
+static nstat copypath(char *dest, int destlen, char *src, int srclen)
 {
 	while (srclen > 0 && *src) {
 		if (destlen < 1) return NFSERR_NAMETOOLONG;
@@ -267,7 +267,7 @@ int calc_fileid(char *path, char *leaf)
 	return fileid;
 }
 
-enum nstat fh_to_path(char *fhandle, int fhandlelen, char **path, struct server_conn *conn)
+nstat fh_to_path(char *fhandle, int fhandlelen, char **path, struct server_conn *conn)
 {
 	int extendedfh;
 	int exportnum;
@@ -364,7 +364,7 @@ enum nstat fh_to_path(char *fhandle, int fhandlelen, char **path, struct server_
 	return NFS_OK;
 }
 
-enum nstat path_to_fh(char *path, char **fhandle, unsigned int *fhandlelen, struct server_conn *conn)
+nstat path_to_fh(char *path, char **fhandle, unsigned int *fhandlelen, struct server_conn *conn)
 {
 	size_t len;
 

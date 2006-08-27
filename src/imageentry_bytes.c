@@ -37,8 +37,13 @@
 os_error *ENTRYFUNC(get_bytes) (struct file_handle *handle, char *buffer, unsigned int len, unsigned int offset)
 {
 	os_error *err;
+#ifdef NFS3
+	struct readargs3 args;
+	struct readres3 res;
+#else
 	struct readargs args;
 	struct readres res;
+#endif
 	char *bufferend = buffer + len;
 	int outstanding = 0;
 	int reqsizes[FIFOSIZE];
@@ -89,10 +94,11 @@ os_error *ENTRYFUNC(get_bytes) (struct file_handle *handle, char *buffer, unsign
 os_error *ENTRYFUNC(writebytes) (struct commonfh *fhandle, char *buffer, unsigned int len, unsigned int offset, struct conn_info *conn)
 {
 	os_error *err;
-	struct writeargs args;
 #ifdef NFS3
-	struct writeres res;
+	struct writeargs3 args;
+	struct writeres3 res;
 #else
+	struct writeargs args;
 	struct attrstat res;
 #endif
 	int outstanding = 0;
