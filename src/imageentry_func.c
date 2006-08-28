@@ -216,7 +216,7 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 					len = filename_riscosify(direntry->name.data, direntry->name.size, bufferpos, buffer + buflen - bufferpos, &filetype, conn->defaultfiletype, conn->xyzext);
 					if (len == 0) break; /* Buffer overflowed */
 		
-					bufferpos += len;
+					bufferpos += len + 1;
 		
 					if (info) {
 						struct objinfo *lookupres;
