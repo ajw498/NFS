@@ -432,6 +432,7 @@ static enum bool read_choices(struct pool *pool)
 	while (fgets(line, sizeof(line), file)) {
 		char *ch = line;
 		char *opt;
+		char *val;
 
 		while (isspace(*ch)) ch++;
 		if (*ch == '#') *ch = '\0';
@@ -439,25 +440,30 @@ static enum bool read_choices(struct pool *pool)
 		while (*ch && (*ch != ':')) ch++;
 		if (*ch) *ch++ = '\0';
 		while (isspace(*ch)) ch++;
+		val = ch;
+		while (*ch && isprint(*ch)) ch++;
+		*ch = '\0';
 
 		if (CHECK("Encoding")) {
-			choices.encoding = pstrdup(ch, pool);
-			if (choices.encoding == NULL) {
-				syslogf(LOGNAME, LOG_MEM, OUTOFMEM);
-				return FALSE;
+			if (*val) {
+				choices.encoding = pstrdup(val, pool);
+				if (choices.encoding == NULL) {
+					syslogf(LOGNAME, LOG_MEM, OUTOFMEM);
+					return FALSE;
+				}
 			}
 		} else if (CHECK("NFS2")) {
-			choices.nfs2 = atoi(ch);
+			choices.nfs2 = atoi(val);
 		} else if (CHECK("NFS3")) {
-			choices.nfs3 = atoi(ch);
+			choices.nfs3 = atoi(val);
 		} else if (CHECK("NFS4")) {
-			choices.nfs4 = atoi(ch);
+			choices.nfs4 = atoi(val);
 		} else if (CHECK("Portmapper")) {
-			choices.portmapper = atoi(ch);
+			choices.portmapper = atoi(val);
 		} else if (CHECK("UDP")) {
-			choices.udp = atoi(ch);
+			choices.udp = atoi(val);
 		} else if (CHECK("TCP")) {
-			choices.tcp = atoi(ch);
+			choices.tcp = atoi(val);
 		}
 	}
 	fclose(file);
