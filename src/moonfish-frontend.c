@@ -381,6 +381,8 @@ static void write_choices_file(void)
 				return;
 			}
 			fprintf(file, "|Auto created by Moonfish\n");
+			fprintf(file, "RMEnsure Iconv 0.07 RMLoad System:Modules.Iconv\n");
+			fprintf(file, "RMEnsure Iconv 0.07 Error Moonfish requires the Iconv module 0.07 or later\n");
 			fprintf(file, "IfThere BootResources:Configure.!Moonfish then Filer_Boot BootResources:Configure.!Moonfish\n");
 			fprintf(file, "IfThere BootResources:Configure.!Moonfish.Moonfish then RMLoad BootResources:Configure.!Moonfish.Moonfish\n");
 			fclose(file);

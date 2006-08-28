@@ -30,6 +30,9 @@ RMEnsure TextGadgets 0.29 Error Toolbox modules out of date (Moonfish requires T
 
 RMEnsure Internet 5.00 Error Moonfish requires the Internet module 5.00 or later
 
+RMEnsure Iconv 0.07 RMLoad System:Modules.Iconv
+RMEnsure Iconv 0.07 Error Moonfish requires the Iconv module 0.07 or later
+
 RMEnsure Moonfish RMLoad <Moonfish$Dir>.Moonfish
 
 Wimpslot -min 50k -max 50k
