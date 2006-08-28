@@ -72,11 +72,17 @@
 #define event_options_SHOW     0x400
 #define event_options_SET      0x401
 
+#define event_choices_SHOW       0x500
+#define event_choices_SET        0x501
+#define event_choices_UDP        0x502
+#define event_choices_TCP        0x503
+#define event_choices_PORTMAPPER 0x504
+#define event_choices_NFS        0x505
+
 #define gadget_exports_ADD    0xD
 #define gadget_exports_EDIT   0xE
 #define gadget_exports_DELETE 0xF
 #define gadget_exports_LIST   0xC
-#define gadget_exports_AUTOLOAD 0x12
 
 #define gadget_edit_DIR        0x17
 #define gadget_edit_EXPORTNAME 0x1
@@ -94,6 +100,15 @@
 #define gadget_options_ADDEXTALWAYS 0x18
 #define gadget_options_ADDEXTNEEDED 0x19
 #define gadget_options_ADDEXTNEVER  0x1A
+
+#define gadget_choices_UDP          0x1B
+#define gadget_choices_TCP          0x11
+#define gadget_choices_PORTMAPPER   0x1C
+#define gadget_choices_NFS2         0x1D
+#define gadget_choices_NFS3         0x1E
+#define gadget_choices_NFS4         0x1F
+#define gadget_choices_ENCODING     0x24
+#define gadget_choices_AUTOLOAD     0x22
 
 #define UNUSED(x) ((void)x)
 
@@ -143,7 +158,18 @@ struct export {
 	int addext;
 };
 
-#define MAX_EXPORTS 128
+static struct choices {
+	osbool udp;
+	osbool tcp;
+	osbool portmapper;
+	osbool nfs2;
+	osbool nfs3;
+	osbool nfs4;
+	osbool autoload;
+	char encoding[STRMAX];
+} choices = {TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, ""};
+
+#define MAX_EXPORTS 127
 
 static struct export *exports[MAX_EXPORTS];
 
@@ -154,6 +180,7 @@ static toolbox_o exportsid;
 static toolbox_o optionsid;
 static toolbox_o editid;
 static toolbox_o quitid;
+static toolbox_o choicesid;
 
 static int unsaveddata = 0;
 static int configureplugin = 0;
@@ -264,6 +291,107 @@ static void parse_exports_file(void)
 	fclose(file);
 }
 
+static void parse_choices_file(void)
+{
+	char line[1024];
+	FILE *file;
+	fileswitch_object_type type;
+
+	file = fopen(CHOICESREAD, "r");
+	if (file == NULL) return; /* File probably doesn't exist yet */
+
+	while (fgets(line, sizeof(line), file)) {
+		char *ch = line;
+		char *opt;
+		char *val;
+
+		while (isspace(*ch)) ch++;
+		if (*ch == '#') *ch = '\0';
+		opt = ch;
+		while (*ch && (*ch != ':')) ch++;
+		if (*ch) *ch++ = '\0';
+		while (isspace(*ch)) ch++;
+		val = ch;
+		while (*ch && isprint(*ch)) ch++;
+		*ch = '\0';
+
+		if (CHECK("Encoding")) {
+			if (val[0] == '\0') {
+				strcpy(choices.encoding, "No conversion");
+			} else {
+				strcpy(choices.encoding, val);
+			}
+		} else if (CHECK("NFS2")) {
+			choices.nfs2 = atoi(val);
+		} else if (CHECK("NFS3")) {
+			choices.nfs3 = atoi(val);
+		} else if (CHECK("NFS4")) {
+			choices.nfs4 = atoi(val);
+		} else if (CHECK("Portmapper")) {
+			choices.portmapper = atoi(val);
+		} else if (CHECK("UDP")) {
+			choices.udp = atoi(val);
+		} else if (CHECK("TCP")) {
+			choices.tcp = atoi(val);
+		}
+	}
+	fclose(file);
+
+	choices.autoload = FALSE;
+	if (xosfile_read_no_path(AUTOLOADPATH, &type, NULL, NULL, NULL, NULL) == NULL) {
+		if (type == fileswitch_IS_FILE) choices.autoload = TRUE;
+	}
+}
+
+static void write_choices_file(void)
+{
+	FILE *file;
+	char *enc = choices.encoding;
+
+	file = fopen(CHOICESWRITE, "w");
+	if (file == NULL) {
+		xwimp_report_error((os_error*)_kernel_last_oserror(),0,"Moonfish",NULL);
+		return;
+	}
+
+	if (strcasecmp(enc, "No conversion") == 0) enc = "";
+
+	fprintf(file, "# Choices file written by Moonfish " Module_VersionString " (" Module_Date ")\n\n");
+	fprintf(file, "Encoding: %s\n", enc);
+	fprintf(file, "NFS2: %d\n", choices.nfs2);
+	fprintf(file, "NFS3: %d\n", choices.nfs3);
+	fprintf(file, "NFS4: %d\n", choices.nfs4);
+	fprintf(file, "Portmapper: %d\n", choices.portmapper);
+	fprintf(file, "UDP: %d\n", choices.udp);
+	fprintf(file, "TCP: %d\n", choices.tcp);
+
+	fclose(file);
+
+	if (configureplugin) {
+		fileswitch_object_type type;
+
+		if (xosfile_read_no_path(AUTOLOADPATH, &type, NULL, NULL, NULL, NULL)) {
+			type = fileswitch_NOT_FOUND;
+		}
+		if (choices.autoload && type == fileswitch_NOT_FOUND) {
+			/* Create */
+			file = fopen(AUTOLOADPATH, "w");
+			if (file == NULL) {
+				xwimp_report_error((os_error*)_kernel_last_oserror(),0,"Moonfish",NULL);
+				return;
+			}
+			fprintf(file, "|Auto created by Moonfish\n");
+			fprintf(file, "IfThere BootResources:Configure.!Moonfish then Filer_Boot BootResources:Configure.!Moonfish\n");
+			fprintf(file, "IfThere BootResources:Configure.!Moonfish.Moonfish then RMLoad BootResources:Configure.!Moonfish.Moonfish\n");
+			fclose(file);
+			xosfile_set_type(AUTOLOADPATH, 0xFEB);
+		} else if (!choices.autoload && type == fileswitch_IS_FILE) {
+			/* Remove */
+			xosfile_delete(AUTOLOADPATH, &type, NULL, NULL, NULL, NULL);
+		}
+	}
+}
+
 static osbool exports_save(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
 {
 	UNUSED(event_code);
@@ -275,6 +403,8 @@ static osbool exports_save(bits event_code, toolbox_action *event, toolbox_block
 	int i;
 
 	xosfile_create_dir("<Choices$Write>.Moonfish", 0);
+
+	write_choices_file();
 
 	file = fopen("<Choices$Write>.Moonfish.exports", "w");
 	if (file == NULL) {
@@ -307,33 +437,6 @@ static osbool exports_save(bits event_code, toolbox_action *event, toolbox_block
 	system("RMKill Moonfish");
 	system("RMLoad <Moonfish$Dir>.Moonfish");
 
-	if (configureplugin) {
-		osbool autoload;
-		fileswitch_object_type type;
-
-		E(xoptionbutton_get_state(0, exportsid, gadget_exports_AUTOLOAD, &autoload));
-
-		if (xosfile_read_no_path(AUTOLOADPATH, &type, NULL, NULL, NULL, NULL)) {
-			type = fileswitch_NOT_FOUND;
-		}
-		if (autoload && type == fileswitch_NOT_FOUND) {
-			/* Create */
-			file = fopen(AUTOLOADPATH, "w");
-			if (file == NULL) {
-				xwimp_report_error((os_error*)_kernel_last_oserror(),0,"Moonfish",NULL);
-				return 1;
-			}
-			fprintf(file, "|Auto created by Moonfish\n");
-			fprintf(file, "IfThere BootResources:Configure.!Moonfish then Filer_Boot BootResources:Configure.!Moonfish\n");
-			fprintf(file, "IfThere BootResources:Configure.!Moonfish.Moonfish then RMLoad BootResources:Configure.!Moonfish.Moonfish\n");
-			fclose(file);
-			xosfile_set_type(AUTOLOADPATH, 0xFEB);
-		} else if (!autoload && type == fileswitch_IS_FILE) {
-			/* Remove */
-			xosfile_delete(AUTOLOADPATH, &type, NULL, NULL, NULL, NULL);
-		}
-
-	}
 	return 1;
 }
 
@@ -345,6 +448,120 @@ static osbool help(bits event_code, toolbox_action *event, toolbox_block *id_blo
 	UNUSED(handle);
 
 	E(xwimp_start_task("Filer_Run <Moonfish$Dir>.!Help", NULL));
+
+	return 1;
+}
+ 
+static osbool choices_show(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
+{
+	gadget_flags flags;
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(id_block);
+	UNUSED(handle);
+
+	E(xoptionbutton_set_state(0, choicesid, gadget_choices_UDP, choices.udp));
+	E(xoptionbutton_set_state(0, choicesid, gadget_choices_TCP, choices.tcp));
+	E(xoptionbutton_set_state(0, choicesid, gadget_choices_NFS2, choices.nfs2));
+	E(xoptionbutton_set_state(0, choicesid, gadget_choices_NFS3, choices.nfs3));
+	E(xoptionbutton_set_state(0, choicesid, gadget_choices_NFS4, choices.nfs4));
+	E(xoptionbutton_set_state(0, choicesid, gadget_choices_PORTMAPPER, choices.portmapper));
+
+	E(xstringset_set_selected_string(0, choicesid, gadget_choices_ENCODING, choices.encoding));
+
+	E(xgadget_get_flags(0, choicesid, gadget_choices_AUTOLOAD, &flags));
+	if (configureplugin) flags &= ~gadget_FADED; else flags |= gadget_FADED;
+	E(xgadget_set_flags(0, choicesid, gadget_choices_AUTOLOAD, flags));
+
+	E(xoptionbutton_set_state(0, choicesid, gadget_choices_AUTOLOAD, choices.autoload));
+
+	return 1;
+}
+
+static osbool choices_udp(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
+{
+	osbool set;
+
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(id_block);
+	UNUSED(handle);
+
+	E(xoptionbutton_get_state(0, choicesid, gadget_choices_UDP, &set));
+	if (!set) E(xoptionbutton_set_state(0, choicesid, gadget_choices_TCP, TRUE));
+
+	return 1;
+}
+
+static osbool choices_tcp(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
+{
+	osbool set;
+
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(id_block);
+	UNUSED(handle);
+
+	E(xoptionbutton_get_state(0, choicesid, gadget_choices_TCP, &set));
+	if (!set) E(xoptionbutton_set_state(0, choicesid, gadget_choices_UDP, TRUE));
+
+	return 1;
+}
+
+static osbool choices_portmapper(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
+{
+	osbool set;
+
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(id_block);
+	UNUSED(handle);
+
+	E(xoptionbutton_get_state(0, choicesid, gadget_choices_PORTMAPPER, &set));
+	if (!set) {
+		E(xoptionbutton_set_state(0, choicesid, gadget_choices_NFS2, FALSE));
+		E(xoptionbutton_set_state(0, choicesid, gadget_choices_NFS3, FALSE));
+	}
+
+	return 1;
+}
+
+static osbool choices_nfs(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
+{
+	osbool set2;
+	osbool set3;
+
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(id_block);
+	UNUSED(handle);
+
+	E(xoptionbutton_get_state(0, choicesid, gadget_choices_NFS2, &set2));
+	E(xoptionbutton_get_state(0, choicesid, gadget_choices_NFS3, &set3));
+	if (set2 || set3) E(xoptionbutton_set_state(0, choicesid, gadget_choices_PORTMAPPER, TRUE));
+
+	return 1;
+}
+
+static osbool choices_set(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
+{
+	UNUSED(event_code);
+	UNUSED(event);
+	UNUSED(id_block);
+	UNUSED(handle);
+
+	E(xoptionbutton_get_state(0, choicesid, gadget_choices_UDP, &choices.udp));
+	E(xoptionbutton_get_state(0, choicesid, gadget_choices_TCP, &choices.tcp));
+	E(xoptionbutton_get_state(0, choicesid, gadget_choices_NFS2, &choices.nfs2));
+	E(xoptionbutton_get_state(0, choicesid, gadget_choices_NFS3, &choices.nfs3));
+	E(xoptionbutton_get_state(0, choicesid, gadget_choices_NFS4, &choices.nfs4));
+	E(xoptionbutton_get_state(0, choicesid, gadget_choices_PORTMAPPER, &choices.portmapper));
+
+	E(xstringset_get_selected_string(0, choicesid, gadget_choices_ENCODING, choices.encoding, STRMAX, NULL));
+
+	E(xoptionbutton_get_state(0, choicesid, gadget_choices_AUTOLOAD, &choices.autoload));
+
+	unsaveddata = 1;
 
 	return 1;
 }
@@ -636,18 +853,6 @@ static osbool exports_show(bits event_code, toolbox_action *event, toolbox_block
 
 		E(xscrolllist_delete_items(0, exportsid, gadget_exports_LIST, 0, MAX_EXPORTS));
 
-		if (configureplugin) {
-			fileswitch_object_type type;
-
-			E(xgadget_get_flags(0, exportsid, gadget_exports_AUTOLOAD, &flags));
-			E(xgadget_set_flags(0, exportsid, gadget_exports_AUTOLOAD, flags & ~gadget_FADED));
-
-			if ((xosfile_read_no_path(AUTOLOADPATH, &type, NULL, NULL, NULL, NULL) == NULL) && (type == fileswitch_IS_FILE)) {
-				E(xoptionbutton_set_state(0, exportsid, gadget_exports_AUTOLOAD, 1));
-			}
-
-		}
-
 		E(xgadget_get_flags(0, exportsid, gadget_exports_ADD, &flags));
 		E(xgadget_set_flags(0, exportsid, gadget_exports_ADD, flags & ~gadget_FADED));
 
@@ -657,6 +862,7 @@ static osbool exports_show(bits event_code, toolbox_action *event, toolbox_block
 		E(xgadget_get_flags(0, exportsid, gadget_exports_DELETE, &flags));
 		E(xgadget_set_flags(0, exportsid, gadget_exports_DELETE, flags | gadget_FADED));
 
+		parse_choices_file();
 		parse_exports_file();
 		unsaveddata = 0;
 
@@ -678,6 +884,7 @@ static osbool exports_hide(bits event_code, toolbox_action *event, toolbox_block
 	int i;
 
 	E(xtoolbox_hide_object(0, editid));
+	E(xtoolbox_hide_object(0, choicesid));
 
 	for (i = 0; i < numexports; i++) {
 		free(exports[i]);
@@ -710,6 +917,8 @@ static osbool autocreated(bits event_code, toolbox_action *event, toolbox_block 
 		editid = id_block->this_obj;
 	} else if (strcmp(event->data.created.name,"options") == 0) {
 		optionsid = id_block->this_obj;
+	} else if (strcmp(event->data.created.name,"choices") == 0) {
+		choicesid = id_block->this_obj;
 	} else if (strcmp(event->data.created.name,"ProgInfo") == 0) {
 		E(xproginfo_set_version(0, id_block->this_obj, Module_VersionString " (" Module_Date ")"));
 	} else if (strcmp(event->data.created.name,"Quit") == 0) {
@@ -867,6 +1076,13 @@ int main(int argc, char *argv[])
 
 	event_register_toolbox_handler(event_ANY, event_options_SHOW, options_show, NULL);
 	event_register_toolbox_handler(event_ANY, event_options_SET, options_set, NULL);
+
+	event_register_toolbox_handler(event_ANY, event_choices_SHOW,       choices_show, NULL);
+	event_register_toolbox_handler(event_ANY, event_choices_SET,        choices_set, NULL);
+	event_register_toolbox_handler(event_ANY, event_choices_UDP,        choices_udp, NULL);
+	event_register_toolbox_handler(event_ANY, event_choices_TCP,        choices_tcp, NULL);
+	event_register_toolbox_handler(event_ANY, event_choices_PORTMAPPER, choices_portmapper, NULL);
+	event_register_toolbox_handler(event_ANY, event_choices_NFS,        choices_nfs, NULL);
 
 	event_register_toolbox_handler(event_ANY, action_QUIT_QUIT, quit_quit, NULL);
 	event_register_toolbox_handler(event_ANY, action_QUIT_DIALOGUE_COMPLETED, quit_cancelled, NULL);
