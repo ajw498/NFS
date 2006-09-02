@@ -71,9 +71,6 @@ union duplicate {
 	} open_downgrade;
 	struct {
 		nstat status;
-	} close;
-	struct {
-		nstat status;
 		union {
 			struct {
 				int write;

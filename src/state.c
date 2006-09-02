@@ -231,6 +231,8 @@ nstat state_checkopenseqid(struct stateid *stateid, unsigned seqid, int openconf
 {
 	*duplicate = 0;
 
+	if ((stateid == STATEID_NONE) || (stateid == STATEID_ANY)) return NFSERR_BAD_STATEID;
+
 	if (seqid < stateid->open->open_owner->seqid) {
 		return NFSERR_BAD_SEQID;
 	} else if (seqid == stateid->open->open_owner->seqid) {
@@ -255,6 +257,8 @@ nstat state_checkopenseqid(struct stateid *stateid, unsigned seqid, int openconf
 nstat state_checklockseqid(struct stateid *stateid, unsigned seqid, int *duplicate)
 {
 	*duplicate = 0;
+
+	if ((stateid == STATEID_NONE) || (stateid == STATEID_ANY)) return NFSERR_BAD_STATEID;
 
 	if (seqid < stateid->lock->lock_owner->seqid) {
 		return NFSERR_BAD_SEQID;

@@ -1264,13 +1264,20 @@ nstat NFS4_CLOSE(CLOSE4args *args, CLOSE4res *res, struct server_conn *conn)
 {
 	struct stateid *stateid;
 	int duplicate;
+	nstat ret;
 
-	N4(state_getstateid(args->open_stateid.seqid, args->open_stateid.other, &stateid, conn));
+	ret = state_getstateid(args->open_stateid.seqid, args->open_stateid.other, &stateid, conn);
+	if (ret == NFSERR_EXPIRED) {
+		/* Assume this is a duplicate transmission, and that the original was OK */
+		return res->status = NFS_OK;
+	}
+	N4(ret);
 	N4(state_checkopenseqid(stateid, args->seqid, 0, &duplicate));
 	if (duplicate) {
-		res->status = stateid->open->open_owner->duplicate.close.status;
+		/* Should not be possible to reach here. Assume the original was OK. */
+		res->status = NFS_OK;
 	} else {
-		res->status = stateid->open->open_owner->duplicate.close.status = filecache_close(currentfh, stateid);
+		res->status = filecache_close(currentfh, stateid);
 	}
 
 	res->u.open_stateid = args->open_stateid;
@@ -1557,7 +1564,6 @@ nstat NFS4_LOCK(LOCK4args *args, LOCK4res *res, struct server_conn *conn)
 
 	if (args->locker.new_lock_owner) {
 		N4(state_getstateid(args->locker.u.open_owner.open_stateid.seqid, args->locker.u.open_owner.open_stateid.other, &stateid, conn));
-		if ((stateid == STATEID_NONE) || (stateid == STATEID_ANY)) N4(NFSERR_BAD_STATEID);
 		N4(state_checkopenseqid(stateid, args->locker.u.open_owner.open_seqid, 0, &duplicate));
 		if (duplicate) goto duplicate;
 		if (strcmp(stateid->open->file->name, currentfh) != 0) NF(NFSERR_BAD_STATEID);
@@ -1568,7 +1574,6 @@ nstat NFS4_LOCK(LOCK4args *args, LOCK4res *res, struct server_conn *conn)
 		              &deniedclientid, &deniedowner, &deniedownerlen));
 	} else {
 		N4(state_getstateid(args->locker.u.lock_owner.lock_stateid.seqid, args->locker.u.lock_owner.lock_stateid.other, &stateid, conn));
-		if ((stateid == STATEID_NONE) || (stateid == STATEID_ANY)) N4(NFSERR_BAD_STATEID);
 		N4(state_checklockseqid(stateid, args->locker.u.lock_owner.lock_seqid, &duplicate));
 		if (duplicate) goto duplicate;
 		if (strcmp(stateid->open->file->name, currentfh) != 0) NF(NFSERR_BAD_STATEID);
