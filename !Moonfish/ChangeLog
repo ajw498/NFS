@@ -1,3 +1,8 @@
+v1.04 3-Sep-06
+Added support for NFSv4.
+Added support for filename encoding translation.
+Added options to enable or disable individual transports and NFS protocols.
+
 v1.03 21-May-06
 Fix problems with renaming or deleting files shortly after reading or writing their contents.
 
