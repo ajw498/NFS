@@ -44,6 +44,9 @@ void *palloc(size_t size, struct pool *pool);
 /* strdup from a pool. */
 char *pstrdup(char *src, struct pool *pool);
 
+/* copy some memory to a pool. */
+void *pmemdup(void *src, size_t size, struct pool *pool);
+
 /* Free the pool and all its contents */
 void pfree(struct pool *pool);
 

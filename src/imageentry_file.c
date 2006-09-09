@@ -163,7 +163,7 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 	struct createargs createargs;
 	struct createres createres;
 #endif
-	static struct commonfh fh;
+	struct commonfh *fh;
 	int filetype;
 	int newfiletype;
 	int extfound;
@@ -276,13 +276,14 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 	if (err) return err;
 	if (createres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (createres.status);
 
+	if ((fh = palloc(sizeof(struct commonfh), conn->pool)) == NULL) return gen_error(NOMEM, NOMEMMESS);
 #ifdef NFS3
 	if (createres.u.diropok.obj.handle_follows == 0) return gen_error(NOATTRS, NOATTRSMESS);
-	fh_to_commonfh(fh, createres.u.diropok.obj.u.handle);
+	fh_to_commonfh(*fh, createres.u.diropok.obj.u.handle);
 #else
-	fh_to_commonfh(fh, createres.u.diropok.file);
+	fh_to_commonfh(*fh, createres.u.diropok.file);
 #endif
-	if (fhandle) *fhandle = &fh;
+	if (fhandle) *fhandle = fh;
 
 	return NULL;
 }

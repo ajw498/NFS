@@ -61,9 +61,6 @@
 /* A monotonicly increasing transaction id */
 static unsigned int nextxid;
 
-static struct rpc_msg call_header;
-static struct rpc_msg reply_header;
-
 
 /* A pool of rx buffers. There should be the same number of rx buffers
    as possible outstanding calls */
@@ -158,11 +155,6 @@ void rpc_init_header(void)
 	rpc_resetfifo();
 
 	nextxid = 1;
-
-	call_header.body.mtype = CALL;
-	call_header.body.u.cbody.rpcvers = RPC_VERSION;
-	call_header.body.u.cbody.verf.flavor = AUTH_NULL;
-	call_header.body.u.cbody.verf.body.size = 0;
 }
 
 static os_error *rpc_create_socket(struct conn_info *conn)
@@ -354,6 +346,13 @@ static os_error *rpc_readdata(int blocking, int *buffer, struct conn_info *conn)
 /* Setup buffer and write call header to it */
 void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, struct conn_info *conn)
 {
+	struct rpc_msg call_header;
+
+	call_header.body.mtype = CALL;
+	call_header.body.u.cbody.rpcvers = RPC_VERSION;
+	call_header.body.u.cbody.verf.flavor = AUTH_NULL;
+	call_header.body.u.cbody.verf.body.size = 0;
+
 	call_header.xid = nextxid++;
 	if (nextxid == UNALLOCATED) nextxid++;
 	
@@ -403,9 +402,10 @@ static os_error *rpc_connect_socket(struct conn_info *conn)
 
 /* Send the already filled in tx buffer, the read the response and process
    the rpc reply header */
-os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
+os_error *rpc_do_call(int prog, enum callctl calltype, struct conn_info *conn)
 {
 	os_error *err;
+	struct rpc_msg reply_header;
 
 	if (calltype == TXBLOCKING || calltype == TXNONBLOCKING) {
 		int port;
@@ -413,7 +413,7 @@ os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype)
 		unsigned int recordmarker;
 
 		/* Choose the port to use */
-		switch (call_header.body.u.cbody.prog) {
+		switch (prog) {
 		case PMAP_RPC_PROGRAM:
 			port = htons(conn->portmapper_port);
 			break;

@@ -86,20 +86,21 @@ os_error *ENTRYFUNC(gen_nfsstatus_error) (nstat stat)
 /* Find leafname,xyz given leafname by enumerating the entire directory
    until a matching file is found. If there are two matching files, the
    first found is used. This function would benefit in many cases by some
-   cacheing of leafnames and extensions. The returned leafname is a pointer
-   to static data and should be copied before any subsequent calls. */
+   cacheing of leafnames and extensions. */
 static os_error *lookup_leafname(struct commonfh *dhandle, char *leafname, int leafnamelen, struct opaque **found, struct conn_info *conn)
 {
 #ifdef NFS3
-	static struct readdirargs3 rddir;
-	static struct readdirres3 rdres;
+	struct readdirargs3 rddir;
+	struct readdirres3 rdres;
 	struct entry3 *direntry;
 #else
-	static struct readdirargs rddir;
-	static struct readdirres rdres;
+	struct readdirargs rddir;
+	struct readdirres rdres;
 	struct entry *direntry;
 #endif
 	os_error *err;
+
+	if ((*found = palloc(sizeof(struct opaque), conn->pool)) == NULL) return gen_error(NOMEM, NOMEMMESS);
 
 	commonfh_to_fh(rddir.dir, *dhandle);
 	rddir.count = conn->maxdatabuffer;
@@ -123,7 +124,9 @@ static os_error *lookup_leafname(struct commonfh *dhandle, char *leafname, int l
 
 			if (!conn->casesensitive && direntry->name.size == leafnamelen) {
 				if (strcasecmp(direntry->name.data, leafname) == 0) {
-					*found = (struct opaque *)&(direntry->name);
+					(*found)->size = direntry->name.size;
+					(*found)->data = pmemdup(direntry->name.data, direntry->name.size, conn->pool);
+					if ((*found)->data == NULL) return gen_error(NOMEM, NOMEMMESS);
 					return NULL;
 				}
 			}
@@ -137,12 +140,16 @@ static os_error *lookup_leafname(struct commonfh *dhandle, char *leafname, int l
 				     && isxdigit(direntry->name.data[leafnamelen + 3])) {
 					if (conn->casesensitive) {
 						if (strncmp(direntry->name.data, leafname, leafnamelen) == 0) {
-							*found = (struct opaque *)&(direntry->name);
+							(*found)->size = direntry->name.size;
+							(*found)->data = pmemdup(direntry->name.data, direntry->name.size, conn->pool);
+							if ((*found)->data == NULL) return gen_error(NOMEM, NOMEMMESS);
 							return NULL;
 						}
 					} else {
 						if (strncasecmp(direntry->name.data, leafname, leafnamelen) == 0) {
-							*found = (struct opaque *)&(direntry->name);
+							(*found)->size = direntry->name.size;
+							(*found)->data = pmemdup(direntry->name.data, direntry->name.size, conn->pool);
+							if ((*found)->data == NULL) return gen_error(NOMEM, NOMEMMESS);
 							return NULL;
 						}
 					}
@@ -158,7 +165,7 @@ static os_error *lookup_leafname(struct commonfh *dhandle, char *leafname, int l
 
 /* Convert a leafname into nfs handle and attributes.
    May follow symlinks if needed.
-   Returns a pointer to static data, and updates the leafname in place. */
+   Returns a pointer to objinfo data, and updates the leafname in place. */
 os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int simple, int followsymlinks, struct commonfh *dirhandle, struct objinfo **finfo, nstat *status, struct conn_info *conn)
 {
 #ifdef NFS3
@@ -168,10 +175,11 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 	struct diropargs lookupargs;
 	struct diropres lookupres;
 #endif
-	static struct objinfo retinfo;
+	struct objinfo *retinfo;
 	os_error *err;
 	int follow;
 
+	if ((retinfo = palloc(sizeof(struct objinfo), conn->pool)) == NULL) return gen_error(NOMEM, NOMEMMESS);
 	lookupargs.name.data = leafname;
 	lookupargs.name.size = *len;
 	commonfh_to_fh(lookupargs.dir, *dirhandle);
@@ -210,13 +218,13 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 	}
 #endif
 
-	fh_to_commonfh(retinfo.objhandle, lookupres.u.diropok.file);
+	fh_to_commonfh(retinfo->objhandle, lookupres.u.diropok.file);
 #ifdef NFS3
-	retinfo.attributes = lookupres.u.diropok.obj_attributes.u.attributes;
+	retinfo->attributes = lookupres.u.diropok.obj_attributes.u.attributes;
 #else
-	retinfo.attributes = lookupres.u.diropok.attributes;
+	retinfo->attributes = lookupres.u.diropok.attributes;
 #endif
-	*finfo = &retinfo;
+	*finfo = retinfo;
 
 	follow = followsymlinks ? conn->followsymlinks : 0;
 
@@ -303,18 +311,18 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 			if (lookupres.u.diropok.obj_attributes.attributes_follow == FALSE) {
 				return gen_error(NOATTRS, NOATTRSMESS);
 			}
-			retinfo.attributes = lookupres.u.diropok.obj_attributes.u.attributes;
+			retinfo->attributes = lookupres.u.diropok.obj_attributes.u.attributes;
 #else
-			retinfo.attributes = lookupres.u.diropok.attributes;
+			retinfo->attributes = lookupres.u.diropok.attributes;
 #endif
-			fh_to_commonfh(retinfo.objhandle, lookupres.u.diropok.file);
+			fh_to_commonfh(retinfo->objhandle, lookupres.u.diropok.file);
 
 #ifdef NFS3
 			if (lookupres.u.diropok.obj_attributes.u.attributes.type == NFDIR) {
 #else
 			if (lookupres.u.diropok.attributes.type == NFDIR) {
 #endif
-				dirhandle = &(retinfo.objhandle);
+				dirhandle = &(retinfo->objhandle);
 			}
 			while (i < segmentmaxlen && segment[i] == '/') i++;
 			segment += i;
@@ -330,7 +338,6 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 
 /* Convert a full filename/dirname into a leafname, and find the nfs handle
    for the file/dir and for the directory containing it.
-   Returns a pointer to static data.
    This function would really benefit from some cacheing.
    In theory it should deal with wildcarded names, but that is just too much
    hassle. And, really, that should be the job of fileswitch. */
@@ -339,13 +346,14 @@ os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, stru
 	char *start = filename;
 	char *end;
 	struct commonfh dirhandle;
-	static struct objinfo dirinfo;
+	struct objinfo *dirinfo;
 	char *segmentname;
 	unsigned int segmentlen;
 	struct objinfo *segmentinfo;
 	nstat status;
 	os_error *err;
 
+	if ((dirinfo = palloc(sizeof(struct objinfo), conn->pool)) == NULL) return gen_error(NOMEM, NOMEMMESS);
 	dirhandle = conn->rootfh;
 
 	if (dinfo) *dinfo = NULL; /* A NULL directory indicates the root directory */
@@ -387,8 +395,8 @@ os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, stru
 				}
 			}
 			if (dinfo) {
-				dirinfo = *segmentinfo;
-				*dinfo = &dirinfo;
+				*dirinfo = *segmentinfo;
+				*dinfo = dirinfo;
 			}
 		}
 		/* Use memmove rather than just assign or memcpy to avoid

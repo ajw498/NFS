@@ -103,6 +103,17 @@ char *pstrdup(char *src, struct pool *pool)
 	return dest;
 }
 
+/* copy some memory to a pool. */
+void *pmemdup(void *src, size_t size, struct pool *pool)
+{
+	void *dest;
+
+	dest = palloc(size, pool);
+	if (dest == NULL) return NULL;
+	memcpy(dest, src, size);
+	return dest;
+}
+
 /* Free the pool and all its contents */
 void pfree(struct pool *pool)
 {

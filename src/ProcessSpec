@@ -319,7 +319,7 @@ while (<>) {
       print CALLS "{\n\tos_error *err;\n\n";
       print CALLS "\trpc_prepare_call($prog, $vers, $procno, conn);\n";
       print CALLS "\tif (process_$args(OUTPUT, args, conn->pool)) return rpc_buffer_overflow();\n";
-      print CALLS "\terr = rpc_do_call(conn, $calltype);\n";
+      print CALLS "\terr = rpc_do_call($prog, $calltype, conn);\n";
       print CALLS "\trpc_resetfifo();\n" if ($procname =~ m/UMNT/);
       print CALLS "\tif (err) return err;\n";
       print CALLS "\tif (process_${res}(INPUT, res, conn->pool)) return rpc_buffer_overflow();\n";

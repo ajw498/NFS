@@ -23,7 +23,7 @@ enum callctl {
 
 #define ERR_WOULDBLOCK ((os_error *)1)
 
-os_error *rpc_do_call(struct conn_info *conn, enum callctl calltype);
+os_error *rpc_do_call(int prog, enum callctl calltype, struct conn_info *conn);
 
 void rpc_resetfifo(void);
 
