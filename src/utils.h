@@ -105,7 +105,7 @@
 /* Directory not empty error number must match what filecore uses */
 #define ERRDIRNOTEMPTY 67764
 
-#define filesize(size) (size > 0xFFFFFFFF ? 0xFFFFFFFF : (unsigned int)size);
+#define filesize(size) (size > 0x7FFFFFFF ? 0x7FFFFFFF : (unsigned int)size);
 
 #define MAX_GIDS 16
 #define MAXFHSIZE 64

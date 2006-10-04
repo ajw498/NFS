@@ -308,11 +308,13 @@ Writing to mounts in Sunfish: doesn't work on Select 3i3, this appears to be a s
 <p>
 If an NFS3 server returns a jukebox error, Sunfish should retry the operation a short while later. It doesn't, and reports the error to the user. If you manually retry then things should work. 
 <p>
+Files greater than 2GB in size are reported as having a size of exactly 2GB. The data in the first 2GB of the file can be read and written to normally, but the rest of the file cannot be accessed.
+<p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="recompiling">Recompiling</a></font></h2>
 </td></tr></table>
 <p>
-Full source code is provided. To recompile the module, you will need Norcroft v5.53 or later, cmhg 5.42 or later, TCPIPLibs, and Perl. Earlier 26bit versions of Norcroft will not work because the code makes use of 64bit integers and some C99 functions. It can take a long time (almost 10 minutes) to compile nfs3-calls.c. This time can be shortened by disabling cse optimisations with the -zpz0 flag. Later versions of Norcroft may have improved this.
+Full source code is provided. To recompile the module, you will need Norcroft v5.53 or later, cmhg 5.42 or later, TCPIPLibs, and Perl. Earlier 26bit versions of Norcroft will not work because the code makes use of 64bit integers and some C99 functions.
 <p>
 For some unknown reason, if you use amu then it will give an error <code>AMU: Don't know how to make 'o.pcnfsd-calls'</code> after generating pcnfsd-calls.c, but if you rerun amu then it will work. GNU make does not give this problem.
 

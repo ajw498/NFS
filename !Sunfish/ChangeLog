@@ -1,3 +1,6 @@
+v1.09 ??-Oct-06
+File sizes are limited to 2GB rather than 4GB as accessing > 2GB doesn't work.
+
 v1.08 26-Oct-05
 Fixed bug where sometimes filetypes would get changed when a file was renamed.
 
