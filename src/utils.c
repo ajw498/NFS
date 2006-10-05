@@ -124,7 +124,8 @@ char *filename_unixify(char *name, unsigned int len, unsigned int *newlen, struc
 	int i;
 	int j;
 
-	namebuffer = palloc(len + 1, pool);
+	/* Allocate more space than needed, so the ,xyz can be added later if needed */
+	namebuffer = palloc(len + sizeof(",xyz"), pool);
 	if (namebuffer == NULL) return NULL;
 
 	for (i = 0, j = 0; i < len; i++) {
