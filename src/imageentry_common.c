@@ -212,14 +212,11 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 		return NULL;
 	}
 
+	fh_to_commonfh(retinfo->objhandle, lookupres.u.diropok.file);
 #ifdef NFS3
 	if (lookupres.u.diropok.obj_attributes.attributes_follow == FALSE) {
 		return gen_error(NOATTRS, NOATTRSMESS);
 	}
-#endif
-
-	fh_to_commonfh(retinfo->objhandle, lookupres.u.diropok.file);
-#ifdef NFS3
 	retinfo->attributes = lookupres.u.diropok.obj_attributes.u.attributes;
 #else
 	retinfo->attributes = lookupres.u.diropok.attributes;
@@ -230,13 +227,10 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 
 #ifdef NFS3
 	while (follow > 0 && lookupres.u.diropok.obj_attributes.u.attributes.type == NFLNK) {
-#else
-	while (follow > 0 && lookupres.u.diropok.attributes.type == NFLNK) {
-#endif
-#ifdef NFS3
 		struct readlinkargs3 linkargs;
 		struct readlinkres3 linkres;
 #else
+	while (follow > 0 && lookupres.u.diropok.attributes.type == NFLNK) {
 		struct readlinkargs linkargs;
 		struct readlinkres linkres;
 #endif
@@ -307,14 +301,6 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 				}
 				return NULL;
 			}
-#ifdef NFS3
-			if (lookupres.u.diropok.obj_attributes.attributes_follow == FALSE) {
-				return gen_error(NOATTRS, NOATTRSMESS);
-			}
-			retinfo->attributes = lookupres.u.diropok.obj_attributes.u.attributes;
-#else
-			retinfo->attributes = lookupres.u.diropok.attributes;
-#endif
 			fh_to_commonfh(retinfo->objhandle, lookupres.u.diropok.file);
 
 #ifdef NFS3
@@ -328,6 +314,14 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 			segment += i;
 			segmentmaxlen -= i;
 		}
+#ifdef NFS3
+		if (lookupres.u.diropok.obj_attributes.attributes_follow == FALSE) {
+			return gen_error(NOATTRS, NOATTRSMESS);
+		}
+		retinfo->attributes = lookupres.u.diropok.obj_attributes.u.attributes;
+#else
+		retinfo->attributes = lookupres.u.diropok.attributes;
+#endif
 		follow--;
 	}
 
