@@ -523,6 +523,11 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					if (attr & 0x02) mode |= MODE4_WUSR;
 					if (attr & 0x10) mode |= MODE4_RGRP | MODE4_ROTH;
 					if (attr & 0x20) mode |= MODE4_WGRP | MODE4_WOTH;
+					if ((load & 0xFFFFFF00) == (0xFFF00000 | (UNIXEX_FILETYPE << 8))) {
+						/* Add executable permissions for UnixEx files */
+						mode |= MODE4_XUSR;
+						if (attr & 0x10) mode |= MODE4_XGRP | MODE4_XOTH;
+					}
 					/* Apply the unumask to force access */
 					mode |= conn->export->unumask;
 					/* Set executable permissions for directories if they have read permission */
@@ -733,6 +738,11 @@ static nstat verify_fattr(char *path, int same, fattr4 *args, struct server_conn
 					if (attr & 0x02) mode |= MODE4_WUSR;
 					if (attr & 0x10) mode |= MODE4_RGRP | MODE4_ROTH;
 					if (attr & 0x20) mode |= MODE4_WGRP | MODE4_WOTH;
+					if ((load & 0xFFFFFF00) == (0xFFF00000 | (UNIXEX_FILETYPE << 8))) {
+						/* Add executable permissions for UnixEx files */
+						mode |= MODE4_XUSR;
+						if (attr & 0x10) mode |= MODE4_XGRP | MODE4_XOTH;
+					}
 					/* Apply the unumask to force access */
 					mode |= conn->export->unumask;
 					/* Set executable permissions for directories if they have read permission */
@@ -1043,7 +1053,7 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 			}
 			U4(leaf = filename_unixify(leaf, leaflen, &leaflen, conn->pool));
 			if (type == OBJ_FILE || (type == OBJ_IMAGE && conn->export->imagefs == 0)) {
-				U4(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, conn->pool));
+				U4(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, 1, conn->pool));
 			}
 
 			if (choices.toutf8 != (iconv_t)-1) {

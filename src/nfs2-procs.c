@@ -60,6 +60,10 @@ static void parse_fattr(char *path, int type, int load, int exec, int len, int a
 	fattr->mode |= (attr & 0x20) >> 1; /* Group write */
 	fattr->mode |= (attr & 0x10) >> 2; /* Others read */
 	fattr->mode |= (attr & 0x20) >> 4; /* Others write */
+	if ((load & 0xFFFFFF00) == (0xFFF00000 | (UNIXEX_FILETYPE << 8))) {
+		/* Add executable permissions for UnixEx files */
+		fattr->mode |= (attr & 0x10) ? 0111 : 0100;
+	}
 	/* Apply the unumask to force access */
 	fattr->mode |= conn->export->unumask;
 	/* Set executable permissions for directories if they have read permission */
@@ -259,7 +263,7 @@ enum accept_stat NFSPROC_READDIR(struct readdirargs *args, struct readdirres *re
 			UE(leaf = filename_unixify(leaf, strlen(leaf), &leaflen, conn->pool));
 			type = ((unsigned int *)buffer)[4];
 			if (type == 1 || (type == 3 && conn->export->imagefs == 0)) {
-				UE(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, conn->pool));
+				UE(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, 1, conn->pool));
 			}
 			if (choices.toenc != (iconv_t)-1) {
 				char *encleaf;

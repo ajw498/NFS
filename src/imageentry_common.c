@@ -412,6 +412,9 @@ os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, stru
 	if (filetype) {
 		if (segmentinfo->attributes.type == NFDIR) {
 			*filetype = DIR_FILETYPE;
+		} else if (conn->unixexfiletype && ((segmentinfo->attributes.mode & 0111) != 0)) {
+			/* One of the executable bits is set, so set the filetype to UnixEx */
+			*filetype = UNIXEX_FILETYPE;
 		} else if (conn->xyzext == NEVER) {
 			/* Not configured to use the mimetype */
 			*filetype = conn->defaultfiletype;

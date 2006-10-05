@@ -1,3 +1,6 @@
+v1.05 ?-Oct-06
+Files with a UnixEx filetype now get execute permissions set.
+
 v1.04 3-Sep-06
 Added support for NFSv4.
 Added support for filename encoding translation.

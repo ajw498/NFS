@@ -311,7 +311,7 @@ unsigned int attr_to_mode(unsigned int attr, unsigned int oldmode, struct conn_i
 }
 
 
-char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, int defaultfiletype, int xyzext, struct pool *pool)
+char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, int defaultfiletype, int xyzext, int unixexfiletype, struct pool *pool)
 {
 	char *newleafname;
 
@@ -330,6 +330,8 @@ char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfile
 		if (xyzext == ALWAYS) {
 			/* Always add ,xyz */
 			extneeded = 1;
+		} else if (unixexfiletype && (newfiletype == UNIXEX_FILETYPE)) {
+			extneeded = 0;
 		} else {
 			/* Only add an extension if needed */
 			char *ext;

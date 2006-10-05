@@ -222,12 +222,16 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 						struct objinfo *lookupres;
 						nstat status;
 						struct commonfh fh;
-		
+
 						bufferpos = (char *)(((int)bufferpos + 3) & ~3);
 
 #ifdef NFS3
 						if (direntry->name_attributes.attributes_follow && direntry->name_attributes.u.attributes.type != NFLNK) {
-							if (direntry->name_attributes.u.attributes.type == NFDIR) filetype = DIR_FILETYPE;
+							if (direntry->name_attributes.u.attributes.type == NFDIR) {
+								filetype = DIR_FILETYPE;
+							} else if (conn->unixexfiletype && ((direntry->name_attributes.u.attributes.mode & 0111) != 0)) {
+								filetype = UNIXEX_FILETYPE;
+							}
 							timeval_to_loadexec(direntry->name_attributes.u.attributes.mtime.seconds, direntry->name_attributes.u.attributes.mtime.nseconds, filetype, &(info_entry->load), &(info_entry->exec), 0);
 							info_entry->len = filesize(direntry->name_attributes.u.attributes.size);
 							info_entry->attr = mode_to_attr(direntry->name_attributes.u.attributes.mode);
@@ -240,7 +244,11 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 							err = ENTRYFUNC(leafname_to_finfo) (direntry->name.data, &(direntry->name.size), 1, 1, &fh, &lookupres, &status, conn);
 							if (err) return err;
 							if (status == NFS_OK && lookupres->attributes.type != NFLNK) {
-								if (lookupres->attributes.type == NFDIR) filetype = DIR_FILETYPE;
+								if (lookupres->attributes.type == NFDIR) {
+									filetype = DIR_FILETYPE;
+								} else if (conn->unixexfiletype && ((lookupres->attributes.mode & 0111) != 0)) {
+									filetype = UNIXEX_FILETYPE;
+								}
 #ifdef NFS3
 								timeval_to_loadexec(lookupres->attributes.mtime.seconds, lookupres->attributes.mtime.nseconds, filetype, &(info_entry->load), &(info_entry->exec), 0);
 #else
@@ -379,7 +387,7 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 		renameargs.to.name.size = leafnamelen;
 	} else {
 		/* Add ,xyz on if necessary to preserve filetype */
-		renameargs.to.name.data = addfiletypeext(leafname, leafnamelen, 0, filetype, &(renameargs.to.name.size), conn->defaultfiletype, conn->xyzext, conn->pool);
+		renameargs.to.name.data = addfiletypeext(leafname, leafnamelen, 0, filetype, &(renameargs.to.name.size), conn->defaultfiletype, conn->xyzext, conn->unixexfiletype, conn->pool);
 	}
 
 	err = NFSPROC(RENAME, (&renameargs, &renameres, conn));

@@ -127,6 +127,9 @@
 /* The filetype returned for directories */
 #define DIR_FILETYPE 0xFFD
 
+/* The filetype returned for files with the executable bit set */
+#define UNIXEX_FILETYPE 0xFE6
+
 /* Size of the fifo to use for pipelining. Must be at least 2, to allow
    READDIR to double buffer. Greater than 2 has negligible increase in
    performance. */
@@ -187,6 +190,7 @@ struct conn_info {
 	int followsymlinks;
 	int pipelining;
 	int casesensitive;
+	int unixexfiletype;
 	char lastdir[MAX_PATHNAME];
 	uint64_t lastcookie;
 	char lastcookieverf[NFS3_COOKIEVERFSIZE];
@@ -235,7 +239,7 @@ unsigned int mode_to_attr(unsigned int mode);
 unsigned int attr_to_mode(unsigned int attr, unsigned int oldmode, struct conn_info *conn);
 
 /* Add ,xyz onto the leafname if necessary */
-char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, int defaultfiletype, int xyzext, struct pool *pool);
+char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, int defaultfiletype, int xyzext, int unixexfiletype, struct pool *pool);
 
 /* Drop to user mode to trigger any pending callbacks */
 void trigger_callback(void);

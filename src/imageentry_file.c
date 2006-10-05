@@ -95,7 +95,18 @@ os_error *ENTRYFUNC(file_writecatinfo) (char *filename, unsigned int load, unsig
 		   for directories, yet doesn't set them. */
 		attr |= 3;
 	}
-	
+
+	if (conn->unixexfiletype) {
+		if ((newfiletype == UNIXEX_FILETYPE) && (filetype != UNIXEX_FILETYPE)) {
+			/* The filetype is changing to UnixEx, so set the executable bit(s).
+			   The group and other x bits are only set if the corresponding r bit will be set */
+			finfo->attributes.mode |= (attr & 0x10) ? 0111 : 0100;
+		} else if ((newfiletype != UNIXEX_FILETYPE) && (filetype == UNIXEX_FILETYPE)) {
+			/* The filetype is changing from UnixEx, so remove the executable bits. */
+			finfo->attributes.mode &= ~0111;
+		}
+	}
+
 	/* If the filetype has changed we may need to rename the file */
 	if (conn->xyzext != NEVER && newfiletype != filetype && finfo->attributes.type == NFREG) {
 #ifdef NFS3
@@ -115,7 +126,7 @@ os_error *ENTRYFUNC(file_writecatinfo) (char *filename, unsigned int load, unsig
 		renameargs.from.name.size = strlen(leafname);
 
 		renameargs.to.dir = renameargs.from.dir;
-		renameargs.to.name.data = addfiletypeext(leafname, renameargs.from.name.size, extfound, newfiletype, &(renameargs.to.name.size), conn->defaultfiletype, conn->xyzext, conn->pool);
+		renameargs.to.name.data = addfiletypeext(leafname, renameargs.from.name.size, extfound, newfiletype, &(renameargs.to.name.size), conn->defaultfiletype, conn->xyzext, conn->unixexfiletype, conn->pool);
 
 		err = NFSPROC(RENAME, (&renameargs, &renameres, conn));
 		if (err) return err;
@@ -167,6 +178,7 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 	int filetype;
 	int newfiletype;
 	int extfound;
+	int newmode;
 
 	if ((load & 0xFFF00000) == 0xFFF00000) {
 		newfiletype = (load & 0xFFF00) >> 8;
@@ -183,8 +195,15 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 		commonfh_to_fh(createargs.where.dir, conn->rootfh);
 	}
 
+	if (conn->unixexfiletype && (newfiletype == UNIXEX_FILETYPE) && (filetype != UNIXEX_FILETYPE)) {
+		/* The filetype is changing to UnixEx, so set the executable bits. */
+		newmode = 0x00008000 | (0777 & ~(conn->umask));
+	} else {
+		newmode = 0x00008000 | (0666 & ~(conn->umask));
+	}
+
 	/* We may need to add a ,xyz extension */
-	createargs.where.name.data = addfiletypeext(*leafname, strlen(*leafname), extfound, newfiletype, &(createargs.where.name.size), conn->defaultfiletype, conn->xyzext, conn->pool);
+	createargs.where.name.data = addfiletypeext(*leafname, strlen(*leafname), extfound, newfiletype, &(createargs.where.name.size), conn->defaultfiletype, conn->xyzext, conn->unixexfiletype, conn->pool);
 
 	/* If a file already exists then we must overwrite it */
 	if (finfo && finfo->attributes.type == NFREG) {
@@ -256,14 +275,14 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 #ifdef NFS3
 	createargs.how.mode = UNCHECKED;
 	createargs.how.u.obj_attributes.mode.set_it = TRUE;
-	createargs.how.u.obj_attributes.mode.u.mode = 0x00008000 | (0666 & ~(conn->umask));
+	createargs.how.u.obj_attributes.mode.u.mode = newmode;
 	createargs.how.u.obj_attributes.uid.set_it = FALSE;
 	createargs.how.u.obj_attributes.gid.set_it = FALSE;
 	createargs.how.u.obj_attributes.size.set_it = FALSE;
 	createargs.how.u.obj_attributes.atime.set_it = DONT_CHANGE;
 	ENTRYFUNC(loadexec_to_setmtime) (load, exec, &(createargs.how.u.obj_attributes.mtime));
 #else
-	createargs.attributes.mode = 0x00008000 | (0666 & ~(conn->umask));
+	createargs.attributes.mode = newmode;
 	createargs.attributes.uid = NOVALUE;
 	createargs.attributes.gid = NOVALUE;
 	createargs.attributes.size = NOVALUE;

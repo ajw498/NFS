@@ -98,6 +98,10 @@ static void parse_fattr(char *path, int type, int load, int exec, int len, int a
 	fattr->mode |= (attr & 0x20) >> 1; /* Group write */
 	fattr->mode |= (attr & 0x10) >> 2; /* Others read */
 	fattr->mode |= (attr & 0x20) >> 4; /* Others write */
+	if ((load & 0xFFFFFF00) == (0xFFF00000 | (UNIXEX_FILETYPE << 8))) {
+		/* Add executable permissions for UnixEx files */
+		fattr->mode |= (attr & 0x10) ? 0111 : 0100;
+	}
 	/* Apply the unumask to force access */
 	fattr->mode |= conn->export->unumask;
 	/* Set executable permissions for directories if they have read permission */
@@ -596,7 +600,7 @@ enum accept_stat NFSPROC3_READDIR(struct readdirargs3 *args, struct readdirres3 
 			UF(leaf = filename_unixify(leaf, strlen(leaf), &leaflen, conn->pool));
 			type = ((unsigned int *)buffer)[4];
 			if (type == 1 || (type == 3 && conn->export->imagefs == 0)) {
-				UF(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, conn->pool));
+				UF(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, 1, conn->pool));
 			}
 
 			if (choices.toenc != (iconv_t)-1) {
@@ -699,7 +703,7 @@ enum accept_stat NFSPROC3_READDIRPLUS(struct readdirplusargs3 *args, struct read
 			memcpy(pathbuffer + pathlen + 1, leaf, leaflen + 1);
 			UF(leaf = filename_unixify(leaf, leaflen, &leaflen, conn->pool));
 			if (type == OBJ_FILE || (type == OBJ_IMAGE && conn->export->imagefs == 0)) {
-				UF(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, conn->pool));
+				UF(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, 1, conn->pool));
 			}
 
 			if (choices.toenc != (iconv_t)-1) {
