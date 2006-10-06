@@ -249,14 +249,17 @@ nstat NFS4_LOOKUP(LOOKUP4args *args, LOOKUP4res *res, struct server_conn *conn)
 {
 	int type;
 	int filetype;
+	int realfiletype;
 	unsigned load;
 
 	N4(lookup_filename(currentfh, &(args->objname), &currentfh, &filetype, conn));
 
 	O4(_swix(OS_File, _INR(0,1) | _OUT(0) | _OUT(2), 17, currentfh, &type, &load));
 	if (type == OBJ_NONE) return res->status = NFSERR_NOENT;
-	if ((type != OBJ_DIR) && (filetype != -1) &&
-	    ((load & 0xFFFFFF00) != (0xFFF00000 | (filetype << 8)))) return res->status = NFSERR_NOENT;
+	realfiletype = ((load & 0xFFF00000) == 0xFFF00000) ? ((load & 0x000FFF00) >> 8) : conn->export->defaultfiletype;
+
+	if ((type != OBJ_DIR) && (filetype != -1) && (realfiletype != UNIXEX_FILETYPE) &&
+	    (realfiletype != filetype)) return res->status = NFSERR_NOENT;
 
 	return res->status = NFS_OK;
 }

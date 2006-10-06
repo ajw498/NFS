@@ -106,7 +106,7 @@ static nstat get_fattr(char *path, int filetype, struct fattr *fattr, struct ser
 		return NFSERR_NOENT;
 	} else {
 		int ftype = (load & 0x000FFF00) >> 8;
-		if ((type == OBJ_FILE) && (filetype != -1) && (filetype != ftype)) return NFSERR_NOENT;
+		if ((type == OBJ_FILE) && (filetype != -1) && (filetype != ftype) && (ftype != UNIXEX_FILETYPE)) return NFSERR_NOENT;
 	}
 
 	if ((type == OBJ_DIR) && conn->export->fakedirtimes) {
