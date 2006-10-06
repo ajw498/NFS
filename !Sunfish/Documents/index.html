@@ -229,6 +229,9 @@ If set to 1, filenames will be treated as case sensitive, and if the filename do
 <p>
 If case sensitivity is off, and you have two (or more) files in the same directory that differ only in case then trying to access one of them may result in the wrong file being altered.
 <p>
+<h4>UnixEx</h4>
+If set to 1, any files with executable permissions set wil be given a filetype of UnixEx (&FE6) rather than their normal filetype. It will get this filetype if any of the user, group or other execute bits are set. If you create a new file with the UnixEx filetype or change an existing file's filetype to UnixEx, then the user execute bit will be set, and the group and others execute bits will be set if the corresponding read bit is set. If not specified, then it defaults to 0.
+<p>
 <h4>Timeout</h4>
 The time in seconds to wait for a reply from the server before retrying or giving up. Defaults to 3 seconds.
 <p>

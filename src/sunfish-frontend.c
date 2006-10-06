@@ -92,6 +92,7 @@
 #define gadget_filenames_ADDEXTNEEDED     0xc
 #define gadget_filenames_ADDEXTNEVER      0xd
 #define gadget_filenames_UNUMASK          0xe
+#define gadget_filenames_UNIXEX           0x14
 
 #define gadget_connection_DATABUFFER      0x8
 #define gadget_connection_PIPELINING      0x2
@@ -132,6 +133,7 @@ struct mount {
 	osbool showhidden;
 	int followsymlinks;
 	osbool casesensitive;
+	osbool unixex;
 	int defaultfiletype;
 	int addext;
 	int unumask;
@@ -209,6 +211,7 @@ static void mount_save(char *filename)
 	fprintf(file,"ShowHidden: %d\n",mount.showhidden);
 	fprintf(file,"FollowSymlinks: %d\n",mount.followsymlinks);
 	fprintf(file,"CaseSensitive: %d\n",mount.casesensitive);
+	fprintf(file,"UnixEx: %d\n",mount.unixex);
 	fprintf(file,"DefaultFiletype: %.3X\n",mount.defaultfiletype);
 	fprintf(file,"AddExt: %d\n",mount.addext);
 	fprintf(file,"unumask: %.3o\n",mount.unumask);
@@ -337,6 +340,8 @@ static void mount_load(char *filename)
 			mount.followsymlinks = (int)strtol(val, NULL, 10);
 		} else if (CHECK("CaseSensitive")) {
 			mount.casesensitive = (int)strtol(val, NULL, 10);
+		} else if (CHECK("UnixEx")) {
+			mount.unixex = (int)strtol(val, NULL, 10);
 		}
 	}
 	fclose(file);
@@ -469,6 +474,7 @@ static osbool filenames_open(bits event_code, toolbox_action *event, toolbox_blo
 	E(xwritablefield_set_value(0, id_block->this_obj, gadget_filenames_SYMLINKLEVELS, tmp));
 	E(xoptionbutton_set_state(0, id_block->this_obj, gadget_filenames_FOLLOWSYMLINKS, mount.followsymlinks != 0));
 	E(xoptionbutton_set_state(0, id_block->this_obj, gadget_filenames_CASESENSITIVE, mount.casesensitive));
+	E(xoptionbutton_set_state(0, id_block->this_obj, gadget_filenames_UNIXEX, mount.unixex));
 	snprintf(tmp, sizeof(tmp), "%X", mount.defaultfiletype);
 	E(xwritablefield_set_value(0, id_block->this_obj, gadget_filenames_DEFAULTFILETYPE, tmp));
 	switch (mount.addext) {
@@ -514,6 +520,7 @@ static osbool filenames_set(bits event_code, toolbox_action *event, toolbox_bloc
 		mount.followsymlinks = atoi(tmp);
 	}
 	E(xoptionbutton_get_state(0, id_block->this_obj, gadget_filenames_CASESENSITIVE, &mount.casesensitive));
+	E(xoptionbutton_get_state(0, id_block->this_obj, gadget_filenames_UNIXEX, &mount.unixex));
 	E(xwritablefield_get_value(0, id_block->this_obj, gadget_filenames_DEFAULTFILETYPE, tmp, sizeof(tmp), NULL));
 	mount.defaultfiletype = (int)strtol(tmp, NULL, 16);
 	E(xradiobutton_get_state(0, id_block->this_obj, gadget_filenames_ADDEXTALWAYS, NULL, &selected));
@@ -699,6 +706,7 @@ static void mainwin_setup(char *mountname)
 	mount.showhidden = 1;
 	mount.followsymlinks = 5;
 	mount.casesensitive = 0;
+	mount.unixex = 0;
 	mount.defaultfiletype = 0xFFF;
 	mount.addext = 1;
 	mount.unumask = 0;
