@@ -61,6 +61,8 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 <p>
 Sunfish requires a working network connection and an NFS server to connect to. The server should be running version 2 or version 3 of the NFS protocol, version 1 or 3 of the Mount protocol, version 2 of the portmapper protocol, and optionally version 2 of the pcnfsd protocol. It has currently only been tested with the Linux kernel server present in Debian Woody, but it should work with other servers. Both UDP and TCP connections are supported.
 <p>
+Sunfish requires the Iconv module to be installed. This can be downloaded from <a href="http://netsurf.sourceforge.net/iconv/">here</a>.
+<p>
 Sunfish should run on any version of RISC OS from 3.11 onwards. It has been reported to work on RISC OS 3.7, RISC OS 4 (including under Virtual RPC), Select, and RISC OS 5. It is 26/32bit neutral.
 <p>
 
@@ -80,7 +82,7 @@ Sunfish has been reported to work with the following servers:
 <tr><td>Solaris 7/8 server</td><td>No known issues</td></tr>
 <tr><td>TrueGrid NFS server on Windows</td><td>Question marks in filenames (and possibly other characters) can cause "No such device" errors.</td></tr>
 <tr><td>Netware 6.5SP1a.</td><td>No known issues</td></tr>
-<tr><td>Allegro NFSd on Windows</td><td>Version 1.1.4 has but a bug in that can cause file not found errors when copying files onto the server. Allegedly fixed in later versions.</td></tr>
+<tr><td>Allegro NFSd on Windows</td><td>Version 1.1.4 has a bug in that can cause file not found errors when copying files onto the server. Allegedly fixed in later versions.</td></tr>
 </table>
 <p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
@@ -229,9 +231,6 @@ If set to 1, filenames will be treated as case sensitive, and if the filename do
 <p>
 If case sensitivity is off, and you have two (or more) files in the same directory that differ only in case then trying to access one of them may result in the wrong file being altered.
 <p>
-<h4>UnixEx</h4>
-If set to 1, any files with executable permissions set wil be given a filetype of UnixEx (&FE6) rather than their normal filetype. It will get this filetype if any of the user, group or other execute bits are set. If you create a new file with the UnixEx filetype or change an existing file's filetype to UnixEx, then the user execute bit will be set, and the group and others execute bits will be set if the corresponding read bit is set. If not specified, then it defaults to 0.
-<p>
 <h4>Timeout</h4>
 The time in seconds to wait for a reply from the server before retrying or giving up. Defaults to 3 seconds.
 <p>
@@ -243,6 +242,12 @@ The hexadecimal filetype to give a file if it doesn't have an ,xyz extension or 
 <p>
 <h4>AddExt</h4>
 Controls adding of a ,xyz extension. When 0, no ,xyz extensions are added, and all files get the default filetype. When 1, a ,xyz extension is only added when necessary. If the file has a . extension that matches a mimemap entry then no extension is added. When 2, a ,xyz extension is always added. If not specified, the default is 1.
+<p>
+<h4>UnixEx</h4>
+If set to 1, any files with executable permissions set wil be given a filetype of UnixEx (&FE6) rather than their normal filetype. It will get this filetype if any of the user, group or other execute bits are set. If you create a new file with the UnixEx filetype or change an existing file's filetype to UnixEx, then the user execute bit will be set, and the group and others execute bits will be set if the corresponding read bit is set. If not specified, then it defaults to 0.
+<p>
+<h4>Encoding</h4>
+Specifies the character set encoding used for filenames on the server. The local encoding is determined from the <code>*alphabet</code> setting, and if the two encodings are different then filenames are converted between the two. Common encodings are <code>ISO-8859-1</code> (for Latin1) and <code>UTF-8</code>. If no encoding is specified, then filenames are used without any conversion.
 <p>
 
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>

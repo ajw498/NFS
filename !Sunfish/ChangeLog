@@ -3,6 +3,7 @@ Fixed bug that caused the wrong attributes to be returned for a symlink that
 couldn't be followed.
 File sizes are limited to 2GB rather than 4GB as accessing > 2GB doesn't work.
 Added UnixEx option to set filetype based on executable permissions.
+Added filename encoding option.
 
 v1.08 26-Oct-05
 Fixed bug where sometimes filetypes would get changed when a file was renamed.

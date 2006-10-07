@@ -49,6 +49,8 @@ void free_conn_info(struct conn_info *conn)
 	if (conn->config) free(conn->config);
 	if (conn->auth) free(conn->auth);
 	if (conn->pool) pfree(conn->pool);
+	if (conn->toenc != (iconv_t)-1) iconv_close(conn->toenc);
+	if (conn->fromenc != (iconv_t)-1) iconv_close(conn->fromenc);
 	free(conn);
 }
 
@@ -66,6 +68,7 @@ static void encode(char *str)
 static os_error *parse_line(char *line, struct conn_info *conn)
 {
 	char *val;
+	char *localencoding = encoding_getlocal();
 
 	/* Find the end of the field */
 	val = line;
@@ -101,6 +104,13 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		conn->tcp = strcasecmp(val, "tcp") == 0;
 	} else if (CHECK("Export")) {
 		conn->export = val;
+	} else if (CHECK("Encoding")) {
+		if (strcmp(val, localencoding) != 0) {
+			conn->toenc = iconv_open(val, localencoding);
+			if (conn->toenc == (iconv_t)-1) return gen_error(ICONVERR, "Iconv unable to convert encodings from %s to %s  (%d)", localencoding, val, errno);
+			conn->fromenc = iconv_open(localencoding, val);
+			if (conn->fromenc == (iconv_t)-1) return gen_error(ICONVERR, "Iconv unable to convert encodings from %s to %s  (%d)", val, localencoding, errno);
+		}
 	} else if (CHECK("UID")) {
 		conn->uid = (int)strtol(val, NULL, 10);
 	} else if (CHECK("GID")) {
@@ -287,6 +297,8 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->casesensitive = 0;
 	conn->laststart = 0;
 	conn->nfs3 = 0;
+	conn->toenc = (iconv_t)-1;
+	conn->fromenc = (iconv_t)-1;
 	if ((conn->pool = pinit(NULL)) == NULL) {
 		free_conn_info(conn);
 		return gen_error(NOMEM,NOMEMMESS);

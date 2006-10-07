@@ -14,6 +14,7 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <sys/errno.h>
+#include <iconv.h>
 
 #include "pools.h"
 
@@ -101,6 +102,8 @@
 #define NOATTRSMESS "Object attributes not supplied by server"
 
 #define STARTUPERR (ERRBASE + 53)
+
+#define ICONVERR (ERRBASE + 54)
 
 /* Directory not empty error number must match what filecore uses */
 #define ERRDIRNOTEMPTY 67764
@@ -198,6 +201,8 @@ struct conn_info {
 	struct commonfh lastdirhandle;
 	int tcp;
 	int nfs3;
+	iconv_t toenc;
+	iconv_t fromenc;
 	struct pool *pool;
 };
 

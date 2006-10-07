@@ -36,6 +36,7 @@
 #include "oslib/menu.h"
 #include "oslib/radiobutton.h"
 #include "oslib/optionbutton.h"
+#include "oslib/stringset.h"
 #include "oslib/writablefield.h"
 #include "oslib/numberrange.h"
 #include "oslib/window.h"
@@ -93,6 +94,7 @@
 #define gadget_filenames_ADDEXTNEVER      0xd
 #define gadget_filenames_UNUMASK          0xe
 #define gadget_filenames_UNIXEX           0x14
+#define gadget_filenames_ENCODING         0x24
 
 #define gadget_connection_DATABUFFER      0x8
 #define gadget_connection_PIPELINING      0x2
@@ -160,6 +162,7 @@ struct mount {
 	osbool tcp;
 	osbool nfs3;
 	char leafname[STRMAX];
+	char encoding[STRMAX];
 };
 
 static struct mount mount;
@@ -221,6 +224,8 @@ static void mount_save(char *filename)
 	if (mount.mountport) fprintf(file,"MountPort: %d\n",mount.mountport);
 	if (mount.localportmin && mount.localportmin) fprintf(file,"LocalPort: %d %d\n",mount.localportmin,mount.localportmax);
 	if (mount.machinename[0]) fprintf(file,"MachineName: %s\n",mount.machinename);
+	if ((strcasecmp(mount.encoding, "No conversion") != 0) && mount.encoding[0]) fprintf(file,"Encoding: %s\n", mount.encoding);
+
 	fprintf(file,"MaxDataBuffer: %d\n",mount.maxdatabuffer);
 	fprintf(file,"Pipelining: %d\n",mount.pipelining);
 	fprintf(file,"Timeout: %d\n",mount.timeout);
@@ -283,6 +288,8 @@ static void mount_load(char *filename)
 			strcpy(mount.server, val);
 		} else if (CHECK("MachineName")) {
 			strcpy(mount.machinename, val);
+		} else if (CHECK("Encoding")) {
+			strcpy(mount.encoding, val);
 		} else if (CHECK("PortMapperPort")) {
 			mount.portmapperport = (int)strtol(val, NULL, 10);
 		} else if (CHECK("MountPort")) {
@@ -490,6 +497,7 @@ static osbool filenames_open(bits event_code, toolbox_action *event, toolbox_blo
 	}
 	snprintf(tmp, sizeof(tmp), "%.3o", mount.unumask);
 	E(xwritablefield_set_value(0, id_block->this_obj, gadget_filenames_UNUMASK, tmp));
+	E(xstringset_set_selected_string(0, id_block->this_obj, gadget_filenames_ENCODING, mount.encoding));
 
 	return 1;
 }
@@ -537,6 +545,7 @@ static osbool filenames_set(bits event_code, toolbox_action *event, toolbox_bloc
 	}
 	E(xwritablefield_get_value(0, id_block->this_obj, gadget_filenames_UNUMASK, tmp, sizeof(tmp), NULL));
 	mount.unumask = (int)strtol(tmp, NULL, 8);
+	E(xstringset_get_selected_string(0, id_block->this_obj, gadget_filenames_ENCODING, mount.encoding, STRMAX, NULL));
 
 	return 1;
 }
@@ -733,6 +742,7 @@ static void mainwin_setup(char *mountname)
 	mount.tcp = 0;
 	mount.nfs3 = 0;
 	mount.leafname[0] = '\0';
+	strcpy(mount.encoding, "No conversion");
 
 	if (mountname) {
 		char buffer[256];

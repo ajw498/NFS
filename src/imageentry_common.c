@@ -361,6 +361,24 @@ os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, stru
 
 		segmentname = filename_unixify(start, end - start, &segmentlen, conn->pool);
 
+		if (conn->toenc != (iconv_t)-1) {
+			char *encleaf;
+			unsigned encleaflen;
+			static char buffer2[MAX_PATHNAME];
+
+			encleaf = buffer2;
+			encleaflen = sizeof(buffer2);
+			if (iconv(conn->toenc, &segmentname, &segmentlen, &encleaf, &encleaflen) == -1) {
+				iconv(conn->toenc, NULL, NULL, NULL, NULL);
+				return gen_error(ICONVERR, "Iconv failed when converting a filename (%d)", errno);
+			}
+
+			encleaflen = sizeof(buffer2) - encleaflen;
+			if ((segmentname = palloc(encleaflen + sizeof(",xyz"), conn->pool)) == NULL) return gen_error(NOMEM, NOMEMMESS);
+			memcpy(segmentname, buffer2, encleaflen);
+			segmentlen = encleaflen;
+		}
+
 		if (leafname) *leafname = segmentname;
 
 		err = ENTRYFUNC(leafname_to_finfo) (segmentname, &segmentlen, 0, followsymlinks || (*end != '\0'), &dirhandle, &segmentinfo, &status, conn);

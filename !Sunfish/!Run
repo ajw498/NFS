@@ -31,6 +31,9 @@ RMEnsure ProgInfo   0.18 Error Toolbox modules out of date (Sunfish requires Pro
 
 RMEnsure Internet 5.00 Error Sunfish requires the Internet module 5.00 or later
 
+RMEnsure Iconv 0.07 RMLoad System:Modules.Iconv
+RMEnsure Iconv 0.07 Error Sunfish requires the Iconv module 0.07 or later
+
 RMLoad <Sunfish$Dir>.Sunfish
 
 If "%*0" <> "" Then Filer_OpenDir %*0

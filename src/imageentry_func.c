@@ -201,21 +201,41 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 				if (dirpos >= start) {
 					struct dir_entry *info_entry = NULL;
 					int filetype;
-					int len;
-		
+					char *leafname;
+					unsigned len;
+
 					if (info) {
 						info_entry = (struct dir_entry *)bufferpos;
 						bufferpos += sizeof(struct dir_entry);
 					}
-		
+
 					/* Check there is room in the output buffer. */
 					if (bufferpos > buffer + buflen) break;
-		
+
+					leafname = direntry->name.data;
+					len = direntry->name.size;
+
+					if (conn->fromenc != (iconv_t)-1) {
+						char *encleaf;
+						unsigned encleaflen;
+						static char buffer2[MAX_PATHNAME];
+
+						encleaf = buffer2;
+						encleaflen = sizeof(buffer2);
+						if (iconv(conn->fromenc, &leafname, &len, &encleaf, &encleaflen) == -1) {
+							iconv(conn->fromenc, NULL, NULL, NULL, NULL);
+							return gen_error(ICONVERR, "Iconv failed when converting a filename (%d)", errno);
+						}
+
+						leafname = buffer2;
+						len = sizeof(buffer2) - encleaflen;
+					}
+
 					/* Copy leafname into output buffer, translating some
 					   chars and stripping any ,xyz */
-					len = filename_riscosify(direntry->name.data, direntry->name.size, bufferpos, buffer + buflen - bufferpos, &filetype, conn->defaultfiletype, conn->xyzext);
+					len = filename_riscosify(leafname, len, bufferpos, buffer + buflen - bufferpos, &filetype, conn->defaultfiletype, conn->xyzext);
 					if (len == 0) break; /* Buffer overflowed */
-		
+
 					bufferpos += len + 1;
 		
 					if (info) {
@@ -369,6 +389,24 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 		renameargs.to.dir = renameargs.from.dir;
 		leafname = newfilename + dirnamelen;
 		leafname = filename_unixify(leafname, strlen(leafname), &leafnamelen, conn->pool);
+
+		if (conn->toenc != (iconv_t)-1) {
+			char *encleaf;
+			unsigned encleaflen;
+			static char buffer2[MAX_PATHNAME];
+
+			encleaf = buffer2;
+			encleaflen = sizeof(buffer2);
+			if (iconv(conn->toenc, &leafname, &leafnamelen, &encleaf, &encleaflen) == -1) {
+				iconv(conn->toenc, NULL, NULL, NULL, NULL);
+				return gen_error(ICONVERR, "Iconv failed when converting a filename (%d)", errno);
+			}
+
+			encleaflen = sizeof(buffer2) - encleaflen;
+			if ((leafname = palloc(encleaflen + sizeof(",xyz"), conn->pool)) == NULL) return gen_error(NOMEM, NOMEMMESS);
+			memcpy(leafname, buffer2, encleaflen);
+			leafnamelen = encleaflen;
+		}
 	} else {
 		/* Files are in different directories, so find the handle of the new dir */
 		err = ENTRYFUNC(filename_to_finfo) (newfilename, 1, &dinfo, NULL, &leafname, NULL, NULL, conn);
