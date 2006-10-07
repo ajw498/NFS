@@ -415,15 +415,20 @@ os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, stru
 		} else if (conn->unixexfiletype && ((segmentinfo->attributes.mode & 0111) != 0)) {
 			/* One of the executable bits is set, so set the filetype to UnixEx */
 			*filetype = UNIXEX_FILETYPE;
+			if (segmentlen > 4 && segmentname[segmentlen - 4] == ','
+			          && isxdigit(segmentname[segmentlen - 3])
+			          && isxdigit(segmentname[segmentlen - 2])
+			          && isxdigit(segmentname[segmentlen - 1])
+			          && extfound) *extfound = 1;
 		} else if (conn->xyzext == NEVER) {
 			/* Not configured to use the mimetype */
 			*filetype = conn->defaultfiletype;
 		} else {
 			/* Work out the filetype */
 			if (segmentlen > 4 && segmentname[segmentlen - 4] == ','
-				      && isxdigit(segmentname[segmentlen - 3])
-				      && isxdigit(segmentname[segmentlen - 2])
-				      && isxdigit(segmentname[segmentlen - 1])) {
+			          && isxdigit(segmentname[segmentlen - 3])
+			          && isxdigit(segmentname[segmentlen - 2])
+			          && isxdigit(segmentname[segmentlen - 1])) {
 				/* There is an ,xyz extension */
 				*filetype = (int)strtol(segmentname + segmentlen - 3, NULL, 16);
 
