@@ -91,7 +91,7 @@ os_error *ENTRYFUNC(get_bytes) (struct file_handle *handle, char *buffer, unsign
 
 /* Write a number of bytes to the open file.
    Used by put_bytes and file_savefile */
-os_error *ENTRYFUNC(writebytes) (struct commonfh *fhandle, char *buffer, unsigned int len, unsigned int offset, struct conn_info *conn)
+os_error *ENTRYFUNC(writebytes) (struct commonfh *fhandle, char *buffer, unsigned int len, unsigned int offset, struct file_handle *handle, struct conn_info *conn)
 {
 	os_error *err;
 #ifdef NFS3
@@ -108,6 +108,7 @@ os_error *ENTRYFUNC(writebytes) (struct commonfh *fhandle, char *buffer, unsigne
 #ifndef NFS3
 	args.beginoffset = 0; /* Unused in NFS2 */
 	args.totalcount = 0;  /* Unused in NFS2 */
+	handle = handle;
 #endif
 	commonfh_to_fh(args.file, *fhandle);
 
@@ -122,7 +123,7 @@ os_error *ENTRYFUNC(writebytes) (struct commonfh *fhandle, char *buffer, unsigne
 		if (args.data.size > 0) outstanding++;
 #ifdef NFS3
 		args.count = args.data.size;
-		args.stable = FILE_SYNC;
+		args.stable = handle ? UNSTABLE : FILE_SYNC;
 #endif
 		reqsizes[reqtail++] = args.data.size;
 
@@ -134,6 +135,10 @@ os_error *ENTRYFUNC(writebytes) (struct commonfh *fhandle, char *buffer, unsigne
 #ifdef NFS3
 			if (res.u.resok.count < reqsizes[0]) {
 				return gen_error(BYTESERRBASE + 1,"Write wrote less data than expected");
+			}
+			if (handle && res.u.resok.committed != FILE_SYNC) {
+				handle->commitneeded = 1;
+				memcpy(handle->verf, res.u.resok.verf, NFS3_WRITEVERFSIZE);
 			}
 #endif
 			for (int i = 0; i < FIFOSIZE - 1; i++) reqsizes[i] = reqsizes[i+1];
@@ -149,7 +154,7 @@ os_error *ENTRYFUNC(put_bytes) (struct file_handle *handle, char *buffer, unsign
 {
 	if (offset + len > handle->extent) handle->extent = offset + len;
 
-	return ENTRYFUNC(writebytes) (&(handle->fhandle), buffer, len, offset, handle->conn);
+	return ENTRYFUNC(writebytes) (&(handle->fhandle), buffer, len, offset, handle, handle->conn);
 }
 
 

@@ -124,6 +124,7 @@ os_error *ENTRYFUNC(open_file) (char *filename, int access, struct conn_info *co
 	handle->conn = conn;
 	handle->fhandle = finfo->objhandle;
 	handle->extent = filesize(finfo->attributes.size);
+	handle->commitneeded = 0;
 #ifdef NFS3
 	timeval_to_loadexec(finfo->attributes.mtime.seconds, finfo->attributes.mtime.nseconds, filetype, &(handle->load), &(handle->exec), 0);
 #else
@@ -142,6 +143,23 @@ os_error *ENTRYFUNC(open_file) (char *filename, int access, struct conn_info *co
 
 os_error *ENTRYFUNC(close_file) (struct file_handle *handle, unsigned int load, unsigned int exec)
 {
+#ifdef NFS3
+	if (handle->commitneeded) {
+		struct COMMIT3args args;
+		struct COMMIT3res res;
+		os_error *err;
+
+		commonfh_to_fh(args.file, handle->fhandle);
+		args.offset = 0;
+		args.count = 0;
+
+		err = NFSPROC(COMMIT, (&args, &res, handle->conn));
+		if (err) return err;
+		if (res.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (res.status);
+		if (memcmp(res.u.resok.verf, handle->verf, NFS3_WRITEVERFSIZE) != 0) return gen_error(OPENCLOSEERRBASE + 1, "Server has rebooted while file open - data may have been lost");
+	}
+#endif
+
 	/* The filetype shouldn't have changed since the file was opened and
 	   the server will set the datestamp for us, therefore there is not
 	   much point in us explicitly updating the attributes.

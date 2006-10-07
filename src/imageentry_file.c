@@ -374,7 +374,7 @@ os_error *ENTRYFUNC(file_savefile) (char *filename, unsigned int load, unsigned 
 	err = createfile(filename, load, exec, buffer, buffer_end, conn, &fhandle, leafname);
 	if (err) return err;
 
-	return ENTRYFUNC(writebytes) (fhandle, buffer, buffer_end - buffer, 0, conn);
+	return ENTRYFUNC(writebytes) (fhandle, buffer, buffer_end - buffer, 0, NULL, conn);
 }
 
 /* Delete a file or directory */

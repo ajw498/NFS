@@ -94,7 +94,7 @@
 /* 1 error */
 #define MODULEERRBASE (ERRBASE + 48)
 
-/* 1 error */
+/* 2 errors */
 #define OPENCLOSEERRBASE (ERRBASE + 50)
 
 
@@ -151,6 +151,8 @@ struct file_handle {
 	unsigned int load;
 	unsigned int exec;
 	int dir;
+	int commitneeded;
+	char verf[8];
 };
 
 #ifndef NSTAT
