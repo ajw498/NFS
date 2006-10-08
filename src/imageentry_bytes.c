@@ -137,8 +137,12 @@ os_error *ENTRYFUNC(writebytes) (struct commonfh *fhandle, char *buffer, unsigne
 				return gen_error(BYTESERRBASE + 1,"Write wrote less data than expected");
 			}
 			if (handle && res.u.resok.committed != FILE_SYNC) {
-				handle->commitneeded = 1;
-				memcpy(handle->verf, res.u.resok.verf, NFS3_WRITEVERFSIZE);
+				if (handle->commitneeded) {
+					if (memcmp(res.u.resok.verf, handle->verf, NFS3_WRITEVERFSIZE) != 0) return gen_error(OPENCLOSEERRBASE + 1, "Server has rebooted while file open - data may have been lost");
+				} else {
+					handle->commitneeded = 1;
+					memcpy(handle->verf, res.u.resok.verf, NFS3_WRITEVERFSIZE);
+				}
 			}
 #endif
 			for (int i = 0; i < FIFOSIZE - 1; i++) reqsizes[i] = reqsizes[i+1];
