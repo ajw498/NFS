@@ -42,7 +42,7 @@ os_error *ENTRYFUNC(args_zeropad) (struct file_handle *handle, unsigned int offs
 	/* This is going to be pretty slow, but any sensible program won't
 	   be calling this entry point */
 	while (size > sizeof(zeros)) {
-		err = ENTRYFUNC(writebytes) (&(handle->fhandle), zeros, sizeof(zeros), offset, handle->conn);
+		err = ENTRYFUNC(writebytes) (&(handle->fhandle), zeros, sizeof(zeros), offset, handle, handle->conn);
 		if (err) return err;
 
 		size -= sizeof(zeros);
@@ -50,7 +50,7 @@ os_error *ENTRYFUNC(args_zeropad) (struct file_handle *handle, unsigned int offs
 	}
 
 	if (size > 0) {
-		err = ENTRYFUNC(writebytes) (&(handle->fhandle), zeros, size, offset, handle->conn);
+		err = ENTRYFUNC(writebytes) (&(handle->fhandle), zeros, size, offset, handle, handle->conn);
 		if (err) return err;
 	}
 
