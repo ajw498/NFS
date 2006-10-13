@@ -433,7 +433,7 @@ static void match_rx_buffer(struct buffer_list *currentrx)
 				return;
 			}
 			entry->rx = currentrx;
-			entry->status = DONE;
+			if ((entry->status == RXWAIT) || (entry->status == RX)) entry->status = DONE;
 			return;
 		}
 		entry = entry->next;
@@ -557,6 +557,7 @@ static void poll_connections(void)
 			if (ret) handle_error(entry, ret);
 			if (entry->status != RXWAIT) break;
 		case RXWAIT:
+			if (entry->rx) entry->status = DONE;
 			if (entry->conn->tcp) {
 				if (entry->conn->rxmutex) break;
 				entry->conn->rxmutex = get_rx_buffer();
