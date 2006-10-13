@@ -21,7 +21,7 @@ enum callctl {
 
 #define ERR_WOULDBLOCK ((os_error *)1)
 
-os_error *rpc_do_call(int prog, enum callctl calltype, struct conn_info *conn);
+os_error *rpc_do_call(int prog, enum callctl calltype, void *extradata, int extralen, struct conn_info *conn);
 
 void rpc_free_request_entry(struct conn_info *conn);
 

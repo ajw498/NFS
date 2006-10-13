@@ -320,7 +320,7 @@ while (<>) {
       print CALLS "\terr = rpc_prepare_call($prog, $vers, $procno, conn);\n";
       print CALLS "\tif (err) return err;\n";
       print CALLS "\tif (process_$args(OUTPUT, args, conn->pool)) return rpc_buffer_overflow();\n";
-      print CALLS "\terr = rpc_do_call($prog, $calltype, conn);\n";
+      print CALLS "\terr = rpc_do_call($prog, $calltype, NULL, 0, conn);\n";
       print CALLS "\tif (err) return err;\n";
       print CALLS "\tif (process_${res}(INPUT, res, conn->pool)) return rpc_buffer_overflow();\n";
       print CALLS "\treturn NULL;\n}\n";

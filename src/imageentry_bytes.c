@@ -32,6 +32,45 @@
 #include "nfs2-calls.h"
 #endif
 
+/* Create special cases for writes so that we can pass the data direct to the
+   sendmsg call without having to copy it. We can't do this with reads because
+   we don't know which reply we are going to recieve next at the point when we
+   allocate the buffer .*/
+#ifdef NFS3
+static os_error *NFSPROC3_FASTWRITE(writeargs3 *args, writeres3 *res, struct conn_info *conn, enum callctl calltype)
+{
+	os_error *err;
+
+	err = rpc_prepare_call(NFS_RPC_PROGRAM, NFS_RPC_VERSION, 7, conn);
+	if (err) return err;
+	if (process_nfs_fh3(OUTPUT, &(args->file), conn->pool))       return rpc_buffer_overflow();
+	if (process_offset3(OUTPUT, &(args->offset), conn->pool))     return rpc_buffer_overflow();
+	if (process_count3(OUTPUT, &(args->count), conn->pool))       return rpc_buffer_overflow();
+	if (process_stable_how(OUTPUT, &(args->stable), conn->pool))  return rpc_buffer_overflow();
+	if (process_unsigned(OUTPUT, &(args->data.size), conn->pool)) return rpc_buffer_overflow();
+	err = rpc_do_call(NFS_RPC_PROGRAM, calltype, args->data.data, args->data.size, conn);
+	if (err) return err;
+	if (process_writeres3(INPUT, res, conn->pool)) return rpc_buffer_overflow();
+	return NULL;
+}
+#else
+static os_error *NFSPROC_FASTWRITE(writeargs *args, attrstat *res, struct conn_info *conn, enum callctl calltype)
+{
+	os_error *err;
+
+	err = rpc_prepare_call(NFS_RPC_PROGRAM, NFS_RPC_VERSION, 8, conn);
+	if (err) return err;
+	if (process_nfs_fh(OUTPUT, &(args->file), conn->pool))          return rpc_buffer_overflow();
+	if (process_unsigned(OUTPUT, &(args->beginoffset), conn->pool)) return rpc_buffer_overflow();
+	if (process_unsigned(OUTPUT, &(args->offset), conn->pool))      return rpc_buffer_overflow();
+	if (process_unsigned(OUTPUT, &(args->totalcount), conn->pool))  return rpc_buffer_overflow();
+	if (process_unsigned(OUTPUT, &(args->data.size), conn->pool))   return rpc_buffer_overflow();
+	err = rpc_do_call(NFS_RPC_PROGRAM, calltype, args->data.data, args->data.size, conn);
+	if (err) return err;
+	if (process_attrstat(INPUT, res, conn->pool)) return rpc_buffer_overflow();
+	return NULL;
+}
+#endif
 
 /* Read a number of bytes from the open file */
 os_error *ENTRYFUNC(get_bytes) (struct file_handle *handle, char *buffer, unsigned int len, unsigned int offset)
@@ -126,7 +165,7 @@ os_error *ENTRYFUNC(writebytes) (struct commonfh *fhandle, char *buffer, unsigne
 #endif
 		reqsizes[reqtail++] = args.data.size;
 
-		err = NFSPROC(WRITE, (&args, &res, conn, ((outstanding < FIFOSIZE) && conn->pipelining) ? (args.data.size > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING));
+		err = NFSPROC(FASTWRITE, (&args, &res, conn, ((outstanding < FIFOSIZE) && conn->pipelining) ? (args.data.size > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING));
 		if (err != ERR_WOULDBLOCK) {
 			if (err) return err;
 			if (res.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (res.status);

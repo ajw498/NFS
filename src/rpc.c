@@ -82,6 +82,8 @@ struct request_entry {
 	int error;
 	time_t lastactivity;
 	struct buffer_list tx;
+	void *extradata;
+	int extralen;
 	struct buffer_list *rx;
 	struct request_entry *next;
 	struct request_entry *nextpipelined;
@@ -192,6 +194,7 @@ static struct request_entry *get_request_entry(struct conn_info *conn)
 	entry->error = 0;
 	entry->rx = NULL;
 	entry->tx.len = 0;
+	entry->extralen = 0;
 
 	return entry;
 }
@@ -397,13 +400,32 @@ static int rpc_connect_socket(struct conn_info *conn)
 static int poll_tx(struct request_entry *entry)
 {
 	int ret;
+	struct msghdr msg;
+	struct iovec iovec[2];
 
 	if (entry->conn->sock == -1) {
 		ret = rpc_connect_socket(entry->conn);
 		if (ret) return ret;
 	}
 
-	ret = send(entry->conn->sock, entry->tx.buffer + entry->tx.position, entry->tx.len - entry->tx.position, 0);
+	msg.msg_name = NULL;
+	msg.msg_namelen = 0;
+	msg.msg_control = NULL;
+	msg.msg_controllen = 0;
+	msg.msg_flags = 0;
+	msg.msg_iov = iovec;
+	if (entry->tx.position < entry->tx.len) {
+		msg.msg_iovlen = entry->extralen ? 2 : 1;
+		iovec[0].iov_base = entry->tx.buffer + entry->tx.position;
+		iovec[0].iov_len = entry->tx.len - entry->tx.position;
+		iovec[1].iov_base = entry->extradata;
+		iovec[1].iov_len = entry->extralen;
+	} else {
+		msg.msg_iovlen = 1;
+		iovec[0].iov_base = ((char *)(entry->extradata)) + (entry->tx.position - entry->tx.len);
+		iovec[0].iov_len = entry->extralen - (entry->tx.position - entry->tx.len);
+	}
+	ret = sendmsg(entry->conn->sock, &msg, 0);
 	if (ret == -1) {
 		if ((errno == EWOULDBLOCK) || (errno == ENOTCONN)) return 0;
 		return errno;
@@ -412,7 +434,7 @@ static int poll_tx(struct request_entry *entry)
 		entry->tx.position += ret;
 	}
 
-	if (entry->tx.position >= entry->tx.len) {
+	if (entry->tx.position >= (entry->tx.len + entry->extralen)) {
 		if (entry->conn->tcp) entry->conn->txmutex = 0;
 		entry->status = RXWAIT;
 	}
@@ -588,7 +610,7 @@ static void poll_connections(void)
 
 /* Send the already filled in tx buffer, the read the response and process
    the rpc reply header */
-os_error *rpc_do_call(int prog, enum callctl calltype, struct conn_info *conn)
+os_error *rpc_do_call(int prog, enum callctl calltype, void *extradata, int extralen, struct conn_info *conn)
 {
 	struct rpc_msg reply_header;
 	struct request_entry *rxentry = request_entries;
@@ -639,10 +661,12 @@ os_error *rpc_do_call(int prog, enum callctl calltype, struct conn_info *conn)
 		}
 
 		txentry->tx.len = obuf - txentry->tx.buffer;
+		txentry->extradata = extradata;
+		txentry->extralen = extralen;
 
 		if (conn->tcp) {
 			/* Insert the record marker at the start of the buffer */
-			recordmarker = 0x80000000 | (txentry->tx.len - 4);
+			recordmarker = 0x80000000 | (txentry->tx.len + extralen - 4);
 			obuf = txentry->tx.buffer;
 			obufend = obuf + 4;
 			if (process_unsigned(OUTPUT, &recordmarker, conn->pool)) goto buffer_overflow;
