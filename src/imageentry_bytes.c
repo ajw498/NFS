@@ -72,6 +72,8 @@ static os_error *NFSPROC_FASTWRITE(writeargs *args, attrstat *res, struct conn_i
 }
 #endif
 
+void *fastmemcpy(void *ptr1, void *ptr2, size_t n);
+
 /* Read a number of bytes from the open file */
 os_error *ENTRYFUNC(get_bytes) (struct file_handle *handle, char *buffer, unsigned int len, unsigned int offset)
 {
@@ -119,7 +121,7 @@ os_error *ENTRYFUNC(get_bytes) (struct file_handle *handle, char *buffer, unsign
 			for (int i = 0; i < FIFOSIZE - 1; i++) reqsizes[i] = reqsizes[i+1];
 			reqtail--;
 
-			memcpy(buffer, res.u.resok.data.data, res.u.resok.data.size);
+			fastmemcpy(buffer, res.u.resok.data.data, res.u.resok.data.size);
 			buffer += res.u.resok.data.size;
 		}
 	}

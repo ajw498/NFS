@@ -120,7 +120,8 @@ imageentry_common3.o
 
 ASMOBJS = \
 base.o \
-callback.o
+callback.o \
+memcpy.o
 
 MOONFISHOBJS = \
 request-decode.o \
