@@ -38,23 +38,51 @@ An NFS client, implemented as an image filing system. Habitat: RISC OS.
 </td></tr></table>
 
 <p>
-Sunfish is copyright &copy; 2003 <a href="mailto:alex@alexwaugh.com">Alex Waugh</a>
-<p>
+Sunfish is copyright &copy; 2003-2006 <a href="mailto:alex@alexwaugh.com">Alex Waugh</a>
+<pre>
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
 the Free Software Foundation; either version 2 of the License, or
 (at your option) any later version.
-<p>
+
 This program is distributed in the hope that it will be useful,
 but WITHOUT ANY WARRANTY; without even the implied warranty of
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 GNU General Public License for more details.
-<p>
+
 You should have received a copy of the GNU General Public License
 along with this program; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+</pre>
 <p>
+Sunfish also includes some code (memcpy.s) taken from UnixLib.
+<pre>
+ Copyright (c) 1995-2005 UnixLib Developers
+ All rights reserved.
 
+ Redistribution and use in source and binary forms, with or without
+ modification, are permitted provided that the following conditions
+ are met:
+ 1. Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+ 2. Redistributions in binary form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in the
+    documentation and/or other materials provided with the distribution.
+ 3. The name of the author may not be used to endorse or promote products
+    derived from this software without specific prior written permission.
+
+ THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+ IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+ OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+ IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+ INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+ NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+</pre>
+<p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="requirements">Requirements</a></font></h2>
 </td></tr></table>
@@ -310,8 +338,6 @@ Devices and other non regular files are not supported, as they don't map to RISC
 <p>
 If ShowHidden == 0 and you try to delete a directory that contains hidden files then it will fail with a directory not empty error.
 <p>
-Sunfish does not support programs accessing files from callbacks, and will give an error if this causes reentrancy. This could be fixed if the internet stack didn't require callbacks to be triggered before it notices new data has arrived.
-<p>
 Writing to mounts in Sunfish: doesn't work on Select 3i3, this appears to be a select bug and doesn't occur on 3i4
 <p>
 If an NFS3 server returns a jukebox error, Sunfish should retry the operation a short while later. It doesn't, and reports the error to the user. If you manually retry then things should work. 
@@ -322,9 +348,16 @@ Files greater than 2GB in size are reported as having a size of exactly 2GB. The
 <h2><font color="#ffffff"><a name="recompiling">Recompiling</a></font></h2>
 </td></tr></table>
 <p>
-Full source code is provided. To recompile the module, you will need Norcroft v5.53 or later, cmhg 5.42 or later, TCPIPLibs, and Perl. Earlier 26bit versions of Norcroft will not work because the code makes use of 64bit integers and some C99 functions.
+Full source code is provided. To recompile the module, you will need at least either GCC 3.4.4 release 3 or Norcroft v5.53, cmhg or CMunge, TCPIPLibs, Perl, and GNU Make. Earlier 26bit versions of Norcroft will not work because the code makes use of 64bit integers and some C99 functions.
 <p>
-For some unknown reason, if you use amu then it will give an error <code>AMU: Don't know how to make 'o.pcnfsd-calls'</code> after generating pcnfsd-calls.c, but if you rerun amu then it will work. GNU make does not give this problem.
+The makefile in the src directory has several targets:
+<ul>
+<li><code>make</code> - build with Norcroft without optimisation.
+<li><code>make release</code> - build with Norcroft with full optimisation.
+<li><code>make gcc</code> - build with GCC without optimisation.
+<li><code>make gcc release</code> - build with GCC with full optimisation.
+</ul>
+<p>
 
 </body>
 </html>
