@@ -499,13 +499,13 @@ static nstat get_fattr(char *path, unsigned type, unsigned load, unsigned exec, 
 					break;
 				}
 				case FATTR4_MAXREAD: {
-					uint64_t size = conn->tcp ? MAX_DATABUFFER : conn->export->udpsize;
+					uint64_t size = conn->tcp ? SFMAXDATABUFFER : conn->export->udpsize;
 					setattrmask();
 					if (process_uint64(OUTPUT, &size, conn->pool)) goto buffer_overflow;
 					break;
 				}
 				case FATTR4_MAXWRITE: {
-					uint64_t size = conn->tcp ? MAX_DATABUFFER : conn->export->udpsize;
+					uint64_t size = conn->tcp ? SFMAXDATABUFFER : conn->export->udpsize;
 					setattrmask();
 					if (process_uint64(OUTPUT, &size, conn->pool)) goto buffer_overflow;
 					break;

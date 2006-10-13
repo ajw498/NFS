@@ -62,8 +62,7 @@ os_error *ENTRYFUNC(get_bytes) (struct file_handle *handle, char *buffer, unsign
 		len -= args.count;
 		if (args.count > 0) outstanding++;
 		reqsizes[reqtail++] = args.count;
-
-		err = NFSPROC(READ, (&args, &res, handle->conn, handle->conn->pipelining ? (args.count > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING));
+		err = NFSPROC(READ, (&args, &res, handle->conn, ((outstanding < FIFOSIZE) && handle->conn->pipelining) ? (args.count > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING));
 		if (err != ERR_WOULDBLOCK) {
 			if (err) return err;
 			if (res.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (res.status);
@@ -127,7 +126,7 @@ os_error *ENTRYFUNC(writebytes) (struct commonfh *fhandle, char *buffer, unsigne
 #endif
 		reqsizes[reqtail++] = args.data.size;
 
-		err = NFSPROC(WRITE, (&args, &res, conn, conn->pipelining ? (args.data.size > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING));
+		err = NFSPROC(WRITE, (&args, &res, conn, ((outstanding < FIFOSIZE) && conn->pipelining) ? (args.data.size > 0 ? TXNONBLOCKING : RXBLOCKING) : TXBLOCKING));
 		if (err != ERR_WOULDBLOCK) {
 			if (err) return err;
 			if (res.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (res.status);

@@ -10,9 +10,7 @@
 #include "utils.h"
 
 
-void rpc_init_header(void);
-
-void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, struct conn_info *conn);
+os_error *rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, struct conn_info *conn);
 
 enum callctl {
 	TXBLOCKING,    /* Transmit request and block until a reply is recieved */
@@ -25,11 +23,13 @@ enum callctl {
 
 os_error *rpc_do_call(int prog, enum callctl calltype, struct conn_info *conn);
 
-void rpc_resetfifo(void);
+void rpc_free_request_entry(struct conn_info *conn);
+
+void rpc_free_all_buffers(void);
 
 #define rpc_buffer_overflow() gen_error(RPCBUFOVERFLOW, RPCBUFOVERFLOWMESS)
 
-void swap_rxbuffers(void);
+void rpc_hold_rxbuffer(void);
 
 os_error *rpc_init_connection(struct conn_info *conn);
 

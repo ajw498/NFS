@@ -35,15 +35,11 @@
 #include "sunfish.h"
 
 
-void (*error_func)(void) = NULL;
-
 /* Generate a RISC OS error block based on the given number and message */
 os_error *gen_error(int num, char *msg, ...)
 {
 	static os_error module_err_buf;
 	va_list ap;
-
-	if (error_func) error_func();
 
 	va_start(ap, msg);
 	vsnprintf(module_err_buf.errmess, sizeof(module_err_buf.errmess), msg, ap);

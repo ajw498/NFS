@@ -21,6 +21,8 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+#include "sunfish.h"
+#include "utils.h"
 
 #include "rpc-calls.h"
 #include "portmapper-calls.h"
@@ -50,44 +52,44 @@
 #include <sys/errno.h>
 #include <unixlib.h>
 
-#include "sunfish.h"
-#include "utils.h"
-
-
-/* An xid indicating the buffer entry is unused */
-#define UNALLOCATED 0
 
 
 /* A monotonicly increasing transaction id */
-static unsigned int nextxid;
+static unsigned int nextxid = 1;
 
+/* A pool of rx buffers. */
+static struct buffer_list *buffers = NULL;
+static int numbuffers = 0;
 
-/* A pool of rx buffers. There should be the same number of rx buffers
-   as possible outstanding calls */
-struct buffer_list {
-	int len;
-	char buffer[BUFFERSIZE];
+enum request_status {
+  EMPTY,
+  TXWAIT,
+  TX,
+  RXWAIT,
+  RX,
+  HELD,
+  DONE
 };
 
-static struct buffer_list buffers[FIFOSIZE];
-
-/* A FIFO for keeping track of requests and their replies. We need to
+/* A list for keeping track of requests and their replies. We need to
    remember the entire call buffer in case the call gets lost and we
    need to retransmit */
-struct fifo_entry {
-	unsigned int xid;
+struct request_entry {
+	enum request_status status;
+	struct conn_info *conn;
+	int reference;
 	unsigned int retries;
+	int error;
+	time_t lastactivity;
 	struct buffer_list tx;
 	struct buffer_list *rx;
+	struct request_entry *next;
+	struct request_entry *nextpipelined;
+	struct request_entry *prevpipelined;
 };
 
-static struct fifo_entry fifo[FIFOSIZE];
-static unsigned int head;
-static unsigned int tail;
-
-/* The position within to buffer list to start looking for a free rx buffer */
-static unsigned int freebufferstart;
-
+static struct request_entry *request_entries = NULL;
+static int numentries = 0;
 
 /* These point to the current buffer for tx or rx, and are used by
    the process_* macros to read/write data from/to */
@@ -96,77 +98,173 @@ char *ibufend;
 char *obuf;
 char *obufend;
 
-#define INVALIDBUFFER (-1)
+/* The last txentry created, used to identify which to transmit next */
+static struct request_entry *txentry;
 
-/* The current rx buffer we are in the middle of recieving into */
-static int currentbuffer = INVALIDBUFFER;
+/* The last rxentry decoded, used to identify the one to hold */
+static struct request_entry *lastrxentry;
 
-/* Execute a send, repeating until the data is sent or a timeout occurs */
-static int blocking_send(int sock, char *buf, int len, long timeout)
+
+static void free_rx_buffer(struct buffer_list *freebuffer)
 {
-	time_t t = clock();
-	int ret;
+	struct buffer_list *buffer = buffers;
+	struct buffer_list **prev = &buffers;
 
-	do {
-		trigger_callback();
-		ret = send(sock, buf, len, 0);
-		if (ret > 0 && ret < len) {
-			buf += ret;
-			len -= ret;
-			ret = -1;
-			errno = EWOULDBLOCK;
+	if (freebuffer == NULL) return;
+
+	while (buffer) {
+		if (buffer == freebuffer) {
+			buffer->len = -1;
+			if (numbuffers > FIFOSIZE) {
+				*prev = buffer->next;
+				free(buffer);
+				numbuffers--;
+			}
+			return;
 		}
-	} while (ret == -1 && (errno == EWOULDBLOCK || errno == ENOTCONN) && clock() < (t + (timeout * CLOCKS_PER_SEC)));
-	return ret;
-}
-
-/* Reset all fifo entries and rx buffers to an unallocated state */
-void rpc_resetfifo(void)
-{
-	int i;
-
-	head = 0;
-	tail = 0;
-	freebufferstart = 0;
-	currentbuffer = INVALIDBUFFER;
-	for (i = 0; i < FIFOSIZE; i++) {
-		fifo[i].xid = UNALLOCATED;
-		fifo[i].rx = NULL;
-		buffers[i].len = 0;
+		prev = &(buffer->next);
+		buffer = buffer->next;
 	}
 }
 
-/* Close the socket, ignoring any errors (it will be reopened on the next request) */
-#define gen_rpc_error(conn, ...) (\
-	(conn->tcp ? rpc_close_connection(conn) : NULL),\
-	gen_error(__VA_ARGS__))
+void rpc_free_all_buffers(void)
+{
+	struct request_entry *entry = request_entries;
+	struct buffer_list *buffer = buffers;
 
+	while (entry) {
+		struct request_entry *next = entry->next;
+		free(entry);
+		entry = next;
+	}
+	request_entries = NULL;
+	numentries = 0;
+
+	while (buffer) {
+		struct buffer_list *next = buffer->next;
+		free(buffer);
+		buffer = next;
+	}
+	buffers = NULL;
+	numbuffers = 0;
+}
+
+static struct request_entry *get_request_entry(struct conn_info *conn)
+{
+	struct request_entry *entry = request_entries;
+	struct request_entry *foundentry = NULL;
+	struct request_entry *foundpipelined = NULL;
+
+	/* Search for an existing unused entry */
+	while (entry) {
+		if (entry->status == EMPTY) {
+			foundentry = entry;
+		} else if ((entry->status != HELD) &&
+		           (entry->conn == conn) &&
+		           (entry->reference == conn->reference) &&
+		           (entry->nextpipelined == NULL)) {
+			foundpipelined = entry;
+		}
+		entry = entry->next;
+	}
+
+	entry = foundentry;
+
+	if (entry == NULL) {
+		entry = malloc(sizeof(struct request_entry));
+		if (entry == NULL) return NULL;
+		entry->next = request_entries;
+		request_entries = entry;
+		numentries++;
+	} else {
+		free_rx_buffer(entry->rx);
+	}
+
+	entry->nextpipelined = NULL;
+	entry->prevpipelined = foundpipelined;
+	if (foundpipelined) foundpipelined->nextpipelined = entry;
+
+	entry->status = TXWAIT;
+	entry->conn = conn;
+	entry->reference = conn->reference;
+	entry->retries = 0;
+	entry->lastactivity = clock();
+	entry->error = 0;
+	entry->rx = NULL;
+	entry->tx.len = 0;
+
+	return entry;
+}
+
+static struct buffer_list *get_rx_buffer(void)
+{
+	struct buffer_list *buffer = buffers;
+
+	/* Search for an existing unused entry */
+	while (buffer) {
+		if (buffer->len == -1) break;
+		buffer = buffer->next;
+	}
+
+	if (buffer == NULL) {
+		buffer = malloc(sizeof(struct buffer_list));
+		if (buffer == NULL) return NULL;
+		buffer->next = buffers;
+		buffers = buffer;
+		numbuffers++;
+	}
+
+	buffer->len = 0;
+	buffer->position = 0;
+	buffer->readlen = sizeof(int);
+
+	return buffer;
+}
+
+void rpc_free_request_entry(struct conn_info *conn)
+{
+	struct request_entry *entry = request_entries;
+	struct request_entry **prev = &request_entries;
+
+	/* Search for matching entries, and remove from list if we have enough already */
+	while (entry) {
+		struct request_entry *next = entry->next;
+		if (entry->conn == conn) {
+			entry->status = EMPTY;
+			free_rx_buffer(entry->rx);
+			entry->rx = NULL;
+			if (numentries > FIFOSIZE) {
+				*prev = next;
+				free(entry);
+				numentries--;
+			} else {
+				prev = &(entry->next);
+			}
+		} else {
+			prev = &(entry->next);
+		}
+		entry = next;
+	}
+}
 
 /* Swap the active rx buffer */
-void swap_rxbuffers(void)
+void rpc_hold_rxbuffer(void)
 {
-	freebufferstart++;
-	if (freebufferstart >= FIFOSIZE) freebufferstart = 0;
+	lastrxentry->status = HELD;
 }
 
-/* Initialise parts of the header that are the same for all calls */
-void rpc_init_header(void)
-{
-	rpc_resetfifo();
-
-	nextxid = 1;
-}
-
-static os_error *rpc_create_socket(struct conn_info *conn)
+static int rpc_create_socket(struct conn_info *conn)
 {
 	int on = 1;
 
 	conn->sock = socket(AF_INET, conn->tcp ? SOCK_STREAM : SOCK_DGRAM, 0);
-	if (conn->sock < 0) return gen_error(RPCERRBASE + 2,"Unable to open socket (%s)", xstrerror(errno));
+	if (conn->sock < 0) return errno;
 
 	/* Make the socket non-blocking */
 	if (ioctl(conn->sock, FIONBIO, &on) < 0) {
-		return gen_error(RPCERRBASE + 6,"Unable to ioctl (%s)", xstrerror(errno));
+		close(conn->sock);
+		conn->sock = -1;
+		return errno;
 	}
 
 	if (conn->localportmax != 0) {
@@ -184,10 +282,14 @@ static os_error *rpc_create_socket(struct conn_info *conn)
 			ret = bind(conn->sock, (struct sockaddr *)&name, sizeof(name));
 		} while (ret != 0 && port <= conn->localportmax);
 
-		if (ret) return gen_error(RPCERRBASE + 14, "Unable to bind socket to local port (%s)", xstrerror(errno));
+		if (ret) {
+			close(conn->sock);
+			conn->sock = -1;
+			return errno;
+		}
 	}
 
-	return NULL;
+	return 0;
 }
 
 /* Initialise for each mount */
@@ -195,9 +297,10 @@ os_error *rpc_init_connection(struct conn_info *conn)
 {
 	struct hostent *hp;
 	os_error *err;
+	int ret;
 
-	err = rpc_create_socket(conn);
-	if (err) return err;
+	ret = rpc_create_socket(conn);
+	if (ret) return gen_error(RPCERRBASE + 4,"Unable to connect or bind socket (%s)", xstrerror(ret));
 
 	err = gethostbyname_timeout(conn->server, conn->timeout, &hp);
 	if (err) return err;
@@ -213,7 +316,9 @@ os_error *rpc_init_connection(struct conn_info *conn)
 /* Close for each mount */
 os_error *rpc_close_connection(struct conn_info *conn)
 {
-	int ret;
+	int ret = 0;
+
+	rpc_free_request_entry(conn);
 
 	if (conn->sock < 0) return NULL;
 
@@ -235,116 +340,8 @@ static void logdata(int rx, char *buf, int len)
 	for (i=0; i<(len & 3); i++) syslogf(LOGNAME, LOGDATA, "  %.2x", buf[(len &~3) + i]);
 }
 
-/* Fills as much of the buffer as it can without blocking */
-static os_error *rpc_fillbuffer(char *buf, int buflen, int *currentlen, int *earlyexit, struct conn_info *conn)
-{
-	int len;
-
-	*earlyexit = 0;
-
-	trigger_callback();
-	len = read(conn->sock, buf + *currentlen, buflen - *currentlen);
-
-	if (len == -1) {
-		if (errno == EWOULDBLOCK) {
-			len = 0;
-		} else if (errno == ECONNRESET || errno == ETIMEDOUT) {
-			/* The server has closed the connection (probably due
-			   to a period of inactivity).
-			   Exit early, effectively causing a timeout without
-			   the wait. The retry will reconnect the socket. */
-			len = 0;
-			*earlyexit = 1;
-		} else {
-			return gen_rpc_error(conn, RPCERRBASE + 7,"Read from socket failed (%s)", xstrerror(errno));
-		}
-	}
-
-	*currentlen += len;
-
-	return NULL;
-}
-
-/* Reads data into the current buffer, and returns the current buffer if the entire reply has been recieved */
-static os_error *rpc_readdata(int blocking, int *buffer, struct conn_info *conn)
-{
-	static int currentrecordoffset;
-	static int currentoffset;
-	static int recordsize;
-	static int lastrecord;
-	static int currentrmoffset;
-	os_error *err;
-	time_t t = clock();
-	int earlyexit = 0;
-
-	if (currentbuffer == INVALIDBUFFER) {
-		/* Search for a free buffer entry.
-		   There should always be at least one */
-		for (currentbuffer = freebufferstart; currentbuffer < freebufferstart + FIFOSIZE; currentbuffer++) {
-			if (buffers[currentbuffer % FIFOSIZE].len == 0) {
-				currentbuffer %= FIFOSIZE;
-				break;
-			}
-		}
-		if (currentbuffer >= FIFOSIZE) return gen_rpc_error(conn, RPCERRBASE + 9, "No free rxbuffer found");
-		currentoffset = 0;
-		currentrecordoffset = 0;
-		currentrmoffset = 0;
-		if (conn->tcp) {
-			recordsize = 0;
-			lastrecord = 0;
-		} else {
-			recordsize = BUFFERSIZE;
-			lastrecord = 1;
-		}
-	}
-
-	do {
-		if (recordsize == 0) {
-			static char rmbuffer[sizeof(int)];
-
-			/* Read the record marker if this is a tcp stream */
-			err = rpc_fillbuffer(rmbuffer, sizeof(int), &currentrmoffset, &earlyexit, conn);
-			if (err) return err;
-
-			if (currentrmoffset == sizeof(int)) {
-				recordsize  = (rmbuffer[3]);
-				recordsize |= (rmbuffer[2]) << 8;
-				recordsize |= (rmbuffer[1]) << 16;
-				recordsize |= (rmbuffer[0] & 0x7F) << 24;
-				lastrecord  = (rmbuffer[0] & 0x80) >> 7;
-				currentrmoffset = 0;
-			}
-		}
-
-		if (recordsize + currentoffset > BUFFERSIZE) return gen_rpc_error(conn, RPCERRBASE + 15,"RPC reply too big");
-
-		if (recordsize > 0) {
-			err = rpc_fillbuffer(buffers[currentbuffer].buffer + currentoffset, recordsize, &currentrecordoffset, &earlyexit, conn);
-			if (err) return err;
-		}
-
-		if (currentrecordoffset >= (conn->tcp ? recordsize : 1)) {
-			currentoffset += currentrecordoffset;
-			recordsize = 0;
-			currentrecordoffset = 0;
-		}
-	} while (blocking && !earlyexit && !(recordsize == 0 && lastrecord) && (clock() < (t + (conn->timeout * CLOCKS_PER_SEC))));
-
-	if (recordsize == 0 && lastrecord) {
-		/* We have read the entire reply */
-		buffers[currentbuffer].len = currentoffset;
-		*buffer = currentbuffer;
-		currentbuffer = INVALIDBUFFER;
-	} else {
-		/* We have read part, or none, of the reply */
-		*buffer = INVALIDBUFFER;
-	}
-	return NULL;
-}
-
 /* Setup buffer and write call header to it */
-void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, struct conn_info *conn)
+os_error *rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, struct conn_info *conn)
 {
 	struct rpc_msg call_header;
 
@@ -354,8 +351,7 @@ void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, s
 	call_header.body.u.cbody.verf.body.size = 0;
 
 	call_header.xid = nextxid++;
-	if (nextxid == UNALLOCATED) nextxid++;
-	
+
 	call_header.body.u.cbody.prog = prog;
 	call_header.body.u.cbody.vers = vers;
 	call_header.body.u.cbody.proc = proc;
@@ -369,47 +365,246 @@ void rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, s
 		call_header.body.u.cbody.cred.body.size = 0;
 	}
 
-	obuf = fifo[head].tx.buffer;
-	obufend = obuf + BUFFERSIZE;
+	txentry = get_request_entry(conn);
+	if (txentry == NULL) return gen_error(NOMEM, NOMEMMESS);
+	obuf = txentry->tx.buffer;
+	obufend = obuf + SFBUFFERSIZE;
 
 	/* Leave room for the record marker */
 	if (conn->tcp) obuf += 4;
 
-	fifo[head].xid = call_header.xid;
-	fifo[head].rx = NULL;
-
 	process_rpc_msg(OUTPUT, &call_header, conn->pool);
+	return NULL;
 }
 
-static os_error *rpc_connect_socket(struct conn_info *conn)
+static int rpc_connect_socket(struct conn_info *conn)
 {
-	os_error *err;
 	int ret;
 
 	if (conn->tcp) {
-		err = rpc_close_connection(conn);
-		if (err) return err;
-		err = rpc_create_socket(conn);
-		if (err) return err;
+		ret = rpc_create_socket(conn);
+		if (ret) return ret;
 	}
 
 	ret = connect(conn->sock, (struct sockaddr *)&(conn->sockaddr), sizeof(struct sockaddr_in));
 	if (ret == -1 && errno != EINPROGRESS) {
-		return gen_error(RPCERRBASE + 4, "Connect on socket failed (%s)", xstrerror(errno));
+		return errno;
 	}
-	return NULL;
+	return 0;
+}
+
+/* Send as much data as we can without blocking */
+static int poll_tx(struct request_entry *entry)
+{
+	int ret;
+
+	if (entry->conn->sock == -1) {
+		ret = rpc_connect_socket(entry->conn);
+		if (ret) return ret;
+	}
+
+	ret = send(entry->conn->sock, entry->tx.buffer + entry->tx.position, entry->tx.len - entry->tx.position, 0);
+	if (ret == -1) {
+		if ((errno == EWOULDBLOCK) || (errno == ENOTCONN)) return 0;
+		return errno;
+	}
+	if (ret > 0) {
+		entry->tx.position += ret;
+	}
+
+	if (entry->tx.position >= entry->tx.len) {
+		if (entry->conn->tcp) entry->conn->txmutex = 0;
+		entry->status = RXWAIT;
+	}
+	return 0;
+}
+
+/* Search all outstanding tx buffers for a matching xid to the just recieved rx buffer */
+static void match_rx_buffer(struct buffer_list *currentrx)
+{
+	struct request_entry *entry = request_entries;
+
+	while (entry) {
+		if (((unsigned *)(entry->tx.buffer))[entry->conn->tcp ? 1 : 0] == ((unsigned *)(currentrx->buffer))[0]) {
+			/* xid match */
+			if (entry->rx) {
+				/* This xid has already recieved a reply, so this must be a duplicate. */
+				free_rx_buffer(currentrx);
+				return;
+			}
+			entry->rx = currentrx;
+			entry->status = DONE;
+			return;
+		}
+		entry = entry->next;
+	}
+	/* Not found so must be a delayed duplicate, or garbage */
+	free_rx_buffer(currentrx);
+}
+
+/* Recieve as much data as we can without blocking */
+static int poll_rx(struct conn_info *conn)
+{
+	int ret;
+	int len;
+	struct buffer_list *currentrx;
+
+	if (conn->tcp) {
+		currentrx = conn->rxmutex;
+		if (currentrx == NULL) return ENOMEM; /* Should be impossible */
+		if (currentrx->readlen) {
+			len = currentrx->readlen;
+		} else {
+			len = currentrx->len - currentrx->position;
+		}
+	} else {
+		currentrx = get_rx_buffer();
+		if (currentrx == NULL) return ENOMEM;
+		len = SFBUFFERSIZE;
+	}
+
+	ret = read(conn->sock, currentrx->buffer + currentrx->position, len);
+	if (ret == -1) {
+		if ((errno == EWOULDBLOCK) || (errno == ENOTCONN)) {
+			if (!conn->tcp) free_rx_buffer(currentrx);
+			return 0;
+		}
+		free_rx_buffer(currentrx);
+		if (conn->tcp) conn->rxmutex = NULL;
+		return errno;
+	}
+	if (ret > 0) {
+		currentrx->position += ret;
+		if (conn->tcp) {
+			if (currentrx->readlen) {
+				currentrx->readlen -= ret;
+				if (currentrx->readlen == 0) {
+					/* Whole record marker read, so decode */
+					len  = (currentrx->buffer[currentrx->position - 1]);
+					len |= (currentrx->buffer[currentrx->position - 2]) << 8;
+					len |= (currentrx->buffer[currentrx->position - 3]) << 16;
+					len |= (currentrx->buffer[currentrx->position - 4] & 0x7F) << 24;
+					currentrx->lastsegment = (currentrx->buffer[currentrx->position - 4] & 0x80) >> 7;
+					currentrx->position -= sizeof(int);
+					currentrx->len += len;
+					if (currentrx->len > SFBUFFERSIZE) return EMSGSIZE;
+				}
+			}
+		} else {
+			currentrx->len = ret;
+		}
+		if (currentrx->position >= currentrx->len) {
+			if (conn->tcp && !currentrx->lastsegment) {
+				/* Another record to read before the request is complete */
+				currentrx->readlen = sizeof(int);
+			} else {
+				match_rx_buffer(currentrx);
+				if (conn->tcp) conn->rxmutex = NULL;
+			}
+		}
+	} else {
+		if (!conn->tcp) free_rx_buffer(currentrx);
+	}
+	return 0;
+}
+
+static void handle_error(struct request_entry *entry, int err)
+{
+	if (entry->conn->tcp && (entry->conn->sock != -1)) {
+		close(entry->conn->sock);
+		entry->conn->sock = -1;
+		if (entry->status == TX) entry->conn->txmutex = 0;
+		if (entry->status == RX) {
+			free_rx_buffer(entry->conn->rxmutex);
+			entry->conn->rxmutex = NULL;
+		}
+	}
+	if (entry->retries <= entry->conn->retries) {
+		/* Try again */
+		entry->status = TXWAIT;
+	} else {
+		entry->error = err;
+		entry->status = DONE;
+	}
+}
+
+static void poll_connections(void)
+{
+	struct request_entry *entry = request_entries;
+	time_t t = clock();
+	int ret;
+
+	/* This is the only point at which reentrancy can occur */
+	trigger_callback();
+
+	while (entry) {
+		switch (entry->status) {
+		case TXWAIT:
+			if (entry->conn->txmutex) break;
+			if (entry->conn->tcp) entry->conn->txmutex = 1;
+			entry->status = TX;
+			entry->lastactivity = t;
+			entry->retries++;
+			entry->tx.position = 0;
+			entry->error = 0;
+			/* Fallthrough */
+		case TX:
+			if (t > entry->lastactivity + entry->conn->timeout * CLOCKS_PER_SEC) {
+				ret = ETIMEDOUT;
+			} else {
+				ret = poll_tx(entry);
+			}
+			if (ret) handle_error(entry, ret);
+			if (entry->status != RXWAIT) break;
+		case RXWAIT:
+			if (entry->conn->tcp) {
+				if (entry->conn->rxmutex) break;
+				entry->conn->rxmutex = get_rx_buffer();
+				if (entry->conn->rxmutex == NULL) {
+					entry->error = ENOMEM;
+					entry->status = DONE;
+					break;
+				}
+			}
+			entry->status = RX;
+			/* Fallthrough */
+		case RX:
+			if (t > entry->lastactivity + entry->conn->timeout * CLOCKS_PER_SEC) {
+				ret = ETIMEDOUT;
+			} else {
+				ret = poll_rx(entry->conn);
+			}
+			if (ret) handle_error(entry, ret);
+			break;
+		case EMPTY:
+		case HELD:
+		case DONE:
+			break;
+		}
+		entry = entry->next;
+	}
 }
 
 /* Send the already filled in tx buffer, the read the response and process
    the rpc reply header */
 os_error *rpc_do_call(int prog, enum callctl calltype, struct conn_info *conn)
 {
-	os_error *err;
 	struct rpc_msg reply_header;
+	struct request_entry *rxentry = request_entries;
+
+	/* Search for the oldest entry we could return */
+	while (rxentry) {
+		if ((rxentry->status != EMPTY) && (rxentry->status != HELD) &&
+		    (rxentry->conn == conn) && (rxentry->reference == conn->reference) &&
+		    (rxentry->prevpipelined == NULL)) {
+			break;
+		}
+		rxentry = rxentry->next;
+	}
+	if (rxentry == NULL) return gen_error(RPCERRBASE + 5, "Cannot find rxentry to use");
 
 	if (calltype == TXBLOCKING || calltype == TXNONBLOCKING) {
 		int port;
-		int ret;
 		unsigned int recordmarker;
 
 		/* Choose the port to use */
@@ -432,108 +627,56 @@ os_error *rpc_do_call(int prog, enum callctl calltype, struct conn_info *conn)
 		/* Only connect the socket if the port is different from the last
 		   time we used the socket, or it is not yet connected at all */
 		if (port != conn->sockaddr.sin_port || conn->sock == -1) {
+			int ret;
+
 			conn->sockaddr.sin_port = port;
 
-			err = rpc_connect_socket(conn);
-			if (err) return err;
+			if (conn->tcp && (conn->sock != -1)) close(conn->sock);
+
+			ret = rpc_connect_socket(conn);
+			if (ret) return gen_error(RPCERRBASE + 4,"Unable to connect or bind socket (%s)", xstrerror(ret));
 		}
 
-		fifo[head].tx.len = obuf - fifo[head].tx.buffer;
-		fifo[head].retries = 0;
-		fifo[head].rx = NULL;
+		txentry->tx.len = obuf - txentry->tx.buffer;
 
 		if (conn->tcp) {
 			/* Insert the record marker at the start of the buffer */
-			recordmarker = 0x80000000 | (fifo[head].tx.len - 4);
-			obuf = fifo[head].tx.buffer;
+			recordmarker = 0x80000000 | (txentry->tx.len - 4);
+			obuf = txentry->tx.buffer;
 			obufend = obuf + 4;
 			if (process_unsigned(OUTPUT, &recordmarker, conn->pool)) goto buffer_overflow;
 		}
 
-		if (enablelog) logdata(0, fifo[head].tx.buffer, fifo[head].tx.len);
-		ret = blocking_send(conn->sock, fifo[head].tx.buffer, fifo[head].tx.len, conn->timeout);
-		if (ret == -1) {
-			if (errno == ENOTCONN) {
-				return gen_rpc_error(conn, RPCERRBASE + 4, "Connect on socket failed (connection timed out)");
-			} else {
-				return gen_rpc_error(conn, RPCERRBASE + 5, "Sending data failed (%s)", xstrerror(errno));
-			}
-		}
+		if (enablelog) logdata(0, txentry->tx.buffer, txentry->tx.len);
 
-		head++;
-		if (head >= FIFOSIZE) head = 0;
-
-		if (fifo[head].xid != UNALLOCATED && fifo[tail].rx == NULL) {
-			/* The fifo is now full, so turn this into a blocking call */
-			if (calltype == TXNONBLOCKING) calltype = TXBLOCKING;
-			if (calltype == RXNONBLOCKING) calltype = RXBLOCKING;
-		}
+	} else {
+		/* RX only, so disable the txentry */
+		txentry->status = EMPTY;
+		if (txentry->prevpipelined) txentry->prevpipelined->nextpipelined = NULL;
 	}
 
-	if (fifo[tail].rx == NULL) {
-		/* If we don't have an entry to return straight away then try
-		   and read one */
-
-		do {
-			int readbuffer;
-
-			err = rpc_readdata((calltype == TXBLOCKING || calltype == RXBLOCKING), &readbuffer, conn);
-			if (err) return err;
-
-			if (readbuffer != INVALIDBUFFER) {
-				int i;
-				int xid;
-
-				if (enablelog) logdata(1, buffers[readbuffer].buffer, buffers[readbuffer].len);
-
-				/* Check to see if it a reply that we are waiting for, and
-				   fill in the appropriate fifo entry. Ignore any unknown
-				   replies (They could be replies from earlier calls that
-				   we retransmitted because of timeouts) */
-				ibuf = buffers[readbuffer].buffer;
-				ibufend = ibuf + buffers[readbuffer].len;
-				if (process_int(INPUT, &xid, conn->pool)) goto buffer_overflow;
-
-				for (i = 0; i < FIFOSIZE; i++) {
-					if (xid == fifo[i].xid) {
-						fifo[i].rx = &(buffers[readbuffer]);
-						break;
-					}
-				}
-				if (i == FIFOSIZE) buffers[readbuffer].len = 0; /* Clear buffer, it wasn't one we were waiting for */
-			} else if (calltype == TXBLOCKING || calltype == RXBLOCKING) {
-				int ret;
-
-				/* No data recived, so retransmit the oldest fifo entry if it
-				   is still pending, unless we are non blocking */
-
-				if (conn->tcp) {
-					/* Close and reconnect the socket for TCP connections */
-					err = rpc_connect_socket(conn);
-					if (err) return err;
-				}
-
-				fifo[tail].retries++;
-				if (fifo[tail].rx == NULL && fifo[tail].retries > conn->retries) {
-					return gen_rpc_error(conn, RPCERRBASE + 8, "Connection timed out");
-				}
-
-				if (enablelog) logdata(0, fifo[tail].tx.buffer, fifo[tail].tx.len);
-				ret = blocking_send(conn->sock, fifo[tail].tx.buffer, fifo[tail].tx.len, conn->timeout);
-				if (ret == -1) {
-					return gen_rpc_error(conn, RPCERRBASE + 5, "Sending data failed (%s)", xstrerror(errno));
-				}
-			}
-		} while ((calltype == TXBLOCKING || calltype == RXBLOCKING) && fifo[tail].rx == NULL);
-	}
+	do {
+		poll_connections();
+	} while ((calltype == TXBLOCKING || calltype == RXBLOCKING) && rxentry->status != DONE);
 
 	/* Return if the oldest request has not been recieved. This will only
 	   ever be the case if we are non-blocking */
-	if (fifo[tail].rx == NULL) return ERR_WOULDBLOCK;
+	if (rxentry->status != DONE) return ERR_WOULDBLOCK;
+
+	/* Remember this rxentry, so we know which one to use if we are asked to hold it */
+	lastrxentry = rxentry;
+
+	/* Mark as empty so it can be reused by the next call, and remove from the pipeline queue */
+	rxentry->status = EMPTY;
+	if (rxentry->nextpipelined) rxentry->nextpipelined->prevpipelined = NULL;
+
+	if (rxentry->error) {
+		return gen_error(RPCERRBASE + 8, "Error when sending or recieving data (%s)",xstrerror(rxentry->error));
+	}
 
 	/* Setup buffers and parse header */
-	ibuf = fifo[tail].rx->buffer;
-	ibufend = ibuf + fifo[tail].rx->len;
+	ibuf = rxentry->rx->buffer;
+	ibufend = ibuf + rxentry->rx->len;
 	if (process_rpc_msg(INPUT, &reply_header, conn->pool)) goto buffer_overflow;
 
 	/* Check that the RPC completed successfully */
@@ -548,13 +691,6 @@ os_error *rpc_do_call(int prog, enum callctl calltype, struct conn_info *conn)
 	if (reply_header.body.u.rbody.u.areply.reply_data.stat != SUCCESS) {
 		return gen_error(RPCERRBASE + 13, "RPC failed (%d)", reply_header.body.u.rbody.u.areply.reply_data.stat);
 	}
-
-	/* Remove this entry from the fifo */
-	fifo[tail].rx->len = 0;
-	fifo[tail].xid = UNALLOCATED;
-	fifo[tail].rx = NULL;
-	tail++;
-	if (tail >= FIFOSIZE) tail = 0;
 
 	return NULL;
 

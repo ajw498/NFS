@@ -121,8 +121,17 @@
    an optimum size, but nothing bad will happen */
 #define MAX_HDRLEN 416
 
+/* The maximum size of our data buffers for Sunfish */
+#define SFMAXDATABUFFER 32*1024
+
+/* The maximum size of our data buffers for Moonfish */
+#define MFMAXDATABUFFER 16*1024
+
 /* The size to use for tx and rx buffers */
-#define BUFFERSIZE (MAX_HDRLEN + MAX_DATABUFFER)
+#define SFBUFFERSIZE (MAX_HDRLEN + SFMAXDATABUFFER)
+
+/* The size to use for tx and rx buffers */
+#define MFBUFFERSIZE (MAX_HDRLEN + MFMAXDATABUFFER)
 
 /* The maximum pathname size that we support */
 #define MAX_PATHNAME 1024
@@ -143,7 +152,7 @@ struct commonfh {
 	int size;
 };
 
-/* All infomation associated with an open file */
+/* All information associated with an open file */
 struct file_handle {
 	struct conn_info *conn;
 	struct commonfh fhandle;
@@ -159,6 +168,17 @@ struct file_handle {
 #define NSTAT
 typedef int nstat;
 #endif
+
+
+/* An tx or rx buffer. */
+struct buffer_list {
+	int len;
+	int readlen;
+	int lastsegment;
+	int position;
+	char buffer[SFBUFFERSIZE];
+	struct buffer_list *next;
+};
 
 /* All infomation associated with a connection */
 struct conn_info {
@@ -206,6 +226,9 @@ struct conn_info {
 	iconv_t toenc;
 	iconv_t fromenc;
 	struct pool *pool;
+	int txmutex;
+	struct buffer_list *rxmutex;
+	int reference;
 };
 
 extern int enablelog;

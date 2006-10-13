@@ -61,7 +61,7 @@ static struct rpc_msg reply_header;
 static void init_output(struct server_conn *conn)
 {
 	obuf = conn->reply;
-	obufend = obuf + BUFFERSIZE;
+	obufend = obuf + MFBUFFERSIZE;
 
 	/* Leave room for the record marker */
 	if (conn->tcp) obuf += 4;

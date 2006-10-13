@@ -33,9 +33,6 @@
 
 #define OUTOFMEM "Unable to allocate enough memory"
 
-/*The maximum size of our data buffers */
-#define MAX_DATABUFFER 16*1024
-
 extern int logging;
 
 #define STATEID_NONE NULL

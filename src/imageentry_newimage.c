@@ -154,7 +154,7 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 		conn->pipelining = (int)strtol(val, NULL, 10);
 	} else if (CHECK("MaxDataBuffer")) {
 		conn->maxdatabuffer = (int)strtol(val, NULL, 10);
-		if (conn->maxdatabuffer > MAX_DATABUFFER) conn->maxdatabuffer = MAX_DATABUFFER;
+		if (conn->maxdatabuffer > SFMAXDATABUFFER) conn->maxdatabuffer = SFMAXDATABUFFER;
 	} else if (CHECK("FollowSymlinks")) {
 		conn->followsymlinks = (int)strtol(val, NULL, 10);
 	} else if (CHECK("CaseSensitive")) {
@@ -303,6 +303,9 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 		free_conn_info(conn);
 		return gen_error(NOMEM,NOMEMMESS);
 	}
+	conn->txmutex = 0;
+	conn->rxmutex = NULL;
+	conn->reference = 0;
 
 	/* Read details from file */
 	err = parse_file(fileswitchhandle, conn);

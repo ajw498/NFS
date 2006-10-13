@@ -179,11 +179,11 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 #endif
 		if (err) return err;
 		if (rdres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (rdres.status);
-	
+
 		/* We may need to do a lookup on each filename, but this would
 		   corrupt the rx buffer which holds our list, so swap buffers */
-		swap_rxbuffers();
-	
+		rpc_hold_rxbuffer();
+
 #ifdef NFS3
 		memcpy(rddir.cookieverf, rdres.u.readdirok.cookieverf, NFS3_COOKIEVERFSIZE);
 #endif

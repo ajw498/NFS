@@ -59,24 +59,25 @@ struct imagefs_info_block {
    We log all connections if any of them have logging enabled. */
 int enablelog = 0;
 
-/* Flag to detect and generate an error on reentrancy */
-static int entered = 0;
-
 #define ENTRY(name, filename, regs) do { \
 	if (enablelog) logentry(name, filename, regs); \
-	if (entered) { \
-		err = gen_error(MODULEERRBASE + 0,"Sunfish does not support accessing files from callbacks"); \
-		if (enablelog) logexit(regs, err); \
-		return err; \
-	} \
-	entered++; \
 } while (0)
 
 #define EXIT(regs, err) do { \
 	if (enablelog) logexit(regs, err); \
-	entered--; \
 } while (0)
 
+#define CONNENTRY(conn) do { \
+conn->reference++; \
+} while (0)
+
+#define CONNEXIT(conn) do { \
+if (conn->reference == 1) { \
+ pclear(conn->pool); \
+ rpc_free_request_entry(conn); \
+} \
+conn->reference--; \
+} while (0)
 
 void log_error(os_error *err)
 {
@@ -133,10 +134,6 @@ _kernel_oserror *initialise(const char *cmd_tail, int podule_base, void *private
 
 	err = declare_fs(private_word);
 
-	error_func = rpc_resetfifo;
-
-	rpc_init_header();
-
 	return err;
 }
 
@@ -159,6 +156,8 @@ _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 	   is no longer registered, so the module can never be killed.
 	   So we make sure that we only deregister once. */
 
+	rpc_free_all_buffers();
+
 	return err;
 }
 
@@ -171,9 +170,11 @@ _kernel_oserror *imageentry_open_handler(_kernel_swi_regs *r, void *pw)
 
 	ENTRY("Open    ", (char *)(r->r[1]), r);
 
+	CONNENTRY(conn);
+
 	err = CALLENTRY(open_file, conn, ((char *)r->r[1], r->r[0], conn, (unsigned int *)&(r->r[0]), (struct file_handle **)&(r->r[1]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), (unsigned int *)&(r->r[4])));
 
-	pclear(conn->pool);
+	CONNEXIT(conn);
 
 	EXIT(r, err);
 
@@ -189,9 +190,11 @@ _kernel_oserror *imageentry_getbytes_handler(_kernel_swi_regs *r, void *pw)
 
 	ENTRY("GetBytes", "", r);
 
+	CONNENTRY(handle->conn);
+
 	err = CALLENTRY(get_bytes, handle->conn, (handle, (char *)(r->r[2]), r->r[3], r->r[4]));
 
-	pclear(handle->conn->pool);
+	CONNEXIT(handle->conn);
 
 	EXIT(r, err);
 
@@ -207,9 +210,11 @@ _kernel_oserror *imageentry_putbytes_handler(_kernel_swi_regs *r, void *pw)
 
 	ENTRY("PutBytes", "", r);
 
+	CONNENTRY(handle->conn);
+
 	err = CALLENTRY(put_bytes, handle->conn, (handle, (char *)(r->r[2]), r->r[3], r->r[4]));
 
-	pclear(handle->conn->pool);
+	CONNEXIT(handle->conn);
 
 	EXIT(r, err);
 
@@ -227,28 +232,34 @@ _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_ARGS_WRITEEXTENT:
+			CONNENTRY(handle->conn);
 			err = CALLENTRY(args_writeextent, handle->conn, (handle, (unsigned int)(r->r[2])));
-			pclear(handle->conn->pool);
+			CONNEXIT(handle->conn);
 			break;
 		case IMAGEENTRY_ARGS_READSIZE:
+			CONNENTRY(handle->conn);
 			err = CALLENTRY(args_readallocatedsize, handle->conn, (handle, (unsigned int *)&(r->r[2])));
-			pclear(handle->conn->pool);
+			CONNEXIT(handle->conn);
 			break;
 		case IMAGEENTRY_ARGS_FLUSH:
+			CONNENTRY(handle->conn);
 			err = CALLENTRY(args_readdatestamp, handle->conn,  (handle, (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3])));
-			pclear(handle->conn->pool);
+			CONNEXIT(handle->conn);
 			break;
 		case IMAGEENTRY_ARGS_ENSURESIZE:
+			CONNENTRY(handle->conn);
 			err = CALLENTRY(args_ensuresize, handle->conn, (handle, (unsigned int)(r->r[2]), (unsigned int *)&(r->r[2])));
-			pclear(handle->conn->pool);
+			CONNEXIT(handle->conn);
 			break;
 		case IMAGEENTRY_ARGS_ZEROPAD:
+			CONNENTRY(handle->conn);
 			err = CALLENTRY(args_zeropad, handle->conn, (handle, (unsigned int)(r->r[2]), (unsigned int)(r->r[3])));
-			pclear(handle->conn->pool);
+			CONNEXIT(handle->conn);
 			break;
 		case IMAGEENTRY_ARGS_READDATESTAMP:
+			CONNENTRY(handle->conn);
 			err = CALLENTRY(args_readdatestamp, handle->conn, (handle, (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3])));
-			pclear(handle->conn->pool);
+			CONNEXIT(handle->conn);
 			break;
 		default:
 			err = gen_error(UNSUPP, UNSUPPMESS);
@@ -269,10 +280,12 @@ _kernel_oserror *imageentry_close_handler(_kernel_swi_regs *r, void *pw)
 
 	ENTRY("Close   ", "", r);
 
+	CONNENTRY(conn);
+
 	err = CALLENTRY(close_file, conn, (handle, r->r[2], r->r[3]));
 
 	/* Handle has been free'd by this point */
-	pclear(conn->pool);
+	CONNEXIT(conn);
 
 	EXIT(r, err);
 
@@ -290,28 +303,34 @@ _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_FILE_SAVEFILE:
+			CONNENTRY(conn);
 			err = CALLENTRY(file_savefile, conn, ((char *)(r->r[1]), r->r[2], r->r[3], (char *)(r->r[4]), (char *)(r->r[5]),  conn, (char **)(&(r->r[6]))));
-			pclear(conn->pool);
+			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FILE_WRITECATINFO:
+			CONNENTRY(conn);
 			err = CALLENTRY(file_writecatinfo, conn, ((char *)(r->r[1]), r->r[2], r->r[3], r->r[5], conn));
-			pclear(conn->pool);
+			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FILE_READCATINFO:
+			CONNENTRY(conn);
 			err = CALLENTRY(file_readcatinfo, conn, ((char *)(r->r[1]), conn, &(r->r[0]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), &(r->r[4]), &(r->r[5])));
-			pclear(conn->pool);
+			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FILE_DELETE:
+			CONNENTRY(conn);
 			err = CALLENTRY(file_delete, conn, ((char *)(r->r[1]), conn, &(r->r[0]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), &(r->r[4]), &(r->r[5])));
-			pclear(conn->pool);
+			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FILE_CREATEFILE:
+			CONNENTRY(conn);
 			err = CALLENTRY(file_createfile, conn, ((char *)(r->r[1]), r->r[2], r->r[3], (char *)(r->r[4]), (char *)(r->r[5]), conn));
-			pclear(conn->pool);
+			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FILE_CREATEDIR:
+			CONNENTRY(conn);
 			err = CALLENTRY(file_createdir, conn, ((char *)(r->r[1]), r->r[2], r->r[3], conn));
-			pclear(conn->pool);
+			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FILE_READBLKSIZE:
 			r->r[2] = FAKE_BLOCKSIZE;
@@ -338,16 +357,19 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_FUNC_RENAME:
+			CONNENTRY(conn);
 			err = CALLENTRY(func_rename, conn, ((char *)(r->r[1]), (char *)(r->r[2]), conn, &(r->r[1])));
-			pclear(conn->pool);
+			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FUNC_READDIR:
+			CONNENTRY(conn);
 			err = CALLENTRY(func_readdirinfo, conn, (0, (char *)r->r[1], (void *)r->r[2], r->r[3], r->r[4], r->r[5], conn, &(r->r[3]), &(r->r[4])));
-			pclear(conn->pool);
+			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FUNC_READDIRINFO:
+			CONNENTRY(conn);
 			err = CALLENTRY(func_readdirinfo, conn, (1, (char *)r->r[1], (void *)r->r[2], r->r[3], r->r[4], r->r[5], conn, &(r->r[3]), &(r->r[4])));
-			pclear(conn->pool);
+			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FUNC_NEWIMAGE:
 			err = func_newimage(r->r[1],(struct conn_info **)&(r->r[1]));

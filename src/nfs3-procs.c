@@ -802,7 +802,7 @@ enum accept_stat NFSPROC3_FSINFO(struct fsinfoargs *args, struct fsinfores *res,
 	NF(nfs3fh_to_path(&(args->fsroot), &path, conn));
 	res->u.resok.obj_attributes.attributes_follow = TRUE;
 	NF(get_fattr(path, -1, &(res->u.resok.obj_attributes.u.attributes), NULL, conn));
-	res->u.resok.rtmax = conn->tcp ? MAX_DATABUFFER : conn->export->udpsize;
+	res->u.resok.rtmax = conn->tcp ? SFMAXDATABUFFER : conn->export->udpsize;
 	res->u.resok.rtpref = res->u.resok.rtmax;
 	res->u.resok.rtmult = 4096;
 	res->u.resok.wtmax = res->u.resok.rtmax;

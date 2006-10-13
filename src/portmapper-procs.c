@@ -202,12 +202,12 @@ enum accept_stat PMAPPROC_CALLIT(struct call_args *args, struct call_result *res
 
 	ibuf = args->args.data;
 	ibufend = ibuf + args->args.size;
-	buf = palloc(BUFFERSIZE, conn->pool);
+	buf = palloc(MFBUFFERSIZE, conn->pool);
 	if (buf == NULL) {
 		conn->suppressreply = 1;
 	} else {
 		obuf = buf;
-		obufend = obuf + BUFFERSIZE;
+		obufend = obuf + MFBUFFERSIZE;
 		ret = portmapper_decodebody(args->prog, args->vers, args->proc, &hi, &lo, conn);
 		if (ret == SUCCESS) {
 			res->port = 111;

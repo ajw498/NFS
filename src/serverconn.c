@@ -171,7 +171,7 @@ static int udp_read(int sock)
 		if (i == MAXCONNS) return activity;
 
 		conns[i].hostaddrlen = sizeof(struct sockaddr);
-		conns[i].requestlen = recvfrom(sock, conns[i].request, BUFFERSIZE, 0, (struct sockaddr *)&(conns[i].hostaddr), &(conns[i].hostaddrlen));
+		conns[i].requestlen = recvfrom(sock, conns[i].request, MFBUFFERSIZE, 0, (struct sockaddr *)&(conns[i].hostaddr), &(conns[i].hostaddrlen));
 
 		active = 0;
 		if (conns[i].requestlen > 0) {
@@ -260,7 +260,7 @@ static int tcp_read(struct server_conn *conn)
 				conn->lastrecord  = (conn->request[0] & 0x80) >> 7;
 				conn->requestread -= 4;
 				conn->state = READ;
-				if (conn->requestread + conn->requestlen > BUFFERSIZE) close_conn(conn);
+				if (conn->requestread + conn->requestlen > MFBUFFERSIZE) close_conn(conn);
 			}
 		} else if (errno != EWOULDBLOCK) {
 			syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",xstrerror(errno));
@@ -502,8 +502,8 @@ int conn_init(void)
 		conns[i].state = IDLE;
 		conns[i].exports = exports;
 		/* Allocate buffers, adding an extra 4 for the record marker */
-		UR(conns[i].request = palloc(BUFFERSIZE + 4, gpool));
-		UR(conns[i].reply = palloc(BUFFERSIZE + 4, gpool));
+		UR(conns[i].request = palloc(MFBUFFERSIZE + 4, gpool));
+		UR(conns[i].reply = palloc(MFBUFFERSIZE + 4, gpool));
 		UR(conns[i].pool = pinit(gpool));
 		conns[i].gpool = gpool;
 	}
