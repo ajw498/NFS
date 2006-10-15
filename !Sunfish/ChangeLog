@@ -1,4 +1,4 @@
-v1.09 ??-Oct-06
+v1.09 15-Oct-06
 Fixed bug that caused the wrong attributes to be returned for a symlink that
 couldn't be followed.
 File sizes are limited to 2GB rather than 4GB as accessing > 2GB doesn't work.
