@@ -1,5 +1,6 @@
 v1.05 ?-Oct-06
 Files with a UnixEx filetype now get execute permissions set.
+Fixed a bug when reducing the size of a file straight after writing to it may get ignored.
 
 v1.04 3-Sep-06
 Added support for NFSv4.

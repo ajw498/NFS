@@ -605,7 +605,17 @@ nstat filecache_setattr(char *path, struct stateid *stateid, unsigned int load, 
 		cachedfiles[index].exec = exec;
 		cachedfiles[index].filesize = size;
 		cachedfiles[index].attr = attr;
-		if (setsize) OR(_swix(OS_Args, _INR(0,2), 3, cachedfiles[index].handle, size));
+		if (setsize) {
+			OR(_swix(OS_Args, _INR(0,2), 3, cachedfiles[index].handle, size));
+			/* We must reduce the size of the cached data if it is
+			   bigger than the filesize, otherwise when it is
+			   flushed the filesize will increase again. */
+			if (cachedfiles[index].bufferoffset > size) {
+				cachedfiles[index].buffercount = 0;
+			} else if (cachedfiles[index].bufferoffset + cachedfiles[index].buffercount > size) {
+				cachedfiles[index].buffercount = size - cachedfiles[index].bufferoffset;
+			}
+		}
 	}
 	if (file) {
 		file->load = load;
