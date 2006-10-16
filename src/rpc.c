@@ -401,7 +401,8 @@ static int poll_tx(struct request_entry *entry)
 {
 	int ret;
 	struct msghdr msg;
-	struct iovec iovec[2];
+	struct iovec iovec[3];
+	char zero[] = {0,0,0,0};
 
 	if (entry->conn->sock == -1) {
 		ret = rpc_connect_socket(entry->conn);
@@ -415,15 +416,23 @@ static int poll_tx(struct request_entry *entry)
 	msg.msg_flags = 0;
 	msg.msg_iov = iovec;
 	if (entry->tx.position < entry->tx.len) {
-		msg.msg_iovlen = entry->extralen ? 2 : 1;
+		msg.msg_iovlen = entry->extralen ? ((entry->extralen & 3) ? 3 : 2) : 1;
 		iovec[0].iov_base = entry->tx.buffer + entry->tx.position;
 		iovec[0].iov_len = entry->tx.len - entry->tx.position;
 		iovec[1].iov_base = entry->extradata;
 		iovec[1].iov_len = entry->extralen;
-	} else {
-		msg.msg_iovlen = 1;
+		iovec[2].iov_base = zero;
+		iovec[2].iov_len = 4 - (entry->extralen & 3);
+	} else if (entry->tx.position < entry->tx.len + entry->extralen) {
+		msg.msg_iovlen = (entry->extralen & 3) ? 2 : 1;
 		iovec[0].iov_base = ((char *)(entry->extradata)) + (entry->tx.position - entry->tx.len);
 		iovec[0].iov_len = entry->extralen - (entry->tx.position - entry->tx.len);
+		iovec[1].iov_base = zero;
+		iovec[1].iov_len = 4 - (entry->extralen & 3);
+	} else {
+		msg.msg_iovlen = 1;
+		iovec[0].iov_base = zero;
+		iovec[0].iov_len = 4 - (entry->tx.position & 3);
 	}
 	ret = sendmsg(entry->conn->sock, &msg, 0);
 	if (ret == -1) {
@@ -434,7 +443,7 @@ static int poll_tx(struct request_entry *entry)
 		entry->tx.position += ret;
 	}
 
-	if (entry->tx.position >= (entry->tx.len + entry->extralen)) {
+	if (entry->tx.position >= (entry->tx.len + ((entry->extralen + 3) & ~3))) {
 		if (entry->conn->tcp) entry->conn->txmutex = 0;
 		entry->status = RXWAIT;
 	}
@@ -667,7 +676,7 @@ os_error *rpc_do_call(int prog, enum callctl calltype, void *extradata, int extr
 
 		if (conn->tcp) {
 			/* Insert the record marker at the start of the buffer */
-			recordmarker = 0x80000000 | (txentry->tx.len + extralen - 4);
+			recordmarker = 0x80000000 | (txentry->tx.len + ((extralen + 3) & ~3) - 4);
 			obuf = txentry->tx.buffer;
 			obufend = obuf + 4;
 			if (process_unsigned(OUTPUT, &recordmarker, conn->pool)) goto buffer_overflow;

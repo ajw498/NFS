@@ -40,7 +40,6 @@
 static os_error *NFSPROC3_FASTWRITE(writeargs3 *args, writeres3 *res, struct conn_info *conn, enum callctl calltype)
 {
 	os_error *err;
-	int extrasize = (args->data.size + 3) & ~3;
 
 	err = rpc_prepare_call(NFS_RPC_PROGRAM, NFS_RPC_VERSION, 7, conn);
 	if (err) return err;
@@ -49,7 +48,7 @@ static os_error *NFSPROC3_FASTWRITE(writeargs3 *args, writeres3 *res, struct con
 	if (process_count3(OUTPUT, &(args->count), conn->pool))       return rpc_buffer_overflow();
 	if (process_stable_how(OUTPUT, &(args->stable), conn->pool))  return rpc_buffer_overflow();
 	if (process_unsigned(OUTPUT, &(args->data.size), conn->pool)) return rpc_buffer_overflow();
-	err = rpc_do_call(NFS_RPC_PROGRAM, calltype, args->data.data, extrasize, conn);
+	err = rpc_do_call(NFS_RPC_PROGRAM, calltype, args->data.data, args->data.size, conn);
 	if (err) return err;
 	if (process_writeres3(INPUT, res, conn->pool)) return rpc_buffer_overflow();
 	return NULL;
@@ -58,7 +57,6 @@ static os_error *NFSPROC3_FASTWRITE(writeargs3 *args, writeres3 *res, struct con
 static os_error *NFSPROC_FASTWRITE(writeargs *args, attrstat *res, struct conn_info *conn, enum callctl calltype)
 {
 	os_error *err;
-	int extrasize = (args->data.size + 3) & ~3;
 
 	err = rpc_prepare_call(NFS_RPC_PROGRAM, NFS_RPC_VERSION, 8, conn);
 	if (err) return err;
@@ -67,7 +65,7 @@ static os_error *NFSPROC_FASTWRITE(writeargs *args, attrstat *res, struct conn_i
 	if (process_unsigned(OUTPUT, &(args->offset), conn->pool))      return rpc_buffer_overflow();
 	if (process_unsigned(OUTPUT, &(args->totalcount), conn->pool))  return rpc_buffer_overflow();
 	if (process_unsigned(OUTPUT, &(args->data.size), conn->pool))   return rpc_buffer_overflow();
-	err = rpc_do_call(NFS_RPC_PROGRAM, calltype, args->data.data, extrasize, conn);
+	err = rpc_do_call(NFS_RPC_PROGRAM, calltype, args->data.data, args->data.size, conn);
 	if (err) return err;
 	if (process_attrstat(INPUT, res, conn->pool)) return rpc_buffer_overflow();
 	return NULL;
