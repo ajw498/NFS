@@ -338,7 +338,7 @@ static void logdata(int rx, char *buf, int len)
 {
 	int i;
 
-	syslogf(LOGNAME, LOGDATASUMMARY, "%s data (%d): xid %.2x%.2x%.2x%.2x", rx ? "rx" : "tx", len, buf[0], buf[1], buf[2], buf[3]);
+	syslogf(LOGNAME, LOGDATASUMMARY, "%s data (%d): rm/xid %.2x%.2x%.2x%.2x %.2x%.2x%.2x%.2x", rx ? "rx" : "tx", len, buf[0], buf[1], buf[2], buf[3], buf[4], buf[5], buf[6], buf[7]);
 	for (i=0; i<(len & ~3); i+=4) syslogf(LOGNAME, LOGDATA, "  %.2x %.2x %.2x %.2x", buf[i], buf[i+1], buf[i+2], buf[i+3]);
 	for (i=0; i<(len & 3); i++) syslogf(LOGNAME, LOGDATA, "  %.2x", buf[(len &~3) + i]);
 }
@@ -520,6 +520,7 @@ static int poll_rx(struct conn_info *conn)
 				/* Another record to read before the request is complete */
 				currentrx->readlen = sizeof(int);
 			} else {
+				if (enablelog) logdata(1, currentrx->buffer, currentrx->len);
 				match_rx_buffer(currentrx);
 				if (conn->tcp) conn->rxmutex = NULL;
 			}
