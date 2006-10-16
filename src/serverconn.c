@@ -260,7 +260,10 @@ static int tcp_read(struct server_conn *conn)
 				conn->lastrecord  = (conn->request[0] & 0x80) >> 7;
 				conn->requestread -= 4;
 				conn->state = READ;
-				if (conn->requestread + conn->requestlen > MFBUFFERSIZE) close_conn(conn);
+				if (conn->requestread + conn->requestlen > MFBUFFERSIZE) {
+					syslogf(LOGNAME, LOG_ERROR, "Request size bigger than %d, dropping connection",MFBUFFERSIZE);
+					close_conn(conn);
+				}
 			}
 		} else if (errno != EWOULDBLOCK) {
 			syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",xstrerror(errno));
