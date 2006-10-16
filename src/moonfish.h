@@ -27,7 +27,7 @@
 
 #define LOG_SERIOUS 30
 #define LOG_MEM 50
-#define LOG_ERROR 150
+#define LOG_ERROR 100
 #define LOG_ACCESS 200
 #define LOG_DATA 250
 
