@@ -204,7 +204,7 @@ static struct export *create_export(void)
 	export->uid[0] = '\0';
 	export->gid[0] = '\0';
 	export->umask[0] = '\0';
-	export->unumask[0] = '\0';
+	strcpy(export->unumask, "600");
 	strcpy(export->filetype, "FFF");
 
 	return export;
