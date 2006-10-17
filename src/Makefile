@@ -36,7 +36,7 @@ CMHG = cmunge -32bit -tgcc
 
 else
 
-LIBS := $(LIBS) C:o.stubs
+#LIBS := $(LIBS) C:o.stubs
 MODLIBS := $(MODLIBS) C:o.stubs
 
 CC = cc
@@ -201,15 +201,15 @@ $(MOONFISHOBJS): auto $(MOONFISHOBJS:.o=.h)
 $(MOONFISHGENOBJS): auto 
 
 
-../!Sunfish/!RunImage: sunfish-frontend.c auto
-	$(CC) $(CFLAGS) sunfish-frontend.c -o ../!Sunfish/!RunImage $(LIBS)
+../!Sunfish/!RunImage: sunfish-frontend.cc auto
+	g++ $(INCLUDE) -Wall -mthrowback -mlibscl sunfish-frontend.cc -o ../!Sunfish/!RunImage -l OSLibSupport:o.OSLibSupport32 -l OSLib:o.OSLib32
 
 ../!Sunfish/Sunfish: $(SUNFISHOBJS) $(SUNFISHGENOBJS) $(SUNFISHDUALOBJS) $(ASMOBJS) $(COMMONOBJS)
 	$(LINK) -o Sunfish $(SUNFISHOBJS) $(SUNFISHGENOBJS) $(SUNFISHDUALOBJS) $(ASMOBJS) $(COMMONOBJS) sunfishhdr.o $(MODLIBS)
 	mv Sunfish ../!Sunfish/Sunfish
 
 ../!Moonfish/!RunImage: moonfish-frontend.c auto
-	$(CC) $(CFLAGS) moonfish-frontend.c -o ../!Moonfish/!RunImage $(LIBS)
+	$(CC) $(CFLAGS) moonfish-frontend.c -o ../!Moonfish/!RunImage $(LIBS) C:o.stubs
 
 
 ../!Moonfish/Moonfish: $(MOONFISHOBJS) $(MOONFISHGENOBJS) $(COMMONOBJS) moonfish.o
@@ -246,10 +246,13 @@ imageentry_openclose3.o: imageentry_openclose.c imageentry_openclose.h
 imageentry_common3.o: imageentry_common.c imageentry_common.h
 	$(CC) -c  $(MODULE) $(CFLAGS) -DNFS3 -o $@ imageentry_common.c
 
-.SUFFIXES: .o .s .c
+.SUFFIXES: .o .s .c .cc
 
 .c.o:
 	$(CC) -c  $(MODULE) $(CFLAGS) -o $@ $<
+
+.cc.o:
+	g++ -c $(CFLAGS) -o $@ $<
 
 .s.o:
 	$(CC) -c  $(CFLAGS) -o $@ $<
