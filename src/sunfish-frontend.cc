@@ -32,14 +32,7 @@
 
 #include "Event.h"
 
-#include "oslib/gadget.h"
 #include "oslib/menu.h"
-#include "oslib/radiobutton.h"
-#include "oslib/optionbutton.h"
-#include "oslib/stringset.h"
-#include "oslib/writablefield.h"
-#include "oslib/numberrange.h"
-#include "oslib/window.h"
 #include "oslib/iconbar.h"
 #include "oslib/proginfo.h"
 
@@ -51,6 +44,8 @@
 
 #include "sunfishdefs.h"
 #include "sunfish.h"
+
+#include "tbelib.h"
 
 #define event_QUIT 0x103
 #define event_MOUNT 0x105
@@ -73,308 +68,29 @@ using namespace std;
 #define SYSLOGF_BUFSIZE 1024
 #define Syslog_LogMessage 0x4C880
 
-void syslogf(char *fmt)
+static void syslogf(char *fmt)
 {
 	_swix(Syslog_LogMessage, _INR(0,2), "Wibble", fmt, 1);
 
 }
 
-#include <map>
 
-class window
-{
-public:
-	window(const char *name);
-//	virtual ~window() {}//why?
-	toolbox_o objectid;
-	void show(void);
-	void hide(void);
-protected:
-	virtual void abouttobeshown(void) { }
-	virtual void abouttobehidden(void) { }
-	virtual osbool customevent(bits event_code) { return FALSE; }
-private:
-	static osbool wautocreated(bits event_code, toolbox_action *event, toolbox_block *id_block,void *handle);
-	static osbool wshow(bits event_code, toolbox_action *event, toolbox_block *id_block,void *handle);
-	static osbool whide(bits event_code, toolbox_action *event, toolbox_block *id_block,void *handle);
-	static osbool wevent(bits event_code, toolbox_action *event, toolbox_block *id_block,void *handle);
-//	osbool event(bits event_code);
-	const char *objectname;
-};
 
-/*void window::register_event(int event, eventfn fn)
-{
-	events[event] = fn;
-} */
+#define UNUSED(x) ((void)x)
 
-class gadget
-{
-public:
-	gadget(window *parentwin, int id) { gadgetid = id; parent = parentwin; }
-	void faded(void);
-	void unfaded(void);
-	void faded(osbool set);
-
-private:
-protected:
-	int gadgetid;
-	window *parent;
-};
-
-void gadget::faded(void)
-{
-	gadget_flags flags;
-	xgadget_get_flags(0, parent->objectid, gadgetid, &flags);
-	flags |= gadget_FADED;
-	xgadget_set_flags(0, parent->objectid, gadgetid, flags);
+#define E(x) { \
+	os_error *err=x;\
+	if (err!=NULL) {\
+		xwimp_report_error(err,0,"Sunfish",NULL);\
+		exit(EXIT_FAILURE);\
+	}\
 }
-
-void gadget::unfaded(void)
-{
-	gadget_flags flags;
-	xgadget_get_flags(0, parent->objectid, gadgetid, &flags);
-	flags &= ~gadget_FADED;
-	xgadget_set_flags(0, parent->objectid, gadgetid, flags);
-}
-
-void gadget::faded(osbool set)
-{
-	gadget_flags flags;
-	xgadget_get_flags(0, parent->objectid, gadgetid, &flags);
-	if (set) flags |= gadget_FADED; else flags &= ~gadget_FADED;
-	xgadget_set_flags(0, parent->objectid, gadgetid, flags);
-}
-
-class writablefield:
-	public gadget
-{
-public:
-	writablefield(window *parentwin, int id) : gadget(parentwin, id) { }
-	void operator=(const char *value);
-	void operator=(const int value);
-	operator char*();
-	operator int();
-};
-
-void writablefield::operator=(const char *value)
-{
-	/*Error if parentid not yet set */
-	xwritablefield_set_value(0, parent->objectid, gadgetid, value);
-}
-
-void writablefield::operator=(const int value)
-{
-	char tmp[15];
-	/*Error if parentid not yet set */
-	snprintf(tmp, sizeof(tmp), "%d", value);
-	xwritablefield_set_value(0, parent->objectid, gadgetid, tmp);
-}
-
-writablefield::operator char*()
-{
-	string str;
-	static char buf[1024];
-	xwritablefield_get_value(0, parent->objectid, gadgetid, buf, sizeof(buf), NULL);
-	str = "Dummy";
-	return buf;
-}
-
-writablefield::operator int()
-{
-	char buf[1024];
-	xwritablefield_get_value(0, parent->objectid, gadgetid, buf, sizeof(buf), NULL);
-	return atoi(buf);
-}
-
-class stringset:
-	public gadget
-{
-public:
-	stringset(window *parentwin, int id) : gadget(parentwin, id) { }
-	void operator=(const char *value);
-	void operator=(const int value);
-	operator char*();
-	operator int();
-};
-
-void stringset::operator=(const char *value)
-{
-	/*Error if parentid not yet set */
-	xstringset_set_selected_string(0, parent->objectid, gadgetid, value);
-}
-
-void stringset::operator=(const int value)
-{
-	char tmp[15];
-	/*Error if parentid not yet set */
-	snprintf(tmp, sizeof(tmp), "%d", value);
-	xstringset_set_selected_string(0, parent->objectid, gadgetid, tmp);
-}
-
-stringset::operator char*()
-{
-	static char buf[1024];
-	xstringset_get_selected_string(0, parent->objectid, gadgetid, buf, sizeof(buf), NULL);
-	return buf;
-}
-
-stringset::operator int()
-{
-	char buf[1024];
-	xstringset_get_selected_string(0, parent->objectid, gadgetid, buf, sizeof(buf), NULL);
-	return atoi(buf);
-}
-
-
-class numberrange:
-	public gadget
-{
-public:
-	numberrange(window *parentwin, int id) : gadget(parentwin, id) { }
-	void operator=(const int value);
-	operator int();
-	void setupperbound(const int value);
-};
-
-void numberrange::operator=(const int value)
-{
-	xnumberrange_set_value(0, parent->objectid, gadgetid, value);
-}
-
-void numberrange::setupperbound(const int value)
-{
-	xnumberrange_set_bounds(numberrange_BOUND_UPPER, parent->objectid, gadgetid, 0, value, 0, 0);
-}
-
-numberrange::operator int()
-{
-	int value;
-	xnumberrange_get_value(0, parent->objectid, gadgetid, &value);
-	return value;
-}
-
-class radiobutton:
-	public gadget
-{
-public:
-	radiobutton(window *parentwin, int id) : gadget(parentwin, id) { }
-	void operator=(const osbool value);
-	operator osbool();
-};
-
-void radiobutton::operator=(const osbool value)
-{
-	/*Error if parentid not yet set */
-//	char tmp[1024];
-//	sprintf(tmp,"parent %x gadget %x str %s",parent->objectid, gadgetid, value);
-//	syslogf("Wibble",1,tmp);
-	xradiobutton_set_state(0, parent->objectid, gadgetid, value);
-}
-
-radiobutton::operator osbool()
-{
-	osbool value;
-	xradiobutton_get_state(0, parent->objectid, gadgetid, &value, NULL);
-	return value;
-}
-
-class optionbutton:
-	public gadget
-{
-public:
-	optionbutton(window *parentwin, int id) : gadget(parentwin, id) { }
-	void operator=(const osbool value);
-	operator osbool();
-};
-
-void optionbutton::operator=(const osbool value)
-{
-	/*Error if parentid not yet set */
-	xoptionbutton_set_state(0, parent->objectid, gadgetid, value);
-}
-
-optionbutton::operator osbool()
-{
-	osbool value;
-	xoptionbutton_get_state(0, parent->objectid, gadgetid, &value);
-	return value;
-}
-
-window::window(const char *name)
-{
-	objectname = name;
-	objectid = 0;
-
-	/*ERROR*/event_register_toolbox_handler(event_ANY, action_OBJECT_AUTO_CREATED, wautocreated, this);
-}
-
-osbool window::wautocreated(bits event_code, toolbox_action *event, toolbox_block *id_block,void *handle)
-{
-	window *thiswin = static_cast<window*>(handle);
-
-	if (strcmp(event->data.created.name,thiswin->objectname) == 0) {
-		thiswin->objectid = id_block->this_obj;
-		/*ERROR*/event_deregister_toolbox_handler(event_ANY, action_OBJECT_AUTO_CREATED, wautocreated, handle);
-
-		/*ERROR*/event_register_toolbox_handler(id_block->this_obj, action_ANY, wevent, handle);
-
-		/*ERROR*/event_register_toolbox_handler(id_block->this_obj, action_WINDOW_ABOUT_TO_BE_SHOWN, wshow, handle);
-		/*ERROR*/event_register_toolbox_handler(id_block->this_obj, action_WINDOW_DIALOGUE_COMPLETED, whide, handle);
-		return 0;//1; FIXME
-	}
-
-	return 0;
-}
-
-/*osbool window::event(bits event_code)
-{
-	if (events.find(event_code) != events.end()) {
-		events[event_code]();
-		return TRUE;
-	}
-	return FALSE;
-} */
-
-osbool window::wevent(bits event_code, toolbox_action *event, toolbox_block *id_block,void *handle)
-{
-	window *thiswin = static_cast<window*>(handle);
-
-/*	if (thiswin->events.find(event_code) != thiswin->events.end()) {
-		eventfn fn = thiswin->events[event_code];
-		thiswin->*fn();
-		return TRUE;
-	}
-	return FALSE;*/
-	return thiswin->customevent(event_code);
-}
-
-osbool window::whide(bits event_code, toolbox_action *event, toolbox_block *id_block,void *handle)
-{
-	window *thiswin = static_cast<window*>(handle);
-
-	thiswin->abouttobehidden();
-	return TRUE;
-}
-
-void window::show(void)
-{
-	/**/xtoolbox_show_object(0, objectid, toolbox_POSITION_DEFAULT, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT);
-}
-
-void window::hide(void)
-{
-	/**/xtoolbox_hide_object(0, objectid);
-}
-
-
-///
-///
-///
 
 
 #define STRMAX 256
 
-struct mount {
+class mount {
+public:
 	osbool showhidden;
 	int followsymlinks;
 	osbool casesensitive;
@@ -406,62 +122,13 @@ struct mount {
 	osbool nfs3;
 	char leafname[STRMAX];
 	char encoding[STRMAX];
+
+	void save(char *filename);
+	void load(char *mountname);
+	void setdefaults(void);
 };
 
-static struct mount mount;
-
-
-#define UNUSED(x) ((void)x)
-
-#define E(x) { \
-	os_error *err=x;\
-	if (err!=NULL) {\
-		xwimp_report_error(err,0,"Sunfish",NULL);\
-		exit(EXIT_FAILURE);\
-	}\
-}
-
-
-//#include <typeinfo>
-
-osbool window::wshow(bits event_code, toolbox_action *event, toolbox_block *id_block,void *handle)
-{
-//	struct bodge *thisbodge = static_cast<struct bodge*>(handle);
-//	window *thiswin = thisbodge->winptr;
-	window *thiswin = static_cast<window*>(handle);
-
-//	if (typeid(*thiswin) *thiswin2 = dynamic_cast<typeid(*thiswin)>(thiswin)) {
-		thiswin->abouttobeshown();
-//	}
-	return TRUE;
-}
-
-
-
-
-
-
-//static toolbox_o filenamesid;
-//static toolbox_o portsid;
-///static toolbox_o connectionid;
-//static toolbox_o mainwinid;
-static toolbox_o mainmenuid;
-static toolbox_o editmenuid;
-
-
-static toolbox_o unmountedicon;
-
-struct mounticon {
-	toolbox_o icon;
-	wimp_i iconhandle;
-	char filename[1024];
-	struct mounticon *next;
-};
-
-static struct mounticon *iconhead = NULL;
-
-
-static void mount_save(char *filename)
+void mount::save(char *filename)
 {
 	FILE *file;
 	file = fopen(filename, "w");
@@ -470,42 +137,42 @@ static void mount_save(char *filename)
 		return;
 	}
 
-	fprintf(file,"Protocol: NFS%s\n", mount.nfs3 ? "3" : "2");
-	fprintf(file,"Server: %s\n",mount.server);
-	fprintf(file,"Export: %s\n",mount.exportname);
-	if (mount.usepcnfsd) {
-		fprintf(file,"Password: %s\n",mount.password);
-		fprintf(file,"Username: %s\n",mount.username);
+	fprintf(file,"Protocol: NFS%s\n", nfs3 ? "3" : "2");
+	fprintf(file,"Server: %s\n",server);
+	fprintf(file,"Export: %s\n",exportname);
+	if (usepcnfsd) {
+		fprintf(file,"Password: %s\n",password);
+		fprintf(file,"Username: %s\n",username);
 	} else {
 		int gid;
-		char *gids;
-		fprintf(file,"uid: %d\n",mount.uid);
-		gid = (int)strtol(mount.gids, &gids, 10);
+		char *othergids;
+		fprintf(file,"uid: %d\n",uid);
+		gid = (int)strtol(gids, &othergids, 10);
 		fprintf(file,"gid: %d\n",gid);
-		fprintf(file,"gids: %s\n",gids);
-		fprintf(file,"umask: %.3o\n",mount.umask);
+		fprintf(file,"gids: %s\n",othergids);
+		fprintf(file,"umask: %.3o\n",umask);
 	}
-	fprintf(file,"Transport: %s\n",mount.tcp ? "TCP" : "UDP");
-	fprintf(file,"ShowHidden: %d\n",mount.showhidden);
-	fprintf(file,"FollowSymlinks: %d\n",mount.followsymlinks);
-	fprintf(file,"CaseSensitive: %d\n",mount.casesensitive);
-	fprintf(file,"UnixEx: %d\n",mount.unixex);
-	fprintf(file,"DefaultFiletype: %.3X\n",mount.defaultfiletype);
-	fprintf(file,"AddExt: %d\n",mount.addext);
-	fprintf(file,"unumask: %.3o\n",mount.unumask);
-	if (mount.portmapperport) fprintf(file,"PortmapperPort: %d\n",mount.portmapperport);
-	if (mount.nfsport) fprintf(file,"NFSPort: %d\n",mount.nfsport);
-	if (mount.pcnfsdport) fprintf(file,"PCNFSDPort: %d\n",mount.pcnfsdport);
-	if (mount.mountport) fprintf(file,"MountPort: %d\n",mount.mountport);
-	if (mount.localportmin && mount.localportmin) fprintf(file,"LocalPort: %d %d\n",mount.localportmin,mount.localportmax);
-	if (mount.machinename[0]) fprintf(file,"MachineName: %s\n",mount.machinename);
-	if ((/*case*/strcmp(mount.encoding, "No conversion") != 0) && mount.encoding[0]) fprintf(file,"Encoding: %s\n", mount.encoding);
+	fprintf(file,"Transport: %s\n",tcp ? "TCP" : "UDP");
+	fprintf(file,"ShowHidden: %d\n",showhidden);
+	fprintf(file,"FollowSymlinks: %d\n",followsymlinks);
+	fprintf(file,"CaseSensitive: %d\n",casesensitive);
+	fprintf(file,"UnixEx: %d\n",unixex);
+	fprintf(file,"DefaultFiletype: %.3X\n",defaultfiletype);
+	fprintf(file,"AddExt: %d\n",addext);
+	fprintf(file,"unumask: %.3o\n",unumask);
+	if (portmapperport) fprintf(file,"PortmapperPort: %d\n",portmapperport);
+	if (nfsport) fprintf(file,"NFSPort: %d\n",nfsport);
+	if (pcnfsdport) fprintf(file,"PCNFSDPort: %d\n",pcnfsdport);
+	if (mountport) fprintf(file,"MountPort: %d\n",mountport);
+	if (localportmin && localportmin) fprintf(file,"LocalPort: %d %d\n",localportmin,localportmax);
+	if (machinename[0]) fprintf(file,"MachineName: %s\n",machinename);
+	if ((/*case*/strcmp(encoding, "No conversion") != 0) && encoding[0]) fprintf(file,"Encoding: %s\n", encoding);
 
-	fprintf(file,"MaxDataBuffer: %d\n",mount.maxdatabuffer);
-	fprintf(file,"Pipelining: %d\n",mount.pipelining);
-	fprintf(file,"Timeout: %d\n",mount.timeout);
-	fprintf(file,"Retries: %d\n",mount.retries);
-	fprintf(file,"Logging: %d\n",mount.logging);
+	fprintf(file,"MaxDataBuffer: %d\n",maxdatabuffer);
+	fprintf(file,"Pipelining: %d\n",pipelining);
+	fprintf(file,"Timeout: %d\n",timeout);
+	fprintf(file,"Retries: %d\n",retries);
+	fprintf(file,"Logging: %d\n",logging);
 	fclose(file);
 
 	E(xosfile_set_type(filename, SUNFISH_FILETYPE));
@@ -514,26 +181,57 @@ static void mount_save(char *filename)
 #define CHECK(str) (strncmp(line,str,sizeof(str))==0)
 /*case*/
 
-static void mount_load(char *filename)
+void mount::setdefaults(void)
+{
+	showhidden = 1;
+	followsymlinks = 5;
+	casesensitive = 0;
+	unixex = 0;
+	defaultfiletype = 0xFFF;
+	addext = 1;
+	unumask = 0;
+	portmapperport = 111;
+	nfsport = 0;
+	pcnfsdport = 0;
+	mountport = 0;
+	localportmin = LOCALPORTMIN_DEFAULT;
+	localportmax = LOCALPORTMAX_DEFAULT;
+	machinename[0] = '\0';
+	maxdatabuffer = MAXDATABUFFER_UDP_DEFAULT;
+	pipelining = 0;
+	timeout = 3;
+	retries = 2;
+	logging = 0;
+	server[0] = '\0';
+	exportname[0] = '\0';
+	username[0] = '\0';
+	password[0] = '\0';
+	uid = 0;
+	gids[0] = '\0';
+	umask = 022;
+	usepcnfsd = 0;
+	tcp = 0;
+	nfs3 = 0;
+	leafname[0] = '\0';
+	strcpy(encoding, "No conversion");
+}
+
+void mount::load(char *mountname)
 {
 	FILE *file;
 	char buffer[STRMAX];
-	char *leafname;
 
-	file = fopen(filename, "r");
+	setdefaults();
+
+	snprintf(buffer, sizeof(buffer), "Sunfish:mounts.%s", mountname);
+
+	file = fopen(buffer, "r");
 	if (file == NULL) {
 		xwimp_report_error((os_error*)_kernel_last_oserror(),0,"Sunfish",NULL);
 		return;
 	}
 
-	leafname = strrchr(filename, '.');
-	if (leafname == NULL) {
-		leafname = filename;
-	} else {
-		leafname++;
-	}
-
-	snprintf(mount.leafname, STRMAX, "%s", leafname);
+	snprintf(leafname, STRMAX, "%s", mountname);
 
 	while (fgets(buffer, STRMAX, file) != NULL) {
 		char *val;
@@ -559,76 +257,100 @@ static void mount_load(char *filename)
 		if (CHECK("#")) {
 			/* A comment */
 		} else if (CHECK("Protocol")) {
-			mount.nfs3 = /*case*/strcmp(val, "NFS3") == 0;
+			nfs3 = /*case*/strcmp(val, "NFS3") == 0;
 		} else if (CHECK("Server")) {
-			strcpy(mount.server, val);
+			strcpy(server, val);
 		} else if (CHECK("MachineName")) {
-			strcpy(mount.machinename, val);
+			strcpy(machinename, val);
 		} else if (CHECK("Encoding")) {
-			strcpy(mount.encoding, val);
+			strcpy(encoding, val);
 		} else if (CHECK("PortMapperPort")) {
-			mount.portmapperport = (int)strtol(val, NULL, 10);
+			portmapperport = (int)strtol(val, NULL, 10);
 		} else if (CHECK("MountPort")) {
-			mount.mountport = (int)strtol(val, NULL, 10);
+			mountport = (int)strtol(val, NULL, 10);
 		} else if (CHECK("NFSPort")) {
-			mount.nfsport = (int)strtol(val, NULL, 10);
+			nfsport = (int)strtol(val, NULL, 10);
 		} else if (CHECK("PCNFSDPort")) {
-			mount.pcnfsdport = (int)strtol(val, NULL, 10);
+			pcnfsdport = (int)strtol(val, NULL, 10);
 		} else if (CHECK("Transport")) {
-			mount.tcp = /*case*/strcmp(val, "tcp") == 0;
+			tcp = /*case*/strcmp(val, "tcp") == 0;
 		} else if (CHECK("Export")) {
-			strcpy(mount.exportname, val);
+			strcpy(exportname, val);
 		} else if (CHECK("UID")) {
-			mount.usepcnfsd = 0;
-			mount.uid = (int)strtol(val, NULL, 10);
+			usepcnfsd = 0;
+			uid = (int)strtol(val, NULL, 10);
 		} else if (CHECK("GID") || CHECK("GIDs")) {
-			strncat(mount.gids, val, STRMAX - strlen(mount.gids));
-			mount.gids[STRMAX - 1] = '\0';
+			strncat(gids, val, STRMAX - strlen(gids));
+			gids[STRMAX - 1] = '\0';
 		} else if (CHECK("Username")) {
-			mount.usepcnfsd = 1;
-			strcpy(mount.username, val);
+			usepcnfsd = 1;
+			strcpy(username, val);
 		} else if (CHECK("Password")) {
-			strcpy(mount.password, val);
+			strcpy(password, val);
 		} else if (CHECK("Logging")) {
-			mount.logging = (int)strtol(val, NULL, 10);
+			logging = (int)strtol(val, NULL, 10);
 		} else if (CHECK("umask")) {
-			mount.umask = 07777 & (int)strtol(val, NULL, 8); /* umask is specified in octal */
+			umask = 07777 & (int)strtol(val, NULL, 8); /* umask is specified in octal */
 		} else if (CHECK("unumask")) {
-			mount.unumask = 07777 & (int)strtol(val, NULL, 8); /* unumask is specified in octal */
+			unumask = 07777 & (int)strtol(val, NULL, 8); /* unumask is specified in octal */
 		} else if (CHECK("ShowHidden")) {
-			mount.showhidden = (int)strtol(val, NULL, 10);
+			showhidden = (int)strtol(val, NULL, 10);
 		} else if (CHECK("Timeout")) {
-			mount.timeout = (int)strtol(val, NULL, 10);
+			timeout = (int)strtol(val, NULL, 10);
 		} else if (CHECK("Retries")) {
-			mount.retries = (int)strtol(val, NULL, 10);
+			retries = (int)strtol(val, NULL, 10);
 		} else if (CHECK("DefaultFiletype")) {
-			mount.defaultfiletype = 0xFFF & (int)strtol(val, NULL, 16);
+			defaultfiletype = 0xFFF & (int)strtol(val, NULL, 16);
 		} else if (CHECK("AddExt")) {
-			mount.addext = (int)strtol(val, NULL, 10);
+			addext = (int)strtol(val, NULL, 10);
 		} else if (CHECK("LocalPort")) {
 			char *end;
 
-			mount.localportmin = (int)strtol(val, &end, 10);
-			mount.localportmax = (int)strtol(end, NULL, 10);
-			if (mount.localportmax == 0) mount.localportmax = mount.localportmin;
+			localportmin = (int)strtol(val, &end, 10);
+			localportmax = (int)strtol(end, NULL, 10);
+			if (localportmax == 0) localportmax = localportmin;
 		} else if (CHECK("Pipelining")) {
-			mount.pipelining = (int)strtol(val, NULL, 10);
+			pipelining = (int)strtol(val, NULL, 10);
 		} else if (CHECK("MaxDataBuffer")) {
-			mount.maxdatabuffer = (int)strtol(val, NULL, 10);
-			if (mount.maxdatabuffer > MAXDATABUFFER_TCP_MAX) {
-				mount.maxdatabuffer = MAXDATABUFFER_TCP_MAX;
+			maxdatabuffer = (int)strtol(val, NULL, 10);
+			if (maxdatabuffer > MAXDATABUFFER_TCP_MAX) {
+				maxdatabuffer = MAXDATABUFFER_TCP_MAX;
 			}
-			mount.maxdatabuffer = (mount.maxdatabuffer + (MAXDATABUFFER_INCR - 1)) & ~(MAXDATABUFFER_INCR - 1);
+			maxdatabuffer = (maxdatabuffer + (MAXDATABUFFER_INCR - 1)) & ~(MAXDATABUFFER_INCR - 1);
 		} else if (CHECK("FollowSymlinks")) {
-			mount.followsymlinks = (int)strtol(val, NULL, 10);
+			followsymlinks = (int)strtol(val, NULL, 10);
 		} else if (CHECK("CaseSensitive")) {
-			mount.casesensitive = (int)strtol(val, NULL, 10);
+			casesensitive = (int)strtol(val, NULL, 10);
 		} else if (CHECK("UnixEx")) {
-			mount.unixex = (int)strtol(val, NULL, 10);
+			unixex = (int)strtol(val, NULL, 10);
 		}
 	}
 	fclose(file);
 }
+
+static mount mount;
+
+
+
+
+
+
+static toolbox_o mainmenuid;
+static toolbox_o editmenuid;
+
+
+static toolbox_o unmountedicon;
+
+struct mounticon {
+	toolbox_o icon;
+	wimp_i iconhandle;
+	char filename[1024];
+	struct mounticon *next;
+};
+
+static struct mounticon *iconhead = NULL;
+
+
 
 static osbool mount_remove(bits event_code, toolbox_action *event, toolbox_block *id_block, void *handle)
 {
@@ -950,47 +672,6 @@ void connectionwin::abouttobeshown(void)
 	customevent(0x402);
 }
 
-static void mainwin_setup(char *mountname)
-{
-	mount.showhidden = 1;
-	mount.followsymlinks = 5;
-	mount.casesensitive = 0;
-	mount.unixex = 0;
-	mount.defaultfiletype = 0xFFF;
-	mount.addext = 1;
-	mount.unumask = 0;
-	mount.portmapperport = 111;
-	mount.nfsport = 0;
-	mount.pcnfsdport = 0;
-	mount.mountport = 0;
-	mount.localportmin = LOCALPORTMIN_DEFAULT;
-	mount.localportmax = LOCALPORTMAX_DEFAULT;
-	mount.machinename[0] = '\0';
-	mount.maxdatabuffer = MAXDATABUFFER_UDP_DEFAULT;
-	mount.pipelining = 0;
-	mount.timeout = 3;
-	mount.retries = 2;
-	mount.logging = 0;
-	mount.server[0] = '\0';
-	mount.exportname[0] = '\0';
-	mount.username[0] = '\0';
-	mount.password[0] = '\0';
-	mount.uid = 0;
-	mount.gids[0] = '\0';
-	mount.umask = 022;
-	mount.usepcnfsd = 0;
-	mount.tcp = 0;
-	mount.nfs3 = 0;
-	mount.leafname[0] = '\0';
-	strcpy(mount.encoding, "No conversion");
-
-	if (mountname) {
-		char buffer[256];
-		snprintf(buffer, sizeof(buffer), "Sunfish:mounts.%s", mountname);
-		mount_load(buffer);
-	}
-
-}
 
 #define MAX_MOUNTS 100
 
@@ -1070,7 +751,7 @@ static osbool mainwin_newmount(bits event_code, toolbox_action *event, toolbox_b
 	UNUSED(handle);
 	UNUSED(id_block);
 
-	mainwin_setup(NULL);
+	mount.setdefaults();
 
 	return 1;
 }
@@ -1092,18 +773,6 @@ static osbool autocreated(bits event_code, toolbox_action *event, toolbox_block 
 	UNUSED(event);
 	UNUSED(handle);
 
-/*	if (strcmp(event->data.created.name,"filenames") == 0) {
-		filenamesid = id_block->this_obj;
-	}
-	if (strcmp(event->data.created.name,"ports") == 0) {
-		portsid = id_block->this_obj;
-	}
-	if (strcmp(event->data.created.name,"connection") == 0) {
-		connectionid = id_block->this_obj;
-	}
-	if (strcmp(event->data.created.name,"mainwin") == 0) {
-		mainwinid = id_block->this_obj;
-	} */
 	if (strcmp(event->data.created.name,"editmounts") == 0) {
 		editmenuid = id_block->this_obj;
 	}
@@ -1313,7 +982,7 @@ osbool mainwin::customevent(bits event_code)
 		if (mount.leafname[0]) {
 			strcpy(filename, "<Sunfish$Write>.mounts.");
 			strcat(filename, mount.leafname);
-			mount_save(filename);
+			mount.save(filename);
 
 			strcpy(filename, "Filer_OpenDir Sunfish:mounts.");
 			strcat(filename, mount.leafname);
@@ -1340,44 +1009,61 @@ void mainwin::abouttobehidden(void)
 	connection.hide();
 }
 
-class application
+class filerwin:
+	public window
 {
 public:
-	application(const char *dirname);
-	void poll(void);
+
+	filerwin(const char *name) :
+		window(name)
+		{ }
+
+protected:
+	void abouttobeshown(void);
+//	void abouttobehidden(void);
 private:
+//	std::vector<> items;
 };
 
-application::application(const char *dirname)
-{
-	int toolbox_events[] = {0};
-	int wimp_messages[] = {0};
-	static messagetrans_control_block messages;
-	static toolbox_block id_block;
+#include "browse.h"
+#define ERR_WOULDBLOCK (os_error *)1
 
-	if (xtoolbox_initialise(0, 310, (wimp_message_list*)wimp_messages,
-							(toolbox_action_list*)toolbox_events,
-							dirname, &messages, &id_block, 0, 0, 0)
-							!= NULL) exit(EXIT_FAILURE);
-	event_initialise(&id_block);
-	event_set_mask(1+256);
-}
-
-void application::poll(void)
+void filerwin::abouttobeshown(void)
 {
-	wimp_event_no event_code;
-	static wimp_block poll_block;
-	event_poll(&event_code, &poll_block, 0);
+	time_t t = clock();
+	os_error *err;
+	int type = 0;
+	struct hostinfo info;
+
+	do {
+		err = browse_gethost(&info, type);
+		type = 1;
+		if (err == ERR_WOULDBLOCK) continue;
+		if (err) {
+			syslogf("browse_gethost call error");
+			syslogf(err->errmess);
+		} else {
+			syslogf(info.host);
+/*			err = browse_getexports(info.host, info.mount3udpport,1,0);
+			if (err) {
+				syslogf("browse_getexports call error");
+				syslogf(err->errmess);
+			}*/
+		}
+	} while (clock() < t + 100);
+	err = browse_gethost(NULL, 2);
 }
 
 class sunfishapp : public application
 {
 public:
 	mainwin main;
+	filerwin filer;
 
 	sunfishapp(const char *dirname) :
 		application(dirname),
-		main("mainwin")
+		main("mainwin"),
+		filer("filer")
 		{ }
 private:
 };
@@ -1394,7 +1080,7 @@ static osbool editmenu_selection(bits event_code, toolbox_action *event, toolbox
 	if (id_block->this_obj != editmenuid) return 0;
 	if (id_block->this_cmp > numentries) return 0;
 
-	mainwin_setup(menuentry[id_block->this_cmp].text);
+	mount.load(menuentry[id_block->this_cmp].text);
 
 //	E(xtoolbox_show_object(0, mainwinid, toolbox_POSITION_CENTRED, NULL, toolbox_NULL_OBJECT, toolbox_NULL_COMPONENT));
 	app.main.show();
