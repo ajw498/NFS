@@ -292,7 +292,7 @@ while (<>) {
       $proto .= "$args *args, " unless ($args eq "void");
       $proto .= "$res *res, " unless ($res eq "void");
       $proto .= "struct conn_info *conn";
-      if ($procname =~ m/(WRITE)|(READ)$/) {
+      if ($procname =~ m/(WRITE$)|(READ$)|(PMAPPROC_DUMP)/) {
         $proto .= ", enum callctl calltype";
         $calltype = "calltype";
       } elsif ($procname =~ m/UMNT/) {

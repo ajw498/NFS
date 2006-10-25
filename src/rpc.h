@@ -31,6 +31,8 @@ void rpc_free_all_buffers(void);
 
 void rpc_hold_rxbuffer(void);
 
+char *rpc_get_last_host(void);
+
 os_error *rpc_init_connection(struct conn_info *conn);
 
 os_error *rpc_close_connection(struct conn_info *conn);

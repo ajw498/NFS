@@ -44,6 +44,8 @@
 #include <sys/socket.h>
 #include <sys/ioctl.h>
 #include <netinet/in.h>
+#include <arpa/inet.h>
+#include <net/if.h>
 #include <netdb.h>
 #include <socklib.h>
 #include <time.h>
@@ -55,7 +57,7 @@
 
 
 /* A monotonicly increasing transaction id */
-static unsigned int nextxid = 1;
+static unsigned int nextxid = 0;
 
 /* A pool of rx buffers. */
 static struct buffer_list *buffers = NULL;
@@ -292,6 +294,10 @@ static int rpc_create_socket(struct conn_info *conn)
 		}
 	}
 
+	if (conn->server == NULL) {
+		if (setsockopt(conn->sock, SOL_SOCKET, SO_BROADCAST, &on, sizeof(on)) < 0) return errno;
+	}
+
 	return 0;
 }
 
@@ -302,14 +308,27 @@ os_error *rpc_init_connection(struct conn_info *conn)
 	os_error *err;
 	int ret;
 
+	if (nextxid == 0) {
+		/* Initialise xid to a random number, to avoid issues with
+		   duplicate request caches if the module and frontend use
+		   the same xid */
+		nextxid = rand();
+#ifdef MODULE
+		nextxid |= 0x80000000;
+#endif
+	}
+
 	ret = rpc_create_socket(conn);
 	if (ret) return gen_error(RPCERRBASE + 4,"Unable to connect or bind socket (%s)", xstrerror(ret));
 
-	err = gethostbyname_timeout(conn->server, conn->timeout, &hp);
-	if (err) return err;
-
 	memset(&(conn->sockaddr), 0, sizeof(conn->sockaddr));
-	memcpy(&(conn->sockaddr.sin_addr), hp->h_addr, hp->h_length);
+
+	if (conn->server) {
+		err = gethostbyname_timeout(conn->server, conn->timeout, &hp);
+		if (err) return err;
+
+		memcpy(&(conn->sockaddr.sin_addr), hp->h_addr, hp->h_length);
+	}
 	conn->sockaddr.sin_family = AF_INET;
 	conn->sockaddr.sin_port = 0;
 
@@ -389,9 +408,11 @@ static int rpc_connect_socket(struct conn_info *conn)
 		if (ret) return ret;
 	}
 
-	ret = connect(conn->sock, (struct sockaddr *)&(conn->sockaddr), sizeof(struct sockaddr_in));
-	if (ret == -1 && errno != EINPROGRESS) {
-		return errno;
+	if (conn->server) {
+		ret = connect(conn->sock, (struct sockaddr *)&(conn->sockaddr), sizeof(struct sockaddr_in));
+		if (ret == -1 && errno != EINPROGRESS) {
+			return errno;
+		}
 	}
 	return 0;
 }
@@ -399,7 +420,7 @@ static int rpc_connect_socket(struct conn_info *conn)
 /* Send as much data as we can without blocking */
 static int poll_tx(struct request_entry *entry)
 {
-	int ret;
+	int ret = -1;
 	struct msghdr msg;
 	struct iovec iovec[3];
 	char zero[] = {0,0,0,0};
@@ -409,32 +430,75 @@ static int poll_tx(struct request_entry *entry)
 		if (ret) return ret;
 	}
 
-	msg.msg_name = NULL;
-	msg.msg_namelen = 0;
-	msg.msg_control = NULL;
-	msg.msg_controllen = 0;
-	msg.msg_flags = 0;
-	msg.msg_iov = iovec;
-	if (entry->tx.position < entry->tx.len) {
-		msg.msg_iovlen = entry->extralen ? ((entry->extralen & 3) ? 3 : 2) : 1;
-		iovec[0].iov_base = entry->tx.buffer + entry->tx.position;
-		iovec[0].iov_len = entry->tx.len - entry->tx.position;
-		iovec[1].iov_base = entry->extradata;
-		iovec[1].iov_len = entry->extralen;
-		iovec[2].iov_base = zero;
-		iovec[2].iov_len = 4 - (entry->extralen & 3);
-	} else if (entry->tx.position < entry->tx.len + entry->extralen) {
-		msg.msg_iovlen = (entry->extralen & 3) ? 2 : 1;
-		iovec[0].iov_base = ((char *)(entry->extradata)) + (entry->tx.position - entry->tx.len);
-		iovec[0].iov_len = entry->extralen - (entry->tx.position - entry->tx.len);
-		iovec[1].iov_base = zero;
-		iovec[1].iov_len = 4 - (entry->extralen & 3);
+	if (entry->conn->server) {
+		msg.msg_name = NULL;
+		msg.msg_namelen = 0;
+		msg.msg_control = NULL;
+		msg.msg_controllen = 0;
+		msg.msg_flags = 0;
+		msg.msg_iov = iovec;
+		if (entry->tx.position < entry->tx.len) {
+			msg.msg_iovlen = entry->extralen ? ((entry->extralen & 3) ? 3 : 2) : 1;
+			iovec[0].iov_base = entry->tx.buffer + entry->tx.position;
+			iovec[0].iov_len = entry->tx.len - entry->tx.position;
+			iovec[1].iov_base = entry->extradata;
+			iovec[1].iov_len = entry->extralen;
+			iovec[2].iov_base = zero;
+			iovec[2].iov_len = 4 - (entry->extralen & 3);
+		} else if (entry->tx.position < entry->tx.len + entry->extralen) {
+			msg.msg_iovlen = (entry->extralen & 3) ? 2 : 1;
+			iovec[0].iov_base = ((char *)(entry->extradata)) + (entry->tx.position - entry->tx.len);
+			iovec[0].iov_len = entry->extralen - (entry->tx.position - entry->tx.len);
+			iovec[1].iov_base = zero;
+			iovec[1].iov_len = 4 - (entry->extralen & 3);
+		} else {
+			msg.msg_iovlen = 1;
+			iovec[0].iov_base = zero;
+			iovec[0].iov_len = 4 - (entry->tx.position & 3);
+		}
+		ret = sendmsg(entry->conn->sock, &msg, 0);
+#ifndef MODULE
 	} else {
-		msg.msg_iovlen = 1;
-		iovec[0].iov_base = zero;
-		iovec[0].iov_len = 4 - (entry->tx.position & 3);
+		/* Broadcast */
+		struct ifconf ifc;
+		char buf[BUFSIZ];
+		char *ptr;
+
+		ifc.ifc_len = sizeof(buf);
+		ifc.ifc_buf = buf;
+		if (socketioctl(entry->conn->sock, SIOCGIFCONF, (char *)&ifc) < 0) return errno;
+
+		ptr = buf;
+		while(ptr < buf + ifc.ifc_len) {
+			struct sockaddr_in dst;
+			int len;
+			struct ifreq *ifr = (struct ifreq *)ptr;
+
+			len = ifr->ifr_addr.sa_len;
+			ptr += sizeof(ifr->ifr_name) + len;
+
+			if (ifr->ifr_addr.sa_family != AF_INET) continue;
+
+			if (ioctl(entry->conn->sock, SIOCGIFFLAGS, (char *)ifr) < 0) return errno;
+
+			/* Skip uninteresting cases */
+			if (((ifr->ifr_flags & IFF_UP) == 0) ||
+			    (ifr->ifr_flags & IFF_LOOPBACK) ||
+			    ((ifr->ifr_flags & (IFF_BROADCAST | IFF_POINTOPOINT)) == 0)) continue;
+
+			if (ifr->ifr_flags & IFF_BROADCAST) {
+				if (socketioctl(entry->conn->sock, SIOCGIFBRDADDR, (char *)ifr) < 0) return errno;
+				memcpy(&dst, &(ifr->ifr_broadaddr), sizeof(ifr->ifr_broadaddr));
+			} else {
+				if (socketioctl(entry->conn->sock, SIOCGIFDSTADDR, (char *)ifr) < 0) return errno;
+				memcpy(&dst, &(ifr->ifr_dstaddr), sizeof(ifr->ifr_dstaddr));
+			}
+			dst.sin_port = entry->conn->sockaddr.sin_port;
+			ret = sendto(entry->conn->sock, entry->tx.buffer, entry->tx.len, 0, (struct sockaddr *)&dst, sizeof(dst));
+		}
+#endif
 	}
-	ret = sendmsg(entry->conn->sock, &msg, 0);
+
 	if (ret == -1) {
 		if ((errno == EWOULDBLOCK) || (errno == ENOTCONN)) return 0;
 		return errno;
@@ -473,12 +537,26 @@ static void match_rx_buffer(struct buffer_list *currentrx)
 	free_rx_buffer(currentrx);
 }
 
+static struct sockaddr_in addr;
+
+char *rpc_get_last_host(void)
+{
+	static char host[16];
+
+	snprintf(host, sizeof(host), "%d.%d.%d.%d", addr.sin_addr.s_addr & 0xFF,
+	                                            addr.sin_addr.s_addr >> 8 & 0xFF,
+	                                            addr.sin_addr.s_addr >> 16 & 0xFF,
+	                                            addr.sin_addr.s_addr >> 24);
+	return host;
+}
+
 /* Recieve as much data as we can without blocking */
 static int poll_rx(struct conn_info *conn)
 {
 	int ret;
 	int len;
 	struct buffer_list *currentrx;
+	int addrlen = sizeof(addr);
 
 	if (conn->tcp) {
 		currentrx = conn->rxmutex;
@@ -494,7 +572,7 @@ static int poll_rx(struct conn_info *conn)
 		len = SFBUFFERSIZE;
 	}
 
-	ret = read(conn->sock, currentrx->buffer + currentrx->position, len);
+	ret = recvfrom(conn->sock, currentrx->buffer + currentrx->position, len, 0, (struct sockaddr *)&addr, &addrlen);
 	if (ret == -1) {
 		if ((errno == EWOULDBLOCK) || (errno == ENOTCONN)) {
 			if (!conn->tcp) free_rx_buffer(currentrx);
@@ -566,8 +644,10 @@ static void poll_connections(void)
 	time_t t = clock();
 	int ret;
 
+#ifdef MODULE
 	/* This is the only point at which reentrancy can occur */
 	trigger_callback();
+#endif
 
 	while (entry) {
 		switch (entry->status) {
@@ -701,8 +781,10 @@ os_error *rpc_do_call(int prog, enum callctl calltype, void *extradata, int extr
 	/* Remember this rxentry, so we know which one to use if we are asked to hold it */
 	lastrxentry = rxentry;
 
-	/* Mark as empty so it can be reused by the next call, and remove from the pipeline queue */
-	rxentry->status = EMPTY;
+	/* Mark as empty so it can be reused by the next call, and remove
+	   from the pipeline queue. Unless it was a broadcast, in which
+	   case retain it for more replies */
+	rxentry->status = conn->server ? EMPTY : RXWAIT;
 	if (rxentry->nextpipelined) rxentry->nextpipelined->prevpipelined = NULL;
 
 	if (rxentry->error) {
@@ -712,6 +794,10 @@ os_error *rpc_do_call(int prog, enum callctl calltype, void *extradata, int extr
 	/* Setup buffers and parse header */
 	ibuf = rxentry->rx->buffer;
 	ibufend = ibuf + rxentry->rx->len;
+
+	/* If broadcasting then remove rx buffer so we can recieve another reply */
+	if (conn->server == NULL) rxentry->rx = NULL;
+
 	if (process_rpc_msg(INPUT, &reply_header, conn->pool)) goto buffer_overflow;
 
 	/* Check that the RPC completed successfully */
