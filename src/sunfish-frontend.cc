@@ -475,8 +475,8 @@ public:
 	writablefield symlinklevels;
 	writablefield unumask;
 
-	filenameswin(const char *name) :
-		window(name),
+	filenameswin(const char *name, bool isautocreated) :
+		window(name, isautocreated),
 
 		showhiddenalways (this, 0x10),
 		showhiddenroot   (this, 0x11),
@@ -549,8 +549,8 @@ public:
 	writablefield localmax;
 	writablefield machinename;
 
-	portswin(const char *name) :
-		window(name),
+	portswin(const char *name, bool isautocreated) :
+		window(name, isautocreated),
 
 		portmapper (this, 0x2),
 		nfsd       (this, 0x5),
@@ -608,8 +608,8 @@ public:
 	radiobutton nfs3;
 	radiobutton nfs2;
 
-	connectionwin(const char *name) :
-		window(name),
+	connectionwin(const char *name, bool isautocreated) :
+		window(name, isautocreated),
 
 		databuffer (this, 0x8),
 		pipelining (this, 0x2),
@@ -904,8 +904,8 @@ public:
 	portswin ports;
 	connectionwin connection;
 
-	mainwin(const char *name) :
-		window(name),
+	mainwin(const char *name, bool isautocreated) :
+		window(name, isautocreated),
 
 		server    (this, 0x0),
 		exportname(this, 0x1),
@@ -918,9 +918,9 @@ public:
 		nopcnfsd  (this, 0x5),
 		leafname  (this, 0x15),
 
-		filenames("filenames"),
-		ports("ports"),
-		connection("connection")
+		filenames("filenames", isautocreated),
+		ports("ports", isautocreated),
+		connection("connection", isautocreated)
 		{ }
 
 	void pcnfsd_toggle(void);
@@ -928,7 +928,7 @@ public:
 
 protected:
 	void abouttobeshown(void);
-	void abouttobehidden(void);
+	bool abouttobehidden(void);
 };
 
 void mainwin::abouttobeshown(void)
@@ -1002,31 +1002,36 @@ osbool mainwin::customevent(bits event_code)
 	return FALSE;
 }
 
-void mainwin::abouttobehidden(void)
+bool mainwin::abouttobehidden(void)
 {
 	filenames.hide();
 	ports.hide();
 	connection.hide();
+	return false;
 }
+
+#include <vector>
 
 class filerwin:
 	public window
 {
 public:
 
-	filerwin(const char *name) :
-		window(name)
+	filerwin(const char *name, bool isautocreated) :
+		window(name, isautocreated)
 		{ }
 
 protected:
 	void abouttobeshown(void);
 //	void abouttobehidden(void);
 private:
-//	std::vector<> items;
+	std::vector<struct hostinfo> items;
 };
 
 #include "browse.h"
 #define ERR_WOULDBLOCK (os_error *)1
+
+#include "oslib/button.h"
 
 void filerwin::abouttobeshown(void)
 {
@@ -1044,14 +1049,53 @@ void filerwin::abouttobeshown(void)
 			syslogf(err->errmess);
 		} else {
 			syslogf(info.host);
-/*			err = browse_getexports(info.host, info.mount3udpport,1,0);
-			if (err) {
-				syslogf("browse_getexports call error");
-				syslogf(err->errmess);
-			}*/
+			items.push_back(info);
 		}
-	} while (clock() < t + 100);
+	} while (clock() < t + 20);
 	err = browse_gethost(NULL, 2);
+
+	for (unsigned i = 0; i < items.size(); i++) {
+		button_object gadget;
+		gadget.flags = 0;
+		gadget.class_no_and_size = (sizeof(gadget) << 16) | class_BUTTON;
+		gadget.bbox.x0 = 24 + 200 * i;
+		gadget.bbox.x1 = gadget.bbox.x0 + 200;
+		gadget.bbox.y0 = -132;
+		gadget.bbox.y1 = gadget.bbox.y0 + 116;
+		gadget.cmp = i;
+		gadget.help_message = NULL;
+		gadget.help_limit = 0;
+
+		gadget.button_flags = 0x1700500B;
+		gadget.value = items[i].host;
+		gadget.value_limit = 16;
+		gadget.validation = "Sfileserver";
+		gadget.validation_limit = 16;
+		err = xwindow_add_gadget(0, objectid, (gadget_object*)&gadget, NULL);
+		if (err) {
+			syslogf("gadget error");
+			syslogf(err->errmess);
+		}
+	}
+
+	for (unsigned i = 0; i < items.size(); i++) {
+		syslogf("browse_getexports for ");
+		syslogf(items[i].host);
+		err = browse_getexports(items[i].host, items[i].mount3udpport,1,0);
+		if (err) {
+			syslogf("browse_getexports call error");
+			syslogf(err->errmess);
+		}
+	}
+
+	os_box extent;
+	xwindow_get_extent(0, objectid, &extent);
+	extent.x1 = 50 + 200 * items.size();
+	xwindow_set_extent(0, objectid, &extent);
+//	xwindow_set_title(0, objectid, "NFS servers");
+	set_title("NFS servers");
+
+//	xtoolbox_create_object(0, (toolbox_id *)"filer_1", &
 }
 
 class sunfishapp : public application
@@ -1062,8 +1106,8 @@ public:
 
 	sunfishapp(const char *dirname) :
 		application(dirname),
-		main("mainwin"),
-		filer("filer")
+		main("mainwin", true),
+		filer("filer", true)
 		{ }
 private:
 };

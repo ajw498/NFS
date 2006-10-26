@@ -37,5 +37,5 @@ RMEnsure Iconv 0.07 Error Sunfish requires the Iconv module 0.07 or later
 RMLoad <Sunfish$Dir>.Sunfish
 
 If "%*0" <> "" Then Filer_OpenDir %*0
-If "%*0" = "" Then Wimpslot -min 50k -max 50k
+If "%*0" = "" Then Wimpslot -min 500k -max 500k
 If "%*0" = "" Then Run <Sunfish$Dir>.!RunImage

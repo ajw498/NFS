@@ -174,12 +174,25 @@ optionbutton::operator osbool()
 	return value;
 }
 
-window::window(const char *name)
+window::window(const char *name, bool isautocreated)
 {
 	objectname = name;
 	objectid = 0;
 
+	autocreated = isautocreated;
+	if (isautocreated) {
+
 	/*ERROR*/event_register_toolbox_handler(event_ANY, action_OBJECT_AUTO_CREATED, wautocreated, this);
+	} else  {
+		xtoolbox_create_object(0, (toolbox_id)name, &objectid);
+	}
+}
+
+window::~window()
+{
+	if (!autocreated) {
+		xtoolbox_delete_object(0, objectid);
+	}
 }
 
 osbool window::wautocreated(bits event_code, toolbox_action *event, toolbox_block *id_block,void *handle)
@@ -200,6 +213,10 @@ osbool window::wautocreated(bits event_code, toolbox_action *event, toolbox_bloc
 	return 0;
 }
 
+void window::set_title(const char *name)
+{
+	xwindow_set_title(0, objectid, name);
+}
 
 osbool window::wevent(bits event_code, toolbox_action *event, toolbox_block *id_block,void *handle)
 {
@@ -212,7 +229,7 @@ osbool window::whide(bits event_code, toolbox_action *event, toolbox_block *id_b
 {
 	window *thiswin = static_cast<window*>(handle);
 
-	thiswin->abouttobehidden();
+	if (thiswin->abouttobehidden() && !thiswin->autocreated) ;//delete thiswin;
 	return TRUE;
 }
 

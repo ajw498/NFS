@@ -53,14 +53,15 @@
 class window
 {
 public:
-	window(const char *name);
-//	virtual ~window() {}//why?
+	window(const char *name, bool isautocreated);
+	virtual ~window();
 	toolbox_o objectid;
 	void show(void);
 	void hide(void);
+	void set_title(const char *name);
 protected:
 	virtual void abouttobeshown(void) { }
-	virtual void abouttobehidden(void) { }
+	virtual bool abouttobehidden(void) { return true; }
 	virtual osbool customevent(bits event_code) { return FALSE; }
 private:
 	static osbool wautocreated(bits event_code, toolbox_action *event, toolbox_block *id_block,void *handle);
@@ -69,6 +70,7 @@ private:
 	static osbool wevent(bits event_code, toolbox_action *event, toolbox_block *id_block,void *handle);
 //	osbool event(bits event_code);
 	const char *objectname;
+	bool autocreated;
 };
 
 /*void window::register_event(int event, eventfn fn)
