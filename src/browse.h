@@ -36,7 +36,7 @@ struct hostinfo {
 
 os_error *browse_gethost(struct hostinfo *info, int type);
 
-os_error *browse_getexports(char *host, unsigned port, unsigned mount3, unsigned tcp);
+os_error *browse_getexports(char *host, unsigned port, unsigned mount3, unsigned tcp, char **ret);
 
 #ifdef __cplusplus
 }

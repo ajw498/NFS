@@ -229,7 +229,7 @@ osbool window::whide(bits event_code, toolbox_action *event, toolbox_block *id_b
 {
 	window *thiswin = static_cast<window*>(handle);
 
-	if (thiswin->abouttobehidden() && !thiswin->autocreated) ;//delete thiswin;
+	if (thiswin->abouttobehidden() && !thiswin->autocreated) delete thiswin;
 	return TRUE;
 }
 

@@ -1012,7 +1012,7 @@ bool mainwin::abouttobehidden(void)
 
 #include <vector>
 
-class filerwin:
+template <class C> class filerwin:
 	public window
 {
 public:
@@ -1021,11 +1021,13 @@ public:
 		window(name, isautocreated)
 		{ }
 
+	void add_icon(char *text, char *sprite, C& item);
+	void remove_icons(void);
+	std::vector<C> items;
 protected:
-	void abouttobeshown(void);
+//	void abouttobeshown(void);
 //	void abouttobehidden(void);
 private:
-	std::vector<struct hostinfo> items;
 };
 
 #include "browse.h"
@@ -1033,7 +1035,55 @@ private:
 
 #include "oslib/button.h"
 
-void filerwin::abouttobeshown(void)
+class hostwin:
+	public filerwin<struct hostinfo>
+{
+public:
+
+	hostwin(const char *name, bool isautocreated) :
+		filerwin<struct hostinfo>(name, isautocreated)
+		{ }
+protected:
+	void abouttobeshown(void);
+//	void abouttobehidden(void);
+private:
+};
+
+template<class C>  void filerwin<C>::add_icon(char *text, char *sprite, C& item)
+{
+	button_object gadget;
+	gadget.flags = 0;
+	gadget.class_no_and_size = (sizeof(gadget) << 16) | class_BUTTON;
+	gadget.bbox.x0 = 24 + 200 * items.size();
+	gadget.bbox.x1 = gadget.bbox.x0 + 200;
+	gadget.bbox.y0 = -132;
+	gadget.bbox.y1 = gadget.bbox.y0 + 116;
+	gadget.cmp = items.size();
+	gadget.help_message = NULL;
+	gadget.help_limit = 0;
+
+	gadget.button_flags = 0x1700500B;
+	gadget.value = text;
+	gadget.value_limit = 256;
+	gadget.validation = sprite;
+	gadget.validation_limit = 16;
+	/*err = */xwindow_add_gadget(0, objectid, (gadget_object*)&gadget, NULL);
+	items.push_back(item);
+
+	os_box extent;
+	xwindow_get_extent(0, objectid, &extent);
+	extent.x1 = 50 + 200 * items.size();
+	xwindow_set_extent(0, objectid, &extent);
+}
+
+template<class C>  void filerwin<C>::remove_icons(void)
+{
+	for (int i = 0; i < items.size(); i++) {
+		xwindow_remove_gadget(0, objectid, i);
+	}
+}
+
+void hostwin::abouttobeshown(void)
 {
 	time_t t = clock();
 	os_error *err;
@@ -1049,12 +1099,12 @@ void filerwin::abouttobeshown(void)
 			syslogf(err->errmess);
 		} else {
 			syslogf(info.host);
-			items.push_back(info);
+			add_icon(info.host, "Sfileserver", info);
 		}
 	} while (clock() < t + 20);
 	err = browse_gethost(NULL, 2);
 
-	for (unsigned i = 0; i < items.size(); i++) {
+/*	for (unsigned i = 0; i < items.size(); i++) {
 		button_object gadget;
 		gadget.flags = 0;
 		gadget.class_no_and_size = (sizeof(gadget) << 16) | class_BUTTON;
@@ -1076,33 +1126,55 @@ void filerwin::abouttobeshown(void)
 			syslogf("gadget error");
 			syslogf(err->errmess);
 		}
-	}
+	}*/
 
 	for (unsigned i = 0; i < items.size(); i++) {
+		char *exports[256];
 		syslogf("browse_getexports for ");
 		syslogf(items[i].host);
-		err = browse_getexports(items[i].host, items[i].mount3udpport,1,0);
+		err = browse_getexports(items[i].host, items[i].mount3udpport, 1, 0, exports);
 		if (err) {
 			syslogf("browse_getexports call error");
 			syslogf(err->errmess);
 		}
+		filerwin<struct hostinfo> *mwin;
+		mwin = new filerwin<struct hostinfo>("filer", false);
+		int j = 0;
+		while (exports[j]) {
+			mwin->add_icon(exports[j], "Sfile_1b6", items[i]);
+			j++;
+		}
+//		mwin->add_icon("mount2", "Sfile_1b6", items[i]);
+//		mwin->add_icon("mount3", "Sfile_ff9", items[i]);
+		mwin->set_title(items[i].host);
+		mwin->show();
 	}
 
-	os_box extent;
-	xwindow_get_extent(0, objectid, &extent);
-	extent.x1 = 50 + 200 * items.size();
-	xwindow_set_extent(0, objectid, &extent);
 //	xwindow_set_title(0, objectid, "NFS servers");
 	set_title("NFS servers");
 
 //	xtoolbox_create_object(0, (toolbox_id *)"filer_1", &
 }
 
+//class mountwin:
+//	public filerwin<struct hostinfo>
+//{
+//public:
+//
+//	mountwin(const char *name, bool isautocreated) :
+//		filerwin<struct hostinfo>(name, isautocreated)
+//		{ }
+//protected:
+////	void abouttobeshown(void);
+////	void abouttobehidden(void);
+//private:
+//};
+
 class sunfishapp : public application
 {
 public:
 	mainwin main;
-	filerwin filer;
+	hostwin filer;
 
 	sunfishapp(const char *dirname) :
 		application(dirname),

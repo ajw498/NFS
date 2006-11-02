@@ -121,7 +121,7 @@ os_error *browse_gethost(struct hostinfo *info, int type)
 }
 
 
-os_error *browse_getexports(char *host, unsigned port, unsigned mount3, unsigned tcp)
+os_error *browse_getexports(char *host, unsigned port, unsigned mount3, unsigned tcp, char **ret)
 {
 	exportlist32 res;
 	exportlist3 list;
@@ -142,12 +142,16 @@ os_error *browse_getexports(char *host, unsigned port, unsigned mount3, unsigned
 		return err;
 	}
 
-
+	int i = 0;
 	list = res.list;
 	while (list) {
 		syslogf("Wibble",66,"export: %s",list->filesys.data);
+		ret[i] = malloc(list->filesys.size + 1);
+		memcpy(ret[i], list->filesys.data, list->filesys.size);
+		ret[i++][list->filesys.size] = '\0';
 		list = list->next;
 	}
+	ret[i] = NULL;
 
 	err = rpc_close_connection(&conn);
 	pfree(conn.pool);
