@@ -71,7 +71,7 @@ static os_error *browse_initconn(struct conn_info *conn, char *host, int tcp)
 	return rpc_init_connection(conn);
 }
 
-os_error *browse_gethost(struct hostinfo *info, int type)
+char *browse_gethost(struct hostinfo *info, int type)
 {
 	pmaplist2 res;
 	pmaplist list;
@@ -80,17 +80,17 @@ os_error *browse_gethost(struct hostinfo *info, int type)
 
 	if (type == 0) {
 		err = browse_initconn(&broadcastconn, NULL, 0);
-		if (err) return err;
+		if (err) return err->errmess;
 	}
 
 	if (type == 2) {
 		err = rpc_close_connection(&broadcastconn);
 		pfree(broadcastconn.pool);
-		return err;
+		return err ? err->errmess : NULL;
 	}
 
 	err = PMAPPROC_DUMP(&res, &broadcastconn, type == 0 ? TXNONBLOCKING : RXNONBLOCKING);
-	if (err) return err;
+	if (err) return err->errmess;
 
 	strcpy(info->host, rpc_get_last_host());
 	info->mount1tcpport = 0;
@@ -121,7 +121,7 @@ os_error *browse_gethost(struct hostinfo *info, int type)
 }
 
 
-os_error *browse_getexports(char *host, unsigned port, unsigned mount3, unsigned tcp, char **ret)
+char *browse_getexports(char *host, unsigned port, unsigned mount3, unsigned tcp, char **ret)
 {
 	exportlist32 res;
 	exportlist3 list;
@@ -129,7 +129,7 @@ os_error *browse_getexports(char *host, unsigned port, unsigned mount3, unsigned
 	struct conn_info conn;
 
 	err = browse_initconn(&conn, host, tcp);
-	if (err) return err;
+	if (err) return err->errmess;
 	conn.mount_port = port;
 	conn.timeout = 2;
 	conn.retries = 3;
@@ -139,7 +139,7 @@ os_error *browse_getexports(char *host, unsigned port, unsigned mount3, unsigned
 	if (err) {
 		rpc_close_connection(&conn);
 		pfree(conn.pool);
-		return err;
+		return err->errmess;
 	}
 
 	int i = 0;
@@ -155,5 +155,5 @@ os_error *browse_getexports(char *host, unsigned port, unsigned mount3, unsigned
 
 	err = rpc_close_connection(&conn);
 	pfree(conn.pool);
-	return err;
+	return err ? err->errmess : NULL;
 }

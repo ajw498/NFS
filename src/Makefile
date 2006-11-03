@@ -24,8 +24,8 @@ endif
 
 CXX = g++
 CC = gcc
-CFLAGS = $(INCLUDE) -Wall -mthrowback -mlibscl -std=c99 -pedantic $(CFLAGSG) 
-CXXFLAGS = $(INCLUDE) -Wall -mthrowback -mlibscl -pedantic $(CFLAGSG) 
+CFLAGS = $(INCLUDE) -Wall -mthrowback -std=c99 -pedantic  -mlibscl $(CFLAGSG)
+CXXFLAGS = $(INCLUDE) -Irtk: -Wall -mthrowback -mlibscl $(CFLAGSG)
 
 ifneq (,$(findstring gcc,$(MAKECMDGOALS)))
 
@@ -202,6 +202,15 @@ browse.o \
 tbelib.o \
 sunfish-frontend.o
 
+NEWFEAPPOBJS = \
+$(SUNFISHGENOBJS) \
+$(COMMONGENOBJS) \
+$(ASMOBJS) \
+$(COMMONOBJS) \
+rpc.o \
+browse.o \
+newfe.o
+
 MOONFISHOBJS = \
 request-decode.o \
 serverconn.o \
@@ -236,6 +245,9 @@ $(MOONFISHMODOBJS) $(MOONFISHAPPOBJS): auto
 
 ../!Sunfish/!RunImage: $(SUNFISHAPPOBJS)
 	$(CXX) $(CXXFLAGS) $(SUNFISHAPPOBJS) -o $@ $(APPLIBS)
+
+newfe: $(NEWFEAPPOBJS)
+	$(CXX) $(CXXFLAGS) $(NEWFEAPPOBJS)  -o $@ -lrtk:a.rtk $(APPLIBS)
 
 ../!Moonfish/!RunImage: $(MOONFISHAPPOBJS)
 	$(CC) $(CFLAGS) $(MOONFISHAPPOBJS) -o $@ $(APPLIBS)

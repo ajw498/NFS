@@ -25,7 +25,6 @@
 extern "C" {
 #endif
 
-
 struct hostinfo {
 	unsigned mount1tcpport;
 	unsigned mount1udpport;
@@ -34,9 +33,9 @@ struct hostinfo {
 	char host[256];
 };
 
-os_error *browse_gethost(struct hostinfo *info, int type);
+char *browse_gethost(struct hostinfo *info, int type);
 
-os_error *browse_getexports(char *host, unsigned port, unsigned mount3, unsigned tcp, char **ret);
+char *browse_getexports(char *host, unsigned port, unsigned mount3, unsigned tcp, char **ret);
 
 #ifdef __cplusplus
 }

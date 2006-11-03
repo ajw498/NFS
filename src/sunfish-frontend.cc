@@ -1031,7 +1031,7 @@ private:
 };
 
 #include "browse.h"
-#define ERR_WOULDBLOCK (os_error *)1
+#define ERR_WOULDBLOCK (char *)1
 
 #include "oslib/button.h"
 
@@ -1086,7 +1086,7 @@ template<class C>  void filerwin<C>::remove_icons(void)
 void hostwin::abouttobeshown(void)
 {
 	time_t t = clock();
-	os_error *err;
+	char *err;
 	int type = 0;
 	struct hostinfo info;
 
@@ -1096,7 +1096,7 @@ void hostwin::abouttobeshown(void)
 		if (err == ERR_WOULDBLOCK) continue;
 		if (err) {
 			syslogf("browse_gethost call error");
-			syslogf(err->errmess);
+			syslogf(err);
 		} else {
 			syslogf(info.host);
 			add_icon(info.host, "Sfileserver", info);
@@ -1135,7 +1135,7 @@ void hostwin::abouttobeshown(void)
 		err = browse_getexports(items[i].host, items[i].mount3udpport, 1, 0, exports);
 		if (err) {
 			syslogf("browse_getexports call error");
-			syslogf(err->errmess);
+			syslogf(err);
 		}
 		filerwin<struct hostinfo> *mwin;
 		mwin = new filerwin<struct hostinfo>("filer", false);
