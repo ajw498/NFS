@@ -27,10 +27,22 @@
 #include "rtk/desktop/filer_window.h"
 #include "rtk/desktop/info_dbox.h"
 #include "rtk/desktop/ibar_icon.h"
+#include "rtk/desktop/label.h"
+#include "rtk/desktop/writable_field.h"
+#include "rtk/desktop/action_button.h"
+#include "rtk/desktop/default_button.h"
+#include "rtk/desktop/grid_layout.h"
+#include "rtk/desktop/row_layout.h"
+#include "rtk/desktop/column_layout.h"
 #include "rtk/events/menu_selection.h"
 #include "rtk/events/close_window.h"
 #include "rtk/events/null_reason.h"
+#include "rtk/os/wimp.h"
 
+#include <fstream>
+#include <iostream>
+
+#include "sunfish.h"
 #include "sunfishdefs.h"
 
 #include "browse.h"
@@ -39,48 +51,67 @@
 
 void syslogf(char *fmt, ...);
 
+using namespace std;
+using namespace rtk;
+using namespace rtk::desktop;
+using rtk::graphics::point;
+using rtk::graphics::box;
 
-
-
-class exportbrowser:
-	public rtk::desktop::filer_window
+class getuid:
+	public window
 {
 public:
-	exportbrowser(const char *host);
-	~exportbrowser();
-//	void handle_event(rtk::events::close_window& ev) { parent_application()->terminate(); }
-//	void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev);
-//	void drag_ended(bool adjust, rtk::events::user_drag_box& ev) {}
-//	void doubleclick(const std::string& item) {}
+	getuid();
+	void show(const hostinfo& info, string name);
 private:
-	rtk::desktop::menu menu;
-	rtk::desktop::menu_item item0;
-	rtk::desktop::menu_item item1;
-
+	hostinfo host;
+	string exportname;
+	icon uidlabel;
+	icon gidlabel;
+	writable_field uid;
+	writable_field gid;
+	icon explain;
+	action_button cancel;
+	action_button set;
+	default_button save;
+	column_layout layout1;
+	grid_layout layout2;
+	row_layout layout3;
 };
 
-exportbrowser::exportbrowser(const char *host)
+getuid::getuid()
 {
-	char *err;
-
-	title(host);
-
-	char *exports[256];
-	err = browse_getexports((char*)host, 981, 1, 0, exports);
-	if (err) {
-		syslogf("browse_getexports call error");
-		syslogf(err);
-		return;
-	}
-	for (int j = 0; exports[j]; j++) {
-		add_icon(exports[j], "file_1b6");
-	}
+	title("Enter uid thing");
+	uidlabel.text("User id");
+	uid.text("Wibble",10);
+	gid.text("",4);
+	gidlabel.text("Group id");
+	explain.text("Explanation about uid and gids goes here");
+	cancel.text("Cancel");
+	set.text("Set");
+	save.text("Save");
+	layout1.margin(16).ygap(8);
+	layout1.add(layout2);
+	layout1.add(explain);
+	layout1.add(layout3);
+	layout2.ygap(8);
+	layout2.add(uidlabel,0,0);
+	layout2.add(gidlabel,0,1);
+	layout2.add(uid,1,0);
+	layout2.add(gid,1,1);
+	layout3.xgap(16);
+	layout3.add(cancel);
+	layout3.add(set);
+	layout3.add(save);
+	add(layout1);
 }
 
-exportbrowser::~exportbrowser()
+void getuid::show(const hostinfo& info, string name)
 {
-
+	host = info;
+	exportname = name;
 }
+
 
 class hostbrowser:
 	public rtk::desktop::filer_window,
@@ -98,15 +129,98 @@ public:
 private:
 	time_t broadcasttime;
 	int broadcasttype;
+	map<string, hostinfo> hostinfos;
+
 	rtk::desktop::menu menu;
 	rtk::desktop::menu_item item0;
 	rtk::desktop::menu_item item1;
 
 };
 
+
+class sunfish:
+	public rtk::desktop::application
+{
+public:
+	sunfish();
+	getuid ggetuid;
+private:
+	hostbrowser _window;
+	rtk::desktop::ibar_icon ibicon;
+	rtk::desktop::menu ibmenu;
+	rtk::desktop::menu_item ibinfo;
+	rtk::desktop::menu_item ibquit;
+	rtk::desktop::prog_info_dbox proginfo;
+};
+
+sunfish app;
+
+class exportbrowser:
+	public rtk::desktop::filer_window
+{
+public:
+	exportbrowser(hostinfo host);
+	~exportbrowser();
+//	void handle_event(rtk::events::close_window& ev) { parent_application()->terminate(); }
+//	void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev);
+//	void drag_ended(bool adjust, rtk::events::user_drag_box& ev) {}
+	void doubleclick(const std::string& item);
+private:
+	hostinfo info;
+	rtk::desktop::menu menu;
+	rtk::desktop::menu_item item0;
+	rtk::desktop::menu_item item1;
+
+};
+
+exportbrowser::exportbrowser(hostinfo host) :
+	info(host)
+{
+	char *err;
+
+	title(info.host);
+
+	char *exports[256];
+	err = browse_getexports(info.host, info.mount1udpport, 1, 0, exports);
+	if (err) throw err;
+	for (int j = 0; exports[j]; j++) {
+		add_icon(exports[j], "file_1b6");
+	}
+}
+
+void exportbrowser::doubleclick(const std::string& item)
+{
+	string filename = "Sunfish:mounts.auto."+item;
+//	ofstream mfile(filename.c_str());
+//	if (!mfile) throw "Cannot open file";
+//	mfile<<"Protocol: NFS3\nServer: "/*<<info.host*/<<"\nExport: "<<item;
+//	mfile<<"\nTransport: UDP\n";
+//	mfile<<"Foo";
+//	mfile.close();
+
+/*	os::OS_File8("Sunfish:mounts.auto");
+
+	FILE *mfile = fopen(filename.c_str(), "w");
+	if (!mfile) throw "Cannot open file";
+	fprintf(mfile, "Protocol: NFS3\nServer: %s\nExport: %s\nTransport: UDP\n", info.host, item.c_str());
+	fclose(mfile);
+
+	os::OS_File18(filename.c_str(), SUNFISH_FILETYPE);
+
+	string cmd = "Filer_OpenDir "+filename;
+	os::Wimp_StartTask(cmd.c_str(), NULL); */
+	app.add(app.ggetuid,point(640,512));
+}
+
+exportbrowser::~exportbrowser()
+{
+
+}
+
+
 void hostbrowser::doubleclick(const std::string& item)
 {
-	exportbrowser *eb = new exportbrowser(item.c_str());
+	exportbrowser *eb = new exportbrowser(hostinfos[item]);
 	// Find centre of desktop.
 	rtk::graphics::box dbbox(bbox());
 	rtk::graphics::point dcentre((dbbox.xmin()+dbbox.xmax())/2,
@@ -147,13 +261,19 @@ void hostbrowser::handle_event(rtk::events::null_reason& ev)
 		err = browse_gethost(NULL, 2);
 		if (err) throw err;
 	} else {
-		struct hostinfo info;
+		hostinfo info;
 		err = browse_gethost(&info, broadcasttype);
 		broadcasttype = 1;
 		if (err) throw err;
 
 		if (info.valid) {
-			add_icon(info.host, "fileserver");
+			map<string,hostinfo>::iterator i = hostinfos.find(info.host);
+			if (i != hostinfos.end()) {
+				//remove;
+			} else {
+				hostinfos[info.host] = info;
+				add_icon(info.host, "fileserver");
+			}
 		}
 	}
 }
@@ -173,20 +293,6 @@ void hostbrowser::open_menu(const std::string& item, bool selection, rtk::events
 	menu.show(ev);
 }
 
-
-class sunfish:
-	public rtk::desktop::application
-{
-public:
-	sunfish();
-private:
-	hostbrowser _window;
-	rtk::desktop::ibar_icon ibicon;
-	rtk::desktop::menu ibmenu;
-	rtk::desktop::menu_item ibinfo;
-	rtk::desktop::menu_item ibquit;
-	rtk::desktop::prog_info_dbox proginfo;
-};
 
 
 sunfish::sunfish():
@@ -224,9 +330,9 @@ sunfish::sunfish():
 	add(ibicon);
 }
 
+
 int main(void)
 {
-	sunfish app;
 	app.run();
 	return 0;
 }

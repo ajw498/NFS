@@ -34,7 +34,7 @@
 
 int enablelog = 0;
 
-static os_error *browse_initconn(struct conn_info *conn, char *host, int tcp)
+static os_error *browse_initconn(struct conn_info *conn, const char *host, int tcp)
 {
 	conn->config = NULL;
 	conn->portmapper_port = PMAP_PORT;
@@ -65,7 +65,7 @@ static os_error *browse_initconn(struct conn_info *conn, char *host, int tcp)
 	conn->txmutex = 0;
 	conn->rxmutex = NULL;
 	conn->reference = 0;
-	conn->server = host;
+	conn->server = (char*)host;
 	conn->export = "";
 
 	return rpc_init_connection(conn);
@@ -129,7 +129,7 @@ char *browse_gethost(struct hostinfo *info, int type)
 }
 
 
-char *browse_getexports(char *host, unsigned port, unsigned mount3, unsigned tcp, char **ret)
+char *browse_getexports(const char *host, unsigned port, unsigned mount3, unsigned tcp, char **ret)
 {
 	exportlist32 res;
 	exportlist3 list;
