@@ -24,7 +24,7 @@
 #include "rtk/desktop/application.h"
 #include "rtk/desktop/menu_item.h"
 #include "rtk/desktop/menu.h"
-#include "rtk/desktop/filer_window.h"
+#include "rtk/desktop/window.h"
 #include "rtk/desktop/info_dbox.h"
 #include "rtk/desktop/ibar_icon.h"
 #include "rtk/desktop/label.h"
@@ -39,9 +39,13 @@
 #include "rtk/events/null_reason.h"
 #include "rtk/os/wimp.h"
 
+#include <fstream>
+#include <string>
 
-#include "newfe.h"
+#include "sunfish.h"
+#include "sunfishdefs.h"
 
+#include "browse.h"
 
 using namespace std;
 using namespace rtk;
@@ -49,64 +53,25 @@ using namespace rtk::desktop;
 using rtk::graphics::point;
 using rtk::graphics::box;
 
-
-sunfish app;
-
-
-
-sunfish::sunfish():
-	application("Sunfish newfe")
+class getuid:
+	public window
 {
+public:
+	getuid();
+	void show(const hostinfo& info, string name);
+private:
+	hostinfo host;
+	string exportname;
+	icon uidlabel;
+	icon gidlabel;
+	writable_field uid;
+	writable_field gid;
+	icon explain;
+	action_button cancel;
+	action_button set;
+	default_button save;
+	column_layout layout1;
+	grid_layout layout2;
+	row_layout layout3;
+};
 
-	// Find centre of desktop.
-	rtk::graphics::box dbbox(bbox());
-	rtk::graphics::point dcentre((dbbox.xmin()+dbbox.xmax())/2,
-		(dbbox.ymin()+dbbox.ymax())/2);
-
-	// Find centre of window.
-	rtk::graphics::box cbbox(_window.bbox());
-	rtk::graphics::point ccentre((cbbox.xmin()+cbbox.xmax())/2,
-		(cbbox.ymin()+cbbox.ymax())/2);
-
-	// Open window at centre of desktop.
-	add(_window,dcentre-ccentre);
-	_window.broadcast();
-
-	proginfo.add("Name","Sunfish");
-	proginfo.add("Purpose","Mount NFS servers");
-	proginfo.add("Author","© Alex Waugh, 2003-2006");
-	proginfo.add("Version",Module_VersionString " (" Module_Date ")");
-	ibinfo.text("Info");
-	ibinfo.attach_dbox(proginfo);
-	ibquit.text("Quit");
-	ibmenu.title("Sunfish");
-	ibmenu.add(ibinfo);
-	ibmenu.add(ibquit);
-
-	ibicon.text("Sunfish").hcentre(true);
-	ibicon.text_and_sprite(true).validation("S!sunfish");
-	ibicon.attach_menu(ibmenu);
-	add(ibicon);
-}
-
-
-int main(void)
-{
-	app.run();
-	return 0;
-}
-
-#include <swis.h>
-
-void syslogf(char *fmt, ...)
-{
-	static char syslogbuf[1024];
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsnprintf(syslogbuf, sizeof(syslogbuf), fmt, ap);
-	va_end(ap);
-
-	/* Ignore any errors, as there's not much we can do with them */
-	_swix(0x4c880, _INR(0,2), "newfe", syslogbuf, 5);
-}

@@ -1,7 +1,7 @@
 /*
 	$Id$
 
-	Browse for available mounts
+	Browser for exports provided by a host
 
 
 	Copyright (C) 2006 Alex Waugh
@@ -21,28 +21,29 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#ifndef BROWSE_H
-#define BROWSE_H
+#include "rtk/desktop/menu_item.h"
+#include "rtk/desktop/menu.h"
+#include "rtk/desktop/filer_window.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
-struct hostinfo {
-	int valid;
-	unsigned mount1tcpport;
-	unsigned mount1udpport;
-	unsigned mount3tcpport;
-	unsigned mount3udpport;
-	char host[256];
+#include "browse.h"
+
+
+class exportbrowser:
+	public rtk::desktop::filer_window
+{
+public:
+	exportbrowser(hostinfo host);
+	~exportbrowser();
+//	void handle_event(rtk::events::close_window& ev) { parent_application()->terminate(); }
+//	void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev);
+//	void drag_ended(bool adjust, rtk::events::user_drag_box& ev) {}
+	void doubleclick(const std::string& item);
+private:
+	hostinfo info;
+	rtk::desktop::menu menu;
+	rtk::desktop::menu_item item0;
+	rtk::desktop::menu_item item1;
+
 };
 
-char *browse_gethost(struct hostinfo *info, int type);
-
-char *browse_getexports(const char *host, unsigned port, unsigned mount3, unsigned tcp, char **ret);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif

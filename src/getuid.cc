@@ -39,8 +39,13 @@
 #include "rtk/events/null_reason.h"
 #include "rtk/os/wimp.h"
 
+#include <fstream>
+#include <iostream>
 
-#include "newfe.h"
+#include "sunfish.h"
+#include "sunfishdefs.h"
+
+#include "getuid.h"
 
 
 using namespace std;
@@ -50,63 +55,36 @@ using rtk::graphics::point;
 using rtk::graphics::box;
 
 
-sunfish app;
-
-
-
-sunfish::sunfish():
-	application("Sunfish newfe")
+getuid::getuid()
 {
-
-	// Find centre of desktop.
-	rtk::graphics::box dbbox(bbox());
-	rtk::graphics::point dcentre((dbbox.xmin()+dbbox.xmax())/2,
-		(dbbox.ymin()+dbbox.ymax())/2);
-
-	// Find centre of window.
-	rtk::graphics::box cbbox(_window.bbox());
-	rtk::graphics::point ccentre((cbbox.xmin()+cbbox.xmax())/2,
-		(cbbox.ymin()+cbbox.ymax())/2);
-
-	// Open window at centre of desktop.
-	add(_window,dcentre-ccentre);
-	_window.broadcast();
-
-	proginfo.add("Name","Sunfish");
-	proginfo.add("Purpose","Mount NFS servers");
-	proginfo.add("Author","© Alex Waugh, 2003-2006");
-	proginfo.add("Version",Module_VersionString " (" Module_Date ")");
-	ibinfo.text("Info");
-	ibinfo.attach_dbox(proginfo);
-	ibquit.text("Quit");
-	ibmenu.title("Sunfish");
-	ibmenu.add(ibinfo);
-	ibmenu.add(ibquit);
-
-	ibicon.text("Sunfish").hcentre(true);
-	ibicon.text_and_sprite(true).validation("S!sunfish");
-	ibicon.attach_menu(ibmenu);
-	add(ibicon);
+	title("Enter uid thing");
+	uidlabel.text("User id");
+	uid.text("Wibble",10);
+	gid.text("",4);
+	gidlabel.text("Group id");
+	explain.text("Explanation about uid and gids goes here");
+	cancel.text("Cancel");
+	set.text("Set");
+	save.text("Save");
+	layout1.margin(16).ygap(8);
+	layout1.add(layout2);
+	layout1.add(explain);
+	layout1.add(layout3);
+	layout2.ygap(8);
+	layout2.add(uidlabel,0,0);
+	layout2.add(gidlabel,0,1);
+	layout2.add(uid,1,0);
+	layout2.add(gid,1,1);
+	layout3.xgap(16);
+	layout3.add(cancel);
+	layout3.add(set);
+	layout3.add(save);
+	add(layout1);
 }
 
-
-int main(void)
+void getuid::show(const hostinfo& info, string name)
 {
-	app.run();
-	return 0;
+	host = info;
+	exportname = name;
 }
 
-#include <swis.h>
-
-void syslogf(char *fmt, ...)
-{
-	static char syslogbuf[1024];
-	va_list ap;
-
-	va_start(ap, fmt);
-	vsnprintf(syslogbuf, sizeof(syslogbuf), fmt, ap);
-	va_end(ap);
-
-	/* Ignore any errors, as there's not much we can do with them */
-	_swix(0x4c880, _INR(0,2), "newfe", syslogbuf, 5);
-}

@@ -39,74 +39,90 @@
 #include "rtk/events/null_reason.h"
 #include "rtk/os/wimp.h"
 
+#include <fstream>
+#include <iostream>
 
-#include "newfe.h"
+#include "sunfish.h"
+#include "sunfishdefs.h"
 
+#include "browse.h"
+#include "hostbrowser.h"
+#include "exportbrowser.h"
 
 using namespace std;
-using namespace rtk;
-using namespace rtk::desktop;
-using rtk::graphics::point;
-using rtk::graphics::box;
 
-
-sunfish app;
-
-
-
-sunfish::sunfish():
-	application("Sunfish newfe")
+void hostbrowser::doubleclick(const std::string& item)
 {
-
+	exportbrowser *eb = new exportbrowser(hostinfos[item]);
 	// Find centre of desktop.
 	rtk::graphics::box dbbox(bbox());
 	rtk::graphics::point dcentre((dbbox.xmin()+dbbox.xmax())/2,
 		(dbbox.ymin()+dbbox.ymax())/2);
 
 	// Find centre of window.
-	rtk::graphics::box cbbox(_window.bbox());
+	rtk::graphics::box cbbox(eb->bbox());
 	rtk::graphics::point ccentre((cbbox.xmin()+cbbox.xmax())/2,
 		(cbbox.ymin()+cbbox.ymax())/2);
 
 	// Open window at centre of desktop.
-	add(_window,dcentre-ccentre);
-	_window.broadcast();
 
-	proginfo.add("Name","Sunfish");
-	proginfo.add("Purpose","Mount NFS servers");
-	proginfo.add("Author","© Alex Waugh, 2003-2006");
-	proginfo.add("Version",Module_VersionString " (" Module_Date ")");
-	ibinfo.text("Info");
-	ibinfo.attach_dbox(proginfo);
-	ibquit.text("Quit");
-	ibmenu.title("Sunfish");
-	ibmenu.add(ibinfo);
-	ibmenu.add(ibquit);
-
-	ibicon.text("Sunfish").hcentre(true);
-	ibicon.text_and_sprite(true).validation("S!sunfish");
-	ibicon.attach_menu(ibmenu);
-	add(ibicon);
+	parent_application()->add(*eb, dcentre-ccentre);
 }
 
-
-int main(void)
+hostbrowser::hostbrowser()
 {
-	app.run();
-	return 0;
+	title("NFS servers");
+	min_x_size(300);
 }
 
-#include <swis.h>
-
-void syslogf(char *fmt, ...)
+void hostbrowser::broadcast()
 {
-	static char syslogbuf[1024];
-	va_list ap;
+	broadcasttime = clock();
+	broadcasttype = 0;
 
-	va_start(ap, fmt);
-	vsnprintf(syslogbuf, sizeof(syslogbuf), fmt, ap);
-	va_end(ap);
-
-	/* Ignore any errors, as there's not much we can do with them */
-	_swix(0x4c880, _INR(0,2), "newfe", syslogbuf, 5);
+		if (rtk::desktop::application* app=parent_application()) {
+	app->register_null(*this);
+	}
 }
+
+void hostbrowser::handle_event(rtk::events::null_reason& ev)
+{
+	char *err;
+
+	if (clock() > broadcasttime + 100) {
+		parent_application()->deregister_null(*this);
+		err = browse_gethost(NULL, 2);
+		if (err) throw err;
+	} else {
+		hostinfo info;
+		err = browse_gethost(&info, broadcasttype);
+		broadcasttype = 1;
+		if (err) throw err;
+
+		if (info.valid) {
+			map<string,hostinfo>::iterator i = hostinfos.find(info.host);
+			if (i != hostinfos.end()) {
+				//remove;
+			} else {
+				hostinfos[info.host] = info;
+				add_icon(info.host, "fileserver");
+			}
+		}
+	}
+}
+
+hostbrowser::~hostbrowser()
+{
+}
+
+void hostbrowser::open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev)
+{
+/*When menu closed, deselect temp selection. claim menusdeleted event from window? */
+	menu.title("Filer");
+	item0.text(selection ? "Selection" : "File '"+item+"'");
+	item1.text("Foo...");
+	menu.add(item0,0);
+	menu.add(item1,1);
+	menu.show(ev);
+}
+

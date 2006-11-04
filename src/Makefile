@@ -209,7 +209,10 @@ $(ASMOBJS) \
 $(COMMONOBJS) \
 rpc.o \
 browse.o \
-newfe.o
+newfe.o \
+exportbrowser.o \
+hostbrowser.o \
+getuid.o
 
 MOONFISHOBJS = \
 request-decode.o \

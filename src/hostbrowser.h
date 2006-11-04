@@ -1,0 +1,74 @@
+/*
+	$Id$
+
+	Frontend for browsing and creating mounts
+
+
+	Copyright (C) 2006 Alex Waugh
+	
+	This program is free software; you can redistribute it and/or modify
+	it under the terms of the GNU General Public License as published by
+	the Free Software Foundation; either version 2 of the License, or
+	(at your option) any later version.
+	
+	This program is distributed in the hope that it will be useful,
+	but WITHOUT ANY WARRANTY; without even the implied warranty of
+	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+	GNU General Public License for more details.
+	
+	You should have received a copy of the GNU General Public License
+	along with this program; if not, write to the Free Software
+	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+*/
+
+#include "rtk/desktop/application.h"
+#include "rtk/desktop/menu_item.h"
+#include "rtk/desktop/menu.h"
+#include "rtk/desktop/filer_window.h"
+#include "rtk/desktop/info_dbox.h"
+#include "rtk/desktop/ibar_icon.h"
+#include "rtk/desktop/label.h"
+#include "rtk/desktop/writable_field.h"
+#include "rtk/desktop/action_button.h"
+#include "rtk/desktop/default_button.h"
+#include "rtk/desktop/grid_layout.h"
+#include "rtk/desktop/row_layout.h"
+#include "rtk/desktop/column_layout.h"
+#include "rtk/events/menu_selection.h"
+#include "rtk/events/close_window.h"
+#include "rtk/events/null_reason.h"
+#include "rtk/os/wimp.h"
+
+#include <map>
+#include <string>
+
+#include "sunfish.h"
+#include "sunfishdefs.h"
+
+#include "browse.h"
+
+
+class hostbrowser:
+	public rtk::desktop::filer_window,
+	public rtk::events::null_reason::handler
+{
+public:
+	hostbrowser();
+	~hostbrowser();
+	void broadcast();
+	void handle_event(rtk::events::close_window& ev) { parent_application()->terminate(); }
+	void handle_event(rtk::events::null_reason& ev);
+	void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev);
+//	void drag_ended(bool adjust, rtk::events::user_drag_box& ev) {}
+	void doubleclick(const std::string& item);
+private:
+	time_t broadcasttime;
+	int broadcasttype;
+	std::map<std::string, hostinfo> hostinfos;
+
+	rtk::desktop::menu menu;
+	rtk::desktop::menu_item item0;
+	rtk::desktop::menu_item item1;
+
+};
+
