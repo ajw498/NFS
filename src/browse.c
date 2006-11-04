@@ -90,8 +90,16 @@ char *browse_gethost(struct hostinfo *info, int type)
 	}
 
 	err = PMAPPROC_DUMP(&res, &broadcastconn, type == 0 ? TXNONBLOCKING : RXNONBLOCKING);
-	if (err) return err->errmess;
+	if (err) {
+		if (err == ERR_WOULDBLOCK) {
+			info->valid = 0;
+			return NULL;
+		} else {
+			return err->errmess;
+		}
+	}
 
+	info->valid = 1;
 	strcpy(info->host, rpc_get_last_host());
 	info->mount1tcpport = 0;
 	info->mount1udpport = 0;

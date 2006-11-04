@@ -26,6 +26,7 @@ extern "C" {
 #endif
 
 struct hostinfo {
+	int valid;
 	unsigned mount1tcpport;
 	unsigned mount1udpport;
 	unsigned mount3tcpport;

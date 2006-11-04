@@ -26,11 +26,14 @@
 #include "rtk/desktop/menu.h"
 #include "rtk/desktop/filer_window.h"
 #include "rtk/desktop/info_dbox.h"
+#include "rtk/desktop/ibar_icon.h"
 #include "rtk/events/menu_selection.h"
 #include "rtk/events/close_window.h"
+#include "rtk/events/null_reason.h"
+
+#include "sunfishdefs.h"
 
 #include "browse.h"
-#define ERR_WOULDBLOCK (char *)1
 
 #include <stdarg.h>
 
@@ -80,16 +83,21 @@ exportbrowser::~exportbrowser()
 }
 
 class hostbrowser:
-	public rtk::desktop::filer_window
+	public rtk::desktop::filer_window,
+	public rtk::events::null_reason::handler
 {
 public:
 	hostbrowser();
 	~hostbrowser();
+	void broadcast();
 	void handle_event(rtk::events::close_window& ev) { parent_application()->terminate(); }
+	void handle_event(rtk::events::null_reason& ev);
 	void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev);
 //	void drag_ended(bool adjust, rtk::events::user_drag_box& ev) {}
 	void doubleclick(const std::string& item);
 private:
+	time_t broadcasttime;
+	int broadcasttype;
 	rtk::desktop::menu menu;
 	rtk::desktop::menu_item item0;
 	rtk::desktop::menu_item item1;
@@ -116,26 +124,38 @@ void hostbrowser::doubleclick(const std::string& item)
 
 hostbrowser::hostbrowser()
 {
-	time_t t = clock();
-	char *err;
-	int type = 0;
-	struct hostinfo info;
-
 	title("NFS servers");
+	min_x_size(300);
+}
 
-	do {
-		err = browse_gethost(&info, type);
-		type = 1;
-		if (err == ERR_WOULDBLOCK) continue;
-		if (err) {
-			syslogf("browse_gethost call error");
-			syslogf(err);
-		} else {
-			syslogf(info.host);
+void hostbrowser::broadcast()
+{
+	broadcasttime = clock();
+	broadcasttype = 0;
+
+		if (rtk::desktop::application* app=parent_application()) {
+	app->register_null(*this);
+	}
+}
+
+void hostbrowser::handle_event(rtk::events::null_reason& ev)
+{
+	char *err;
+
+	if (clock() > broadcasttime + 100) {
+		parent_application()->deregister_null(*this);
+		err = browse_gethost(NULL, 2);
+		if (err) throw err;
+	} else {
+		struct hostinfo info;
+		err = browse_gethost(&info, broadcasttype);
+		broadcasttype = 1;
+		if (err) throw err;
+
+		if (info.valid) {
 			add_icon(info.host, "fileserver");
 		}
-	} while (clock() < t + 20);
-	err = browse_gethost(NULL, 2);
+	}
 }
 
 hostbrowser::~hostbrowser()
@@ -157,11 +177,15 @@ void hostbrowser::open_menu(const std::string& item, bool selection, rtk::events
 class sunfish:
 	public rtk::desktop::application
 {
+public:
+	sunfish();
 private:
 	hostbrowser _window;
-public:
-
-	sunfish();
+	rtk::desktop::ibar_icon ibicon;
+	rtk::desktop::menu ibmenu;
+	rtk::desktop::menu_item ibinfo;
+	rtk::desktop::menu_item ibquit;
+	rtk::desktop::prog_info_dbox proginfo;
 };
 
 
@@ -181,8 +205,23 @@ sunfish::sunfish():
 
 	// Open window at centre of desktop.
 	add(_window,dcentre-ccentre);
+	_window.broadcast();
 
+	proginfo.add("Name","Sunfish");
+	proginfo.add("Purpose","Mount NFS servers");
+	proginfo.add("Author","© Alex Waugh, 2003-2006");
+	proginfo.add("Version",Module_VersionString " (" Module_Date ")");
+	ibinfo.text("Info");
+	ibinfo.attach_dbox(proginfo);
+	ibquit.text("Quit");
+	ibmenu.title("Sunfish");
+	ibmenu.add(ibinfo);
+	ibmenu.add(ibquit);
 
+	ibicon.text("Sunfish").hcentre(true);
+	ibicon.text_and_sprite(true).validation("S!sunfish");
+	ibicon.attach_menu(ibmenu);
+	add(ibicon);
 }
 
 int main(void)
