@@ -21,6 +21,9 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+#ifndef GETUID_H
+#define GETUID_H
+
 #include "rtk/desktop/application.h"
 #include "rtk/desktop/menu_item.h"
 #include "rtk/desktop/menu.h"
@@ -46,6 +49,7 @@
 #include "sunfishdefs.h"
 
 #include "browse.h"
+#include "mountchoices.h"
 
 using namespace std;
 using namespace rtk;
@@ -54,14 +58,18 @@ using rtk::graphics::point;
 using rtk::graphics::box;
 
 class getuid:
-	public window
+	public window,
+	public events::mouse_click::handler
 {
 public:
 	getuid();
-	void show(const hostinfo& info, string name);
+	~getuid();
+	void setup(const hostinfo& info, string name, application& parent);
+	void handle_event(events::mouse_click& ev);
 private:
 	hostinfo host;
 	string exportname;
+	mount *mountdetails;
 	icon uidlabel;
 	icon gidlabel;
 	writable_field uid;
@@ -74,4 +82,6 @@ private:
 	grid_layout layout2;
 	row_layout layout3;
 };
+
+#endif
 

@@ -55,7 +55,8 @@ using rtk::graphics::point;
 using rtk::graphics::box;
 
 
-getuid::getuid()
+getuid::getuid() :
+	mountdetails(0)
 {
 	title("Enter uid thing");
 	uidlabel.text("User id");
@@ -82,9 +83,53 @@ getuid::getuid()
 	add(layout1);
 }
 
-void getuid::show(const hostinfo& info, string name)
+void getuid::setup(const hostinfo& info, string name, application& app)
 {
+	delete mountdetails;
+	mountdetails = 0;
 	host = info;
 	exportname = name;
+	mountdetails = new mount;
+	mountdetails->load(host.host, exportname.c_str());
+	strcpy(mountdetails->server, host.host);
+	strcpy(mountdetails->exportname, exportname.c_str());
+	if (mountdetails->uidvalid) {
+		char filename[256];
+		mountdetails->genfilename(host.host, exportname.c_str(), filename, sizeof(filename));
+		string cmd = "Filer_OpenDir ";
+		cmd += filename;
+		os::Wimp_StartTask(cmd.c_str());
+	} else {
+		app.add(*this,point(640,512));
+	}
 }
 
+#include "newfe.h"
+
+void getuid::handle_event(events::mouse_click& ev)
+{
+	syslogf("getuid::handle_event");
+	if (ev.buttons() == 2) {
+	syslogf("getuid::handle_event menu");
+	} else if (ev.target() == &save) {
+	syslogf("getuid::handle_event save");
+		mountdetails->uid = atoi(uid.text().c_str());
+		strcpy(mountdetails->gids, gid.text().c_str());
+		mountdetails->uidvalid = true;
+		mountdetails->save(host.host, exportname.c_str());
+		char filename[256];
+		mountdetails->genfilename(host.host, exportname.c_str(), filename, sizeof(filename));
+		string cmd = "Filer_OpenDir ";
+		cmd += filename;
+		os::Wimp_StartTask(cmd.c_str());
+		if (ev.buttons() == 4) remove();
+	} else if (ev.target() == &cancel) {
+	syslogf("getuid::handle_event cancel");
+		remove();
+	}
+}
+
+getuid::~getuid()
+{
+	delete mountdetails;
+}

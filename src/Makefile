@@ -212,7 +212,8 @@ browse.o \
 newfe.o \
 exportbrowser.o \
 hostbrowser.o \
-getuid.o
+getuid.o \
+mountchoices.o
 
 MOONFISHOBJS = \
 request-decode.o \

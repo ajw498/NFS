@@ -110,3 +110,33 @@ void syslogf(char *fmt, ...)
 	/* Ignore any errors, as there's not much we can do with them */
 	_swix(0x4c880, _INR(0,2), "newfe", syslogbuf, 5);
 }
+
+void syslog(char *fmt)
+{
+	/* Ignore any errors, as there's not much we can do with them */
+	
+}
+
+extern "C" {
+
+void __cyg_profile_func_enter(int *a,int b)
+	__attribute__ ((no_instrument_function));
+void __cyg_profile_func_exit(int a,int b)
+	__attribute__ ((no_instrument_function));
+
+void __cyg_profile_func_enter(int *a,int b)
+{
+  a--;
+  if ((*a & 0xffffff00) == 0xff000000)
+    {
+      char *name;
+      name = ((char *)(a)) - (*a & 0xff);
+_swix(0x4c880, _INR(0,2), "newfei", name, 5);
+    }
+}
+
+void __cyg_profile_func_exit(int a,int b)
+	{ _swix(0x4c880, _INR(0,2), "newfei", "exit", 5);
+	}
+
+}

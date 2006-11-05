@@ -74,7 +74,7 @@ void exportbrowser::doubleclick(const std::string& item)
 	string cmd = "Filer_OpenDir "+filename;
 	os::Wimp_StartTask(cmd.c_str(), NULL); */
 	sunfish *app = static_cast<sunfish *>(parent_application());
-	app->add(app->ggetuid,point(640,512));
+	app->ggetuid.setup(info, item, *app);
 }
 
 exportbrowser::~exportbrowser()
