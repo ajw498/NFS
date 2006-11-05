@@ -51,11 +51,11 @@
 
 using namespace std;
 
-void hostbrowser::doubleclick(const std::string& item)
+void hostbrowser::openexportbrowser(hostinfo *info, bool tcp, int version)
 {
-	exportbrowser *eb = new exportbrowser(hostinfos[item]);
+	exportbrowser *eb = new exportbrowser(*info);
 	// Find centre of desktop.
-	rtk::graphics::box dbbox(bbox());
+	rtk::graphics::box dbbox(parent_application()->bbox());
 	rtk::graphics::point dcentre((dbbox.xmin()+dbbox.xmax())/2,
 		(dbbox.ymin()+dbbox.ymax())/2);
 
@@ -67,6 +67,11 @@ void hostbrowser::doubleclick(const std::string& item)
 	// Open window at centre of desktop.
 
 	parent_application()->add(*eb, dcentre-ccentre);
+}
+
+void hostbrowser::doubleclick(const std::string& item)
+{
+	openexportbrowser(&(hostinfos[item]), true, 4);
 }
 
 hostbrowser::hostbrowser()
@@ -117,12 +122,85 @@ hostbrowser::~hostbrowser()
 
 void hostbrowser::open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev)
 {
-/*When menu closed, deselect temp selection. claim menusdeleted event from window? */
-	menu.title("Filer");
-	item0.text(selection ? "Selection" : "File '"+item+"'");
-	item1.text("Foo...");
-	menu.add(item0,0);
-	menu.add(item1,1);
+	menuinfo = &(hostinfos[item]);
+
+	menu.title("Server");
+	menu.add(display,0);
+	menu.add(browseitem,1);
+	menu.add(searchfor,2);
+	menu.add(clear,3);
+	menu.add(refresh,4);
+	display.text("Display");
+	display.enabled(false);
+	browseitem.text(selection ? "Selection" : "Browse '"+item+"'");
+	browseitem.enabled(!selection && item.compare("") != 0);
+	browseitem.attach_submenu(transport);
+	searchfor.text("Search for");
+	searchfor.enabled(false);
+	clear.text("Clear selection");
+	clear.enabled(item.compare("") != 0);
+	refresh.text("Refresh");
+
+	transport.title("Transport");
+	transport.add(udp, 0);
+	transport.add(tcp, 1);
+	udp.text("UDP");
+	udp.attach_submenu(udpprotocol);
+	udp.enabled(menuinfo->mount1udpport || menuinfo->mount3udpport);
+	tcp.text("TCP");
+	tcp.attach_submenu(tcpprotocol);
+	tcp.enabled(menuinfo->mount1tcpport || menuinfo->mount3tcpport);
+
+	udpprotocol.title("Protocol");
+	udpprotocol.add(udpnfs2, 0);
+	udpprotocol.add(udpnfs3, 1);
+	udpprotocol.add(udpnfs4, 2);
+	udpnfs2.text("NFSv2");
+	udpnfs2.enabled(menuinfo->mount1udpport);
+	udpnfs3.text("NFSv3");
+	udpnfs3.enabled(menuinfo->mount3udpport);
+	udpnfs4.text("NFSv4");
+	udpnfs4.enabled(false);
+
+	tcpprotocol.title("Protocol");
+	tcpprotocol.add(tcpnfs2, 0);
+	tcpprotocol.add(tcpnfs3, 1);
+	tcpprotocol.add(tcpnfs4, 2);
+	tcpnfs2.text("NFSv2");
+	tcpnfs2.enabled(menuinfo->mount1tcpport);
+	tcpnfs3.text("NFSv3");
+	tcpnfs3.enabled(menuinfo->mount3tcpport);
+	tcpnfs4.text("NFSv4");
+	tcpnfs4.enabled(false);
+
+
 	menu.show(ev);
+}
+
+void hostbrowser::handle_event(rtk::events::menu_selection& ev)
+{
+	if (ev.target() == &clear) {
+		for (int i = icons.size() - 1; i >= 0; i--) icons[i]->selected(false);
+	} else if (ev.target() == &refresh) {
+		broadcast();
+	} else if (ev.target() == &browseitem) {
+		openexportbrowser(menuinfo, true, 4);
+	} else if (ev.target() == &udp) {
+		openexportbrowser(menuinfo, false, 4);
+	} else if (ev.target() == &tcp) {
+		openexportbrowser(menuinfo, true, 4);
+	} else if (ev.target() == &udpnfs2) {
+		openexportbrowser(menuinfo, false, 2);
+	} else if (ev.target() == &udpnfs3) {
+		openexportbrowser(menuinfo, false, 3);
+	} else if (ev.target() == &udpnfs4) {
+		openexportbrowser(menuinfo, false, 4);
+	} else if (ev.target() == &tcpnfs2) {
+		openexportbrowser(menuinfo, true, 2);
+	} else if (ev.target() == &tcpnfs3) {
+		openexportbrowser(menuinfo, true, 3);
+	} else if (ev.target() == &tcpnfs4) {
+		openexportbrowser(menuinfo, true, 4);
+	}
 }
 

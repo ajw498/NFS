@@ -213,7 +213,8 @@ newfe.o \
 exportbrowser.o \
 hostbrowser.o \
 getuid.o \
-mountchoices.o
+mountchoices.o \
+editfilenames.o
 
 MOONFISHOBJS = \
 request-decode.o \
@@ -266,6 +267,10 @@ newfe: $(NEWFEAPPOBJS)
 
 debug-server: $(MOONFISHDEBUGOBJS)
 	$(CC) $(CFLAGS) $(MOONFISHDEBUGOBJS) -o $@ $(APPLIBS)
+
+CCFILES=$(wildcard *.cc)
+
+$(CCFILES:.cc=.o): $(wildcard *.h)
 
 
 %.o: %.cc

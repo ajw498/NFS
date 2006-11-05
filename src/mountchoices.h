@@ -24,11 +24,13 @@
 #ifndef MOUNTCHOICES_H
 #define MOUNTCHOICES_H
 
+#include <string>
+
 #define STRMAX 256
 
-class mount {
+class mountchoices {
 public:
-	bool showhidden;
+	int showhidden;
 	int followsymlinks;
 	bool casesensitive;
 	bool unixex;
@@ -61,10 +63,10 @@ public:
 	char leafname[STRMAX];
 	char encoding[STRMAX];
 
-	mount();
-	void save(const char *host, const char *mountname);
-	void load(const char *host, const char *mountname);
-	void genfilename(const char *host, const char *mountname, char *buffer, int len);
+	mountchoices();
+	void save(const std::string& filename);
+	void load(const std::string& filename);
+	std::string genfilename(const std::string& host, const std::string& mountname);
 };
 
 #endif

@@ -50,7 +50,8 @@
 
 class hostbrowser:
 	public rtk::desktop::filer_window,
-	public rtk::events::null_reason::handler
+	public rtk::events::null_reason::handler,
+	public rtk::events::menu_selection::handler
 {
 public:
 	hostbrowser();
@@ -58,17 +59,37 @@ public:
 	void broadcast();
 	void handle_event(rtk::events::close_window& ev) { parent_application()->terminate(); }
 	void handle_event(rtk::events::null_reason& ev);
+	void handle_event(rtk::events::menu_selection& ev);
 	void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev);
 //	void drag_ended(bool adjust, rtk::events::user_drag_box& ev) {}
 	void doubleclick(const std::string& item);
 private:
+	void openexportbrowser(hostinfo *info, bool tcp, int version);
+	hostinfo *menuinfo;
 	time_t broadcasttime;
 	int broadcasttype;
 	std::map<std::string, hostinfo> hostinfos;
 
 	rtk::desktop::menu menu;
-	rtk::desktop::menu_item item0;
-	rtk::desktop::menu_item item1;
+	rtk::desktop::menu_item display;
+	rtk::desktop::menu_item browseitem;
+	rtk::desktop::menu_item searchfor;
+	rtk::desktop::menu_item clear;
+	rtk::desktop::menu_item refresh;
+
+	rtk::desktop::menu transport;
+	rtk::desktop::menu_item udp;
+	rtk::desktop::menu_item tcp;
+
+	rtk::desktop::menu udpprotocol;
+	rtk::desktop::menu_item udpnfs2;
+	rtk::desktop::menu_item udpnfs3;
+	rtk::desktop::menu_item udpnfs4;
+
+	rtk::desktop::menu tcpprotocol;
+	rtk::desktop::menu_item tcpnfs2;
+	rtk::desktop::menu_item tcpnfs3;
+	rtk::desktop::menu_item tcpnfs4;
 
 };
 

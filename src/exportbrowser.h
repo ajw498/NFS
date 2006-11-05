@@ -24,26 +24,42 @@
 #include "rtk/desktop/menu_item.h"
 #include "rtk/desktop/menu.h"
 #include "rtk/desktop/filer_window.h"
+#include "rtk/events/menu_selection.h"
 
 
 #include "browse.h"
+#include "editfilenames.h"
 
 
 class exportbrowser:
-	public rtk::desktop::filer_window
+	public rtk::desktop::filer_window,
+	public rtk::events::menu_selection::handler
 {
 public:
 	exportbrowser(hostinfo host);
 	~exportbrowser();
 //	void handle_event(rtk::events::close_window& ev) { parent_application()->terminate(); }
-//	void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev);
+	void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev);
 //	void drag_ended(bool adjust, rtk::events::user_drag_box& ev) {}
 	void doubleclick(const std::string& item);
+	void handle_event(rtk::events::menu_selection& ev);
 private:
 	hostinfo info;
-	rtk::desktop::menu menu;
-	rtk::desktop::menu_item item0;
-	rtk::desktop::menu_item item1;
 
+	std::string menuitem;
+
+	rtk::desktop::menu menu;
+	rtk::desktop::menu_item display;
+	rtk::desktop::menu_item edititem;
+	rtk::desktop::menu_item clear;
+	rtk::desktop::menu_item refresh;
+
+	rtk::desktop::menu edit;
+	rtk::desktop::menu_item namemount;
+	rtk::desktop::menu_item filenames;
+	rtk::desktop::menu_item connection;
+	rtk::desktop::menu_item uids;
+
+	editfilenames filenameswin;
 };
 

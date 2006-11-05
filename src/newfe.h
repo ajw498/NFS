@@ -21,13 +21,10 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#ifndef GETUID_H
-#define GETUID_H
-
 #include "rtk/desktop/application.h"
 #include "rtk/desktop/menu_item.h"
 #include "rtk/desktop/menu.h"
-#include "rtk/desktop/window.h"
+#include "rtk/desktop/filer_window.h"
 #include "rtk/desktop/info_dbox.h"
 #include "rtk/desktop/ibar_icon.h"
 #include "rtk/desktop/label.h"
@@ -42,46 +39,26 @@
 #include "rtk/events/null_reason.h"
 #include "rtk/os/wimp.h"
 
-#include <fstream>
-#include <string>
+#include "getuid.h"
+#include "hostbrowser.h"
 
-#include "sunfish.h"
-#include "sunfishdefs.h"
+#include <stdarg.h>
 
-#include "browse.h"
-#include "mountchoices.h"
+void syslogf(char *fmt, ...);
 
-using namespace std;
-using namespace rtk;
-using namespace rtk::desktop;
-using rtk::graphics::point;
-using rtk::graphics::box;
 
-class getuid:
-	public window,
-	public events::mouse_click::handler
+class sunfish:
+	public rtk::desktop::application
 {
 public:
-	getuid();
-	~getuid();
-	void setup(const hostinfo& info, string name, application& parent);
-	void handle_event(events::mouse_click& ev);
+	sunfish();
+	getuid ggetuid;
 private:
-	hostinfo host;
-	string exportname;
-	mountchoices *mountdetails;
-	icon uidlabel;
-	icon gidlabel;
-	writable_field uid;
-	writable_field gid;
-	icon explain;
-	action_button cancel;
-	action_button set;
-	default_button save;
-	column_layout layout1;
-	grid_layout layout2;
-	row_layout layout3;
+	hostbrowser _window;
+	rtk::desktop::ibar_icon ibicon;
+	rtk::desktop::menu ibmenu;
+	rtk::desktop::menu_item ibinfo;
+	rtk::desktop::menu_item ibquit;
+	rtk::desktop::prog_info_dbox proginfo;
 };
-
-#endif
 

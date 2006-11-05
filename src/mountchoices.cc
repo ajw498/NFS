@@ -36,14 +36,15 @@
 #include "sunfish.h"
 #include "mountchoices.h"
 
+using namespace std;
 extern "C" {
 // These are declared in unixlib.h but without C linkage
 int strcasecmp(char const*, char const*);
 int strncasecmp(char const*, char const*, unsigned int);
 }
 
-mount::mount(void) :
-	showhidden(true),
+mountchoices::mountchoices(void) :
+	showhidden(1),
 	followsymlinks(5),
 	casesensitive(false),
 	unixex(false),
@@ -78,38 +79,30 @@ mount::mount(void) :
 	strcpy(encoding, "No conversion");
 }
 
-void mount::genfilename(const char *host, const char *mountname, char *buffer, int len)
+string mountchoices::genfilename(const string& host, const string& mountname)
 {
-	char *ch = buffer;
-	strcpy(buffer,"Sunfish:mounts.auto.");
-	ch += sizeof("Sunfish:mounts.auto.") - 1; // check len is enough anyway
-	while (*host && (ch < buffer + len - 1)) {
-		if (isalnum(*host) || (*host == '/')) {
-			*ch++ = *host++;
+	string filename = "Sunfish:mounts.auto.";
+	for (size_t i = 0; i < host.length(); i++) {
+		if (isalnum(host[i]) || (host[i] == '/')) {
+			filename += host[i];
 		} else {
-			*ch++ = '?';
-			host++;
+			filename += '?';
 		}
 	}
-	while (*mountname && (ch < buffer + len - 1)) {
-		if (isalnum(*mountname) || (*mountname == '/')) {
-			*ch++ = *mountname++;
+	for (size_t i = 0; i < mountname.length(); i++) {
+		if (isalnum(mountname[i]) || (mountname[i] == '/')) {
+			filename += mountname[i];
 		} else {
-			*ch++ = '?';
-			mountname++;
+			filename += '?';
 		}
 	}
-	*ch++ = '\0';
+	return filename;
 }
 
-void mount::save(const char *host, const char *mountname)
+void mountchoices::save(const string& filename)
 {
-	char filename[STRMAX];
-
-	genfilename(host, mountname, filename, sizeof(filename));
-
 	FILE *file;
-	file = fopen(filename, "w");
+	file = fopen(filename.c_str(), "w");
 	if (file == NULL) throw rtk::os::exception(_kernel_last_oserror());
 
 	fprintf(file,"Protocol: NFS%s\n", nfs3 ? "3" : "2");
@@ -150,21 +143,19 @@ void mount::save(const char *host, const char *mountname)
 	fprintf(file,"Logging: %d\n",logging);
 	fclose(file);
 
-	rtk::os::OS_File18(filename, SUNFISH_FILETYPE);
+	rtk::os::OS_File18(filename.c_str(), SUNFISH_FILETYPE);
 }
 
 #define CHECK(str) (strncasecmp(line,str,sizeof(str))==0)
 
-void mount::load(const char *host, const char *mountname)
+void mountchoices::load(const string& filename)
 {
 	FILE *file;
 	char buffer[STRMAX];
 
-	snprintf(leafname, STRMAX, "%s", mountname);
+//	snprintf(leafname, STRMAX, "%s", mountname);
 
-	genfilename(host, mountname, buffer, sizeof(buffer));
-
-	file = fopen(buffer, "r");
+	file = fopen(filename.c_str(), "r");
 	if (file == NULL) return;
 
 	while (fgets(buffer, STRMAX, file) != NULL) {

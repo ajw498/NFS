@@ -82,3 +82,50 @@ exportbrowser::~exportbrowser()
 
 }
 
+void exportbrowser::open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev)
+{
+	menuitem = item;
+
+	menu.title("Export");
+	menu.add(display,0);
+	menu.add(edititem,1);
+	menu.add(clear,2);
+	menu.add(refresh,3);
+	display.text("Display");
+	display.enabled(false);
+	edititem.text(selection ? "Selection" : "Edit '"+item+"'");
+	edititem.enabled(!selection && item.compare("") != 0);
+	edititem.attach_submenu(edit);
+	clear.text("Clear selection");
+	clear.enabled(item.compare("") != 0);
+	refresh.text("Refresh").enabled(false);
+
+	edit.title("Edit export");
+	edit.add(namemount, 0);
+	edit.add(filenames, 1);
+	edit.add(connection, 2);
+	edit.add(uids, 3);
+
+	namemount.text("Name export...");
+	filenames.text("Filename and filetype choices...");
+	connection.text("Connection choices...");
+	uids.text("User id choices...");
+
+	menu.show(ev);
+}
+
+void exportbrowser::handle_event(rtk::events::menu_selection& ev)
+{
+	if (ev.target() == &clear) {
+		for (int i = icons.size() - 1; i >= 0; i--) icons[i]->selected(false);
+	} else if (ev.target() == &refresh) {
+		//broadcast();
+	} else if (ev.target() == &namemount) {
+	} else if (ev.target() == &filenames) {
+		filenameswin.load("ADFS::Iyonix.$.!BOOT.Choices.Sunfish.mounts.auto.172?16?0?1/sandbox");
+		parent_application()->add(filenameswin, point(2*640,2*512));
+		// bring to front if already open?
+	} else if (ev.target() == &connection) {
+	} else if (ev.target() == &uids) {
+	}
+}

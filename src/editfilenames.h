@@ -21,8 +21,8 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#ifndef GETUID_H
-#define GETUID_H
+#ifndef EDITFILENAMES_H
+#define EDITFILENAMES_H
 
 #include "rtk/desktop/application.h"
 #include "rtk/desktop/menu_item.h"
@@ -34,6 +34,8 @@
 #include "rtk/desktop/writable_field.h"
 #include "rtk/desktop/action_button.h"
 #include "rtk/desktop/default_button.h"
+#include "rtk/desktop/radio_button.h"
+#include "rtk/desktop/option_button.h"
 #include "rtk/desktop/grid_layout.h"
 #include "rtk/desktop/row_layout.h"
 #include "rtk/desktop/column_layout.h"
@@ -42,14 +44,6 @@
 #include "rtk/events/null_reason.h"
 #include "rtk/os/wimp.h"
 
-#include <fstream>
-#include <string>
-
-#include "sunfish.h"
-#include "sunfishdefs.h"
-
-#include "browse.h"
-#include "mountchoices.h"
 
 using namespace std;
 using namespace rtk;
@@ -57,30 +51,39 @@ using namespace rtk::desktop;
 using rtk::graphics::point;
 using rtk::graphics::box;
 
-class getuid:
+class editfilenames:
 	public window,
 	public events::mouse_click::handler
 {
 public:
-	getuid();
-	~getuid();
-	void setup(const hostinfo& info, string name, application& parent);
+	editfilenames();
+	~editfilenames();
+	void load(string filename);
+//	void setup(const hostinfo& info, string name, application& parent);
 	void handle_event(events::mouse_click& ev);
 private:
-	hostinfo host;
-	string exportname;
-	mountchoices *mountdetails;
-	icon uidlabel;
-	icon gidlabel;
-	writable_field uid;
-	writable_field gid;
-	icon explain;
+//	labelledbox filenames;
+//	labelledbox filetypes;
+	radio_button showalways;
+	radio_button showroot;
+	radio_button shownever;
+	option_button casesensitive;
+//	stringset encoding;
+	icon defaultfiletypelabel;
+	writable_field defaultfiletype;
+	radio_button extalways;
+	radio_button extneeded;
+	radio_button extnever;
+	option_button unixex;
+	option_button followsymlinks;
+	writable_field symlinklevels;
+	icon symlinklabel;
 	action_button cancel;
-	action_button set;
 	default_button save;
 	column_layout layout1;
-	grid_layout layout2;
+	row_layout layout2;
 	row_layout layout3;
+	row_layout layout4;
 };
 
 #endif
