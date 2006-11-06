@@ -21,8 +21,8 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#ifndef EDITFILENAMES_H
-#define EDITFILENAMES_H
+#ifndef EDITCONNECTION_H
+#define EDITCONNECTION_H
 
 #include "rtk/desktop/window.h"
 #include "rtk/desktop/writable_field.h"
@@ -42,40 +42,31 @@ using namespace rtk::desktop;
 using rtk::graphics::point;
 using rtk::graphics::box;
 
-class editfilenames:
+class editconnection:
 	public window,
 	public events::mouse_click::handler
 {
 public:
-	editfilenames();
+	editconnection();
 	void load(const string& host, string& exportname);
 	void save();
 	void handle_event(events::mouse_click& ev);
 private:
 	string filename;
 
-//	labelledbox filenames;
-//	labelledbox filetypes;
-	radio_button showalways;
-	radio_button showroot;
-	radio_button shownever;
-	option_button casesensitive;
-//	stringset encoding;
-	icon defaultfiletypelabel;
-	writable_field defaultfiletype;
-	radio_button extalways;
-	radio_button extneeded;
-	radio_button extnever;
-	option_button unixex;
-	option_button followsymlinks;
-	writable_field symlinklevels;
-	icon symlinklabel;
+//	numberrange maxdata;
+	option_button pipelining;
+	icon timeoutlabel;
+	writable_field timeout;
+	icon timeoutunits;
+	icon retrieslabel;
+	writable_field retries;
+	option_button logging;
 	action_button cancel;
 	default_button savebutton;
 	column_layout layout1;
-	row_layout layout2;
+	grid_layout layout2;
 	row_layout layout3;
-	row_layout layout4;
 };
 
 #endif

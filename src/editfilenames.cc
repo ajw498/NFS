@@ -56,6 +56,7 @@ using rtk::graphics::box;
 editfilenames::editfilenames()
 {
 	title("Filename and filetype choices");
+	close_icon(false);
 	showalways.text("Always show hidden files").esg(1);
 	showroot.text("Show hidden files except in root of mount").esg(1);
 	shownever.text("Never show hidden files").esg(1);
@@ -69,7 +70,7 @@ editfilenames::editfilenames()
 	followsymlinks.text("Follow symlinks");
 	symlinklabel.text("levels");
 	cancel.text("Cancel");
-	save.text("Save");
+	savebutton.text("Save");
 
 	layout1.margin(16).ygap(8);
 	layout1.add(showalways);
@@ -95,52 +96,95 @@ editfilenames::editfilenames()
 
 	layout4.xgap(16);
 	layout4.add(cancel);
-	layout4.add(save);
+	layout4.add(savebutton);
 
 	add(layout1);
 }
 
-void editfilenames::load(string filename)
+#include <sstream>
+
+void editfilenames::load(const string& host, string& exportname)
 {
 	mountchoices mountinfo;
+	if (host.length() > 0) {
+		filename = mountinfo.genfilename(host, exportname);
+	}
 	mountinfo.load(filename);
+
 	showalways.selected(mountinfo.showhidden == 1);
 	showroot.selected(mountinfo.showhidden == 0);
 	shownever.selected(mountinfo.showhidden == 2);
 	casesensitive.selected(mountinfo.casesensitive);
-	//filetype;
+	ostringstream ftype;
+	ftype.setf(ios_base::uppercase);
+	ftype.setf(ios_base::hex,ios_base::basefield);
+	ftype<<mountinfo.defaultfiletype;
+	defaultfiletype.text(ftype.str());
 	extalways.selected(mountinfo.addext == 2);
 	extneeded.selected(mountinfo.addext == 1);
 	extnever.selected(mountinfo.addext == 0);
 	unixex.selected(mountinfo.unixex);
 	followsymlinks.selected(mountinfo.followsymlinks > 0);
-	//followsymlinks
+	ostringstream sym;
+	sym<<mountinfo.followsymlinks;
+	symlinklevels.text(sym.str());
+}
+
+void editfilenames::save()
+{
+	mountchoices mountinfo;
+	mountinfo.load(filename);
+
+	if (showalways.selected()) {
+		mountinfo.showhidden = 1;
+	} else if (showroot.selected()) {
+		mountinfo.showhidden = 0;
+	} else if (shownever.selected()) {
+		mountinfo.showhidden = 2;
+	}
+	mountinfo.casesensitive = casesensitive.selected();
+	mountinfo.defaultfiletype = strtoul(defaultfiletype.text().c_str(), NULL, 16);
+	if (extalways.selected()) {
+		mountinfo.addext = 2;
+	} else if (extneeded.selected()) {
+		mountinfo.addext = 1;
+	} else if (extnever.selected()) {
+		mountinfo.addext = 0;
+	}
+	mountinfo.unixex = unixex.selected();
+	if (followsymlinks.selected()) {
+		mountinfo.followsymlinks = atoi(symlinklevels.text().c_str());
+	} else {
+		mountinfo.followsymlinks = 0;
+	}
+
+	mountinfo.save(filename);
 }
 
 void editfilenames::handle_event(events::mouse_click& ev)
 {
-//	syslogf("editfilenames::handle_event");
-//	if (ev.buttons() == 2) {
-//	syslogf("editfilenames::handle_event menu");
-//	} else if (ev.target() == &save) {
-//	syslogf("editfilenames::handle_event save");
-//		mountdetails->uid = atoi(uid.text().c_str());
-//		strcpy(mountdetails->gids, gid.text().c_str());
-//		mountdetails->uidvalid = true;
-//		mountdetails->save(host.host, exportname.c_str());
-//		char filename[256];
-//		mountdetails->genfilename(host.host, exportname.c_str(), filename, sizeof(filename));
-//		string cmd = "Filer_OpenDir ";
-//		cmd += filename;
-//		os::Wimp_StartTask(cmd.c_str());
-//		if (ev.buttons() == 4) remove();
-//	} else if (ev.target() == &cancel) {
-//	syslogf("editfilenames::handle_event cancel");
-//		remove();
-//	}
-}
-
-editfilenames::~editfilenames()
-{
-//	delete mountdetails;
+	if (ev.buttons() == 2) {
+	} else if (ev.target() == &savebutton) {
+		save();
+		if (ev.buttons() == 4) remove();
+	} else if (ev.target() == &cancel) {
+		if (ev.buttons() == 4) {
+			remove();
+		} else {
+			string none;
+			load(none, none);
+		}
+	} else if (ev.target() == &extalways) {
+		extalways.selected(true);  // Can this be put into the radio_button class?
+	} else if (ev.target() == &extneeded) {
+		extneeded.selected(true);
+	} else if (ev.target() == &extnever) {
+		extnever.selected(true);
+	} else if (ev.target() == &showalways) {
+		showalways.selected(true);
+	} else if (ev.target() == &showroot) {
+		showroot.selected(true);
+	} else if (ev.target() == &shownever) {
+		shownever.selected(true);
+	}
 }

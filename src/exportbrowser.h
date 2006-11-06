@@ -29,6 +29,8 @@
 
 #include "browse.h"
 #include "editfilenames.h"
+#include "editconnection.h"
+#include "edituid.h"
 
 
 class exportbrowser:
@@ -61,5 +63,7 @@ private:
 	rtk::desktop::menu_item uids;
 
 	editfilenames filenameswin;
+	editconnection connectionwin;
+	edituid uidswin;
 };
 

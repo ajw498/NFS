@@ -214,7 +214,9 @@ exportbrowser.o \
 hostbrowser.o \
 getuid.o \
 mountchoices.o \
-editfilenames.o
+editfilenames.o \
+editconnection.o \
+edituid.o
 
 MOONFISHOBJS = \
 request-decode.o \

@@ -122,10 +122,14 @@ void exportbrowser::handle_event(rtk::events::menu_selection& ev)
 		//broadcast();
 	} else if (ev.target() == &namemount) {
 	} else if (ev.target() == &filenames) {
-		filenameswin.load("ADFS::Iyonix.$.!BOOT.Choices.Sunfish.mounts.auto.172?16?0?1/sandbox");
+		filenameswin.load(info.host, menuitem);
 		parent_application()->add(filenameswin, point(2*640,2*512));
 		// bring to front if already open?
 	} else if (ev.target() == &connection) {
+		connectionwin.load(info.host, menuitem);
+		parent_application()->add(connectionwin, point(2*640,2*512));
 	} else if (ev.target() == &uids) {
+		uidswin.load(info.host, menuitem);
+		parent_application()->add(uidswin, point(2*640,2*512));
 	}
 }
