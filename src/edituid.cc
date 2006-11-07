@@ -46,6 +46,7 @@
 #include "mountchoices.h"
 
 #include <sstream>
+#include <iomanip>
 
 edituid::edituid()
 {
@@ -96,15 +97,10 @@ void edituid::load(const string& host, string& exportname)
 	if (mountinfo.uidvalid) str<<mountinfo.gids;
 	gids.text(str.str());
 	str.str("");
-	str.setf(ios_base::oct, ios_base::basefield);
-	str.width(3);
-	str.fill('0');
-	str<<mountinfo.umask;
+	str << oct << setw(3) << setfill('0') << mountinfo.umask;
 	umask.text(str.str());
 	str.str("");
-	str.width(3);
-	str.fill('0');
-	str<<mountinfo.unumask;
+	str << oct << setw(3) << setfill('0') << mountinfo.unumask;
 	unumask.text(str.str());
 }
 
