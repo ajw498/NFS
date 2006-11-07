@@ -116,9 +116,7 @@ void editfilenames::load(const string& host, string& exportname)
 	shownever.selected(mountinfo.showhidden == 2);
 	casesensitive.selected(mountinfo.casesensitive);
 	ostringstream ftype;
-	ftype.setf(ios_base::uppercase);
-	ftype.setf(ios_base::hex,ios_base::basefield);
-	ftype<<mountinfo.defaultfiletype;
+	ftype << hex << uppercase << mountinfo.defaultfiletype;
 	defaultfiletype.text(ftype.str());
 	extalways.selected(mountinfo.addext == 2);
 	extneeded.selected(mountinfo.addext == 1);
@@ -126,7 +124,7 @@ void editfilenames::load(const string& host, string& exportname)
 	unixex.selected(mountinfo.unixex);
 	followsymlinks.selected(mountinfo.followsymlinks > 0);
 	ostringstream sym;
-	sym<<mountinfo.followsymlinks;
+	sym << mountinfo.followsymlinks;
 	symlinklevels.text(sym.str());
 }
 
