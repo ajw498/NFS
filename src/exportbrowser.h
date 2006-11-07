@@ -25,12 +25,31 @@
 #include "rtk/desktop/menu.h"
 #include "rtk/desktop/filer_window.h"
 #include "rtk/events/menu_selection.h"
+#include "rtk/events/save_to_app.h"
+#include "rtk/transfer/save.h"
 
 
 #include "browse.h"
 #include "editfilenames.h"
 #include "editconnection.h"
 #include "edituid.h"
+#include "mountchoices.h"
+
+
+class exportsave:
+	public rtk::transfer::save
+{
+public:
+	exportsave();
+protected:
+	void start() { done = false; }
+	void get_block(const void** data,size_type* count);
+	void finish() {}
+	size_type estsize() { return 1024; }
+private:
+	mountchoices mount;
+	bool done;
+};
 
 
 class exportbrowser:
@@ -42,10 +61,12 @@ public:
 	~exportbrowser();
 //	void handle_event(rtk::events::close_window& ev) { parent_application()->terminate(); }
 	void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev);
-//	void drag_ended(bool adjust, rtk::events::user_drag_box& ev) {}
+	void drag_ended(bool adjust, rtk::events::user_drag_box& ev);
 	void doubleclick(const std::string& item);
 	void handle_event(rtk::events::menu_selection& ev);
 private:
+	exportsave saveop;
+
 	hostinfo info;
 
 	std::string menuitem;

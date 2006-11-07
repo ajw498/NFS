@@ -55,24 +55,7 @@ exportbrowser::exportbrowser(hostinfo host) :
 void exportbrowser::doubleclick(const std::string& item)
 {
 	string filename = "Sunfish:mounts.auto."+item;
-//	ofstream mfile(filename.c_str());
-//	if (!mfile) throw "Cannot open file";
-//	mfile<<"Protocol: NFS3\nServer: "/*<<info.host*/<<"\nExport: "<<item;
-//	mfile<<"\nTransport: UDP\n";
-//	mfile<<"Foo";
-//	mfile.close();
 
-/*	os::OS_File8("Sunfish:mounts.auto");
-
-	FILE *mfile = fopen(filename.c_str(), "w");
-	if (!mfile) throw "Cannot open file";
-	fprintf(mfile, "Protocol: NFS3\nServer: %s\nExport: %s\nTransport: UDP\n", info.host, item.c_str());
-	fclose(mfile);
-
-	os::OS_File18(filename.c_str(), SUNFISH_FILETYPE);
-
-	string cmd = "Filer_OpenDir "+filename;
-	os::Wimp_StartTask(cmd.c_str(), NULL); */
 	sunfish *app = static_cast<sunfish *>(parent_application());
 	app->ggetuid.setup(info, item, *app);
 }
@@ -133,3 +116,40 @@ void exportbrowser::handle_event(rtk::events::menu_selection& ev)
 		parent_application()->add(uidswin, point(2*640,2*512));
 	}
 }
+
+void exportbrowser::drag_ended(bool adjust, rtk::events::user_drag_box& ev)
+{
+	icon *src = static_cast<icon *>(ev.target());
+
+	if (application* app = parent_application()) {
+		app->add(saveop);
+		events::save_to_app ev(saveop, src->text()); // FIXME sanitise leafname
+		ev.post();
+	}
+	//FIXME clear selection
+	// handle selection drag
+
+	// This method should be a save_to_app handler
+
+}
+
+exportsave::exportsave()
+{
+	filetype(SUNFISH_FILETYPE);
+}
+
+void exportsave::get_block(const void** data,size_type* count)
+{
+	if (done) {
+		// If finished then return an empty block.
+		if (data) *data=0;
+		if (count) *count=0;
+	} else {
+//		mount.load();
+		string str = mount.stringsave();
+		if (data) *data = str.data();
+		if (count) *count = str.size();
+		done = true;
+	}
+}
+

@@ -66,6 +66,7 @@ public:
 	mountchoices();
 	void save(const std::string& filename);
 	void load(const std::string& filename);
+	std::string stringsave();
 	std::string genfilename(const std::string& host, const std::string& mountname);
 };
 

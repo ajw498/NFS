@@ -99,48 +99,60 @@ string mountchoices::genfilename(const string& host, const string& mountname)
 	return filename;
 }
 
+#include <sstream>
+#include <iomanip>
+
+string mountchoices::stringsave()
+{
+	ostringstream str;
+	str << "Protocol: NFS" << (nfs3 ? "3" : "2");
+	str << "\nServer: " << server;
+	str << "\nExport: " << exportname;
+	if (usepcnfsd) {
+		str << "\nPassword: " << password;
+		str << "\nUsername: " << username;
+	} else {
+		int gid;
+		char *othergids;
+		str << "\nuid: " << uid;
+		gid = (int)strtol(gids, &othergids, 10);
+		str << "\ngid: " << gid;
+		str << "\ngids: " << othergids;
+		str << "\numask: " << oct << setw(3) << setfill('0') << umask;
+	}
+	str << "\nTransport: " << (tcp ? "TCP" : "UDP");
+	str << "\nShowHidden: " << showhidden;
+	str << "\nFollowSymlinks: " << followsymlinks;
+	str << "\nCaseSensitive: " << casesensitive;
+	str << "\nUnixEx: " << unixex;
+	str << "\nDefaultFiletype: " << hex << uppercase << setw(3) << setfill('0') << defaultfiletype;
+	str << "\nAddExt: " << addext;
+	str << "\nunumask: " << oct << setw(3) << setfill('0') << unumask;
+	if (portmapperport) str << "\nPortmapperPort: " << portmapperport;
+	if (nfsport) str << "\nNFSPort: " << nfsport;
+	if (pcnfsdport) str << "\nPCNFSDPort: " << pcnfsdport;
+	if (mountport) str << "\nMountPort: " << mountport;
+	if (localportmin && localportmin) str << "\nLocalPort: " << localportmin << " " << localportmax;
+	if (machinename[0]) str << "\nMachineName: " << machinename;
+	if ((strcasecmp(encoding, "No conversion") != 0) && encoding[0]) str << "\nEncoding: " << encoding;
+
+	str << "\nMaxDataBuffer: " << maxdatabuffer;
+	str << "\nPipelining: " << pipelining;
+	str << "\nTimeout: " << timeout;
+	str << "\nRetries: " << retries;
+	str << "\nLogging: " << logging;
+
+	return str.str();
+}
+
 void mountchoices::save(const string& filename)
 {
 	FILE *file;
 	file = fopen(filename.c_str(), "w");
 	if (file == NULL) throw rtk::os::exception(_kernel_last_oserror());
 
-	fprintf(file,"Protocol: NFS%s\n", nfs3 ? "3" : "2");
-	fprintf(file,"Server: %s\n",server);
-	fprintf(file,"Export: %s\n",exportname);
-	if (usepcnfsd) {
-		fprintf(file,"Password: %s\n",password);
-		fprintf(file,"Username: %s\n",username);
-	} else {
-		int gid;
-		char *othergids;
-		fprintf(file,"uid: %d\n",uid);
-		gid = (int)strtol(gids, &othergids, 10);
-		fprintf(file,"gid: %d\n",gid);
-		fprintf(file,"gids: %s\n",othergids);
-		fprintf(file,"umask: %.3o\n",umask);
-	}
-	fprintf(file,"Transport: %s\n",tcp ? "TCP" : "UDP");
-	fprintf(file,"ShowHidden: %d\n",showhidden);
-	fprintf(file,"FollowSymlinks: %d\n",followsymlinks);
-	fprintf(file,"CaseSensitive: %d\n",casesensitive);
-	fprintf(file,"UnixEx: %d\n",unixex);
-	fprintf(file,"DefaultFiletype: %.3X\n",defaultfiletype);
-	fprintf(file,"AddExt: %d\n",addext);
-	fprintf(file,"unumask: %.3o\n",unumask);
-	if (portmapperport) fprintf(file,"PortmapperPort: %d\n",portmapperport);
-	if (nfsport) fprintf(file,"NFSPort: %d\n",nfsport);
-	if (pcnfsdport) fprintf(file,"PCNFSDPort: %d\n",pcnfsdport);
-	if (mountport) fprintf(file,"MountPort: %d\n",mountport);
-	if (localportmin && localportmin) fprintf(file,"LocalPort: %d %d\n",localportmin,localportmax);
-	if (machinename[0]) fprintf(file,"MachineName: %s\n",machinename);
-	if ((strcasecmp(encoding, "No conversion") != 0) && encoding[0]) fprintf(file,"Encoding: %s\n", encoding);
-
-	fprintf(file,"MaxDataBuffer: %d\n",maxdatabuffer);
-	fprintf(file,"Pipelining: %d\n",pipelining);
-	fprintf(file,"Timeout: %d\n",timeout);
-	fprintf(file,"Retries: %d\n",retries);
-	fprintf(file,"Logging: %d\n",logging);
+	string data = stringsave();
+	fwrite(data.data(), data.size(), 1, file);
 	fclose(file);
 
 	rtk::os::OS_File18(filename.c_str(), SUNFISH_FILETYPE);
