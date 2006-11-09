@@ -216,7 +216,8 @@ getuid.o \
 mountchoices.o \
 editfilenames.o \
 editconnection.o \
-edituid.o
+edituid.o \
+ibicon.o
 
 MOONFISHOBJS = \
 request-decode.o \
@@ -300,6 +301,6 @@ clean:
 	-rm -f ../!Moonfish/!RunImage
 	-rm -f debug-server
 	-rm -f $(MOONFISHAPPOBJS) $(MOONFISHMODOBJS)
-	-rm -f $(SUNFISHAPPOBJS) $(SUNFISHMODOBJS)
+	-rm -f $(SUNFISHAPPOBJS) $(SUNFISHMODOBJS) $(NEWFEAPPOBJS)
 	-rm -f $(MOONFISHDEBUGOBJS)
 	-rm -rf auto

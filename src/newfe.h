@@ -41,24 +41,26 @@
 
 #include "getuid.h"
 #include "hostbrowser.h"
+#include "ibicon.h"
 
 #include <stdarg.h>
 
-void syslogf(char *fmt, ...);
-
+extern "C" {
+void syslogf(char *, int,char *fmt, ...);
+}
 
 class sunfish:
-	public rtk::desktop::application
+	public rtk::desktop::application,
+	public rtk::events::menu_selection::handler
 {
 public:
 	sunfish();
+	void handle_event(rtk::events::menu_selection& ev);
+	void add_mounticon(const std::string &name);
 	getuid ggetuid;
-private:
 	hostbrowser _window;
-	rtk::desktop::ibar_icon ibicon;
-	rtk::desktop::menu ibmenu;
-	rtk::desktop::menu_item ibinfo;
-	rtk::desktop::menu_item ibquit;
-	rtk::desktop::prog_info_dbox proginfo;
+	ibicon ibaricon;
+	std::vector<ibicon *> ibaricons;
+private:
 };
 

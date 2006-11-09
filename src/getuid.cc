@@ -107,11 +107,8 @@ void getuid::setup(const hostinfo& info, string name, application& app)
 
 void getuid::handle_event(events::mouse_click& ev)
 {
-	syslogf("getuid::handle_event");
 	if (ev.buttons() == 2) {
-	syslogf("getuid::handle_event menu");
 	} else if (ev.target() == &save) {
-	syslogf("getuid::handle_event save");
 		mountdetails->uid = atoi(uid.text().c_str());
 		strcpy(mountdetails->gids, gid.text().c_str());
 		mountdetails->uidvalid = true;
@@ -122,7 +119,6 @@ void getuid::handle_event(events::mouse_click& ev)
 		os::Wimp_StartTask(cmd.c_str());
 		if (ev.buttons() == 4) remove();
 	} else if (ev.target() == &cancel) {
-	syslogf("getuid::handle_event cancel");
 		remove();
 	}
 }
