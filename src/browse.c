@@ -31,6 +31,10 @@
 #include "sunfish.h"
 #include "browse.h"
 
+#include <sys/param.h>
+#include <unistd.h>
+#include <stdio.h>
+
 int enablelog = 0;
 
 static os_error *browse_initconn(struct conn_info *conn, const char *host, int tcp, struct pool *pool)
@@ -155,7 +159,6 @@ char *browse_getexports(const char *host, unsigned port, unsigned mount3, unsign
 	if (pool == NULL) return NOMEMMESS;
 	pclear(pool);
 
-
 	err = browse_initconn(&conn, host, tcp, pool);
 	if (err) return err->errmess;
 	conn.mount_port = port;
@@ -206,3 +209,65 @@ char *browse_getexports(const char *host, unsigned port, unsigned mount3, unsign
 	err = rpc_close_connection(&conn);
 	return err ? err->errmess : NULL;
 }
+
+/* Encode a username or password for pcnfsd */
+static void encode(char *str)
+{
+	while (*str) {
+		*str = *str ^ 0x5b;
+		str++;
+	}
+}
+
+char *browse_lookuppassword(const char *host, unsigned port, unsigned tcp, const char *username, const char *password, unsigned *uid, unsigned *umask, char *gids, size_t gidsize)
+{
+	struct auth_args args;
+	struct auth_res res;
+	char machinename[MAXHOSTNAMELEN];
+	struct conn_info conn;
+	os_error *err;
+
+	err = browse_initconn(&conn, host, tcp, NULL);
+	if (err) return err->errmess;
+	conn.pcnfsd_port = port;
+	conn.timeout = 2;
+	conn.retries = 3;
+
+	gethostname(machinename, MAXHOSTNAMELEN);
+	args.system.data = machinename;
+	args.system.size = strlen(machinename);
+	char *encusername = pstrdup(username, conn.pool);
+	encode(encusername);
+	args.id.data = encusername;
+	args.id.size = strlen(encusername);
+	char *encpassword = pstrdup(password, conn.pool);
+	encode(encpassword);
+	args.pw.data = encpassword;
+	args.pw.size = strlen(encpassword);
+	args.comment.size = 0;
+
+	err = PCNFSD_AUTH(&args, &res, &conn);
+	if (err) {
+		rpc_close_connection(&conn);
+		pfree(conn.pool);
+		return err->errmess;
+	}
+	if (res.stat != AUTH_RES_OK) {
+		rpc_close_connection(&conn);
+		pfree(conn.pool);
+		return "PCNFSD authentication failed (Incorrect username/password)";
+	}
+	*uid = res.uid;
+	*umask = res.def_umask;
+	int written = snprintf(gids, gidsize, "%d", res.gid);
+
+	for (int i = 0; i < res.gids.size; i++) {
+		if (written > gidsize) break;
+		gids += written;
+		gidsize -= written;
+		written = snprintf(gids, gidsize, "%d", res.gids.data[i]);
+	}
+
+	return NULL;
+}
+

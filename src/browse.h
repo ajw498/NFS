@@ -48,6 +48,8 @@ char *browse_gethost(struct hostinfo *info, int type);
 
 char *browse_getexports(const char *host, unsigned port, unsigned mount3, unsigned tcp, struct exportinfo **ret);
 
+char *browse_lookuppassword(const char *host, unsigned port, unsigned tcp, const char *username, const char *password, unsigned *uid, unsigned *umask, char *gids, size_t gidsize);
+
 #ifdef __cplusplus
 }
 #endif

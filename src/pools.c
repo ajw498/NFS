@@ -91,7 +91,7 @@ void *palloc(size_t size, struct pool *pool)
 }
 
 /* strdup from a pool. */
-char *pstrdup(char *src, struct pool *pool)
+char *pstrdup(const char *src, struct pool *pool)
 {
 	char *dest;
 	size_t len;
@@ -104,7 +104,7 @@ char *pstrdup(char *src, struct pool *pool)
 }
 
 /* copy some memory to a pool. */
-void *pmemdup(void *src, size_t size, struct pool *pool)
+void *pmemdup(const void *src, size_t size, struct pool *pool)
 {
 	void *dest;
 

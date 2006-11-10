@@ -55,15 +55,13 @@ using rtk::graphics::point;
 using rtk::graphics::box;
 
 
-getuid::getuid() :
-	mountdetails(0)
+getuid::getuid()
 {
 	title("Enter uid thing");
-	uidlabel.text("User id");
-	uid.text("Wibble",10);
-	gid.text("",4);
-	gidlabel.text("Group id");
-	explain.text("Explanation about uid and gids goes here");
+	close_icon(false);
+
+	uid.text("",30);
+	gid.text("",30);
 	cancel.text("Cancel");
 	set.text("Set");
 	save.text("Save");
@@ -85,22 +83,42 @@ getuid::getuid() :
 
 void getuid::setup(const hostinfo& info, string name, application& app)
 {
-	delete mountdetails;
-	mountdetails = 0;
+	mountchoices mountdetails;
+
 	host = info;
 	exportname = name;
-	mountdetails = new mountchoices;
-	string filename = mountdetails->genfilename(host.host, exportname);
-	mountdetails->load(filename);
-	strcpy(mountdetails->server, host.host);
-	strcpy(mountdetails->exportname, exportname.c_str());
-	if (mountdetails->uidvalid) {
+	string filename = mountdetails.genfilename(host.host, exportname);
+	mountdetails.load(filename);
+	if (mountdetails.uidvalid ||
+	    mountdetails.username[0] ||
+	    (info.mount1udpport == 111) ||
+	    (info.mount1tcpport == 111) ||
+	    (info.mount3udpport == 111) ||
+	    (info.mount3tcpport == 111)) {
+		// Assume that any server with the mount protocol on port 111
+		// is a RISC OS machine, and therefore doesn't need a valid
+		// uid/gid. If this assumption is wrong, then the user can
+		// always set the uid/gid from the export choices.
 		string cmd = "Filer_OpenDir ";
 		cmd += filename;
 		os::Wimp_StartTask(cmd.c_str());
+	} else if (info.pcnfsdudpport || info.pcnfsdtcpport) {
+		uidlabel.text("Username");
+		gidlabel.text("Password");
+		uid.validation("Kta;Pptr_write");
+		gid.validation("D*;Kta;Pptr_write");
+		explain.text("");
+		app.add(*this,point(640,512));
 	} else {
+		uidlabel.text("User id");
+		gidlabel.text("Group id");
+		uid.validation("A0-9;Kta;Pptr_write");
+		gid.validation("A0-9 ;Kta;Pptr_write");
+		explain.text("Some systems may not require specific id values, in which case leave them blank");
 		app.add(*this,point(640,512));
 	}
+	uid.text("");
+	gid.text("");
 }
 
 #include "newfe.h"
@@ -109,21 +127,38 @@ void getuid::handle_event(events::mouse_click& ev)
 {
 	if (ev.buttons() == 2) {
 	} else if (ev.target() == &save) {
-		mountdetails->uid = atoi(uid.text().c_str());
-		strcpy(mountdetails->gids, gid.text().c_str());
-		mountdetails->uidvalid = true;
-		string filename = mountdetails->genfilename(host.host, exportname);
-		mountdetails->save(filename);
+		mountchoices mountdetails;
+		string filename = mountdetails.genfilename(host.host, exportname);
+		mountdetails.load(filename);
+		strcpy(mountdetails.server, host.host);
+		strcpy(mountdetails.exportname, exportname.c_str());
+
+		if (host.pcnfsdudpport || host.pcnfsdtcpport) {
+			char *err;
+			bool tcp = host.pcnfsdudpport == 0;
+			int port = tcp ? host.pcnfsdtcpport : host.pcnfsdudpport;
+
+			err = browse_lookuppassword(host.host, port, tcp, uid.text().c_str(), gid.text().c_str(), &mountdetails.uid, &mountdetails.umask, mountdetails.gids, sizeof(mountdetails.gids));
+			if (err) throw err;
+		} else {
+			mountdetails.uid = atoi(uid.text().c_str());
+			strcpy(mountdetails.gids, gid.text().c_str());
+		}
+		mountdetails.uidvalid = true;
+		mountdetails.save(filename);
+
 		string cmd = "Filer_OpenDir ";
 		cmd += filename;
 		os::Wimp_StartTask(cmd.c_str());
+
 		if (ev.buttons() == 4) remove();
 	} else if (ev.target() == &cancel) {
-		remove();
+		uid.text("");
+		gid.text("");
+		if (ev.buttons() == 4) remove();
 	}
 }
 
 getuid::~getuid()
 {
-	delete mountdetails;
 }

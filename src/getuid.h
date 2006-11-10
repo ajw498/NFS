@@ -69,7 +69,6 @@ public:
 private:
 	hostinfo host;
 	string exportname;
-	mountchoices *mountdetails;
 	icon uidlabel;
 	icon gidlabel;
 	writable_field uid;

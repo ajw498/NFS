@@ -54,9 +54,9 @@ public:
 	int localportmin;
 	int localportmax;
 	bool uidvalid;
-	int uid;
+	unsigned uid;
 	char gids[STRMAX];
-	int umask;
+	unsigned umask;
 	bool usepcnfsd;
 	bool tcp;
 	bool nfs3;

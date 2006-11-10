@@ -45,7 +45,10 @@ exportbrowser::exportbrowser(hostinfo host) :
 	title(info.host);
 
 	struct exportinfo *res;
-	err = browse_getexports(info.host, info.mount1udpport, 1, 0, &res);
+	bool tcp = info.mount1udpport == 0;
+	int port = tcp ? info.mount1tcpport : info.mount1udpport;
+	if (port == 0) throw "No suitable mount service found";
+	err = browse_getexports(info.host, port, 1, tcp, &res);
 	if (err) throw err;
 	while (res) {
 		add_icon(res->exportname, "file_1b6");
