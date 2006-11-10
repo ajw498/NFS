@@ -44,11 +44,12 @@ exportbrowser::exportbrowser(hostinfo host) :
 
 	title(info.host);
 
-	char *exports[256];
-	err = browse_getexports(info.host, info.mount1udpport, 1, 0, exports);
+	struct exportinfo *res;
+	err = browse_getexports(info.host, info.mount1udpport, 1, 0, &res);
 	if (err) throw err;
-	for (int j = 0; exports[j]; j++) {
-		add_icon(exports[j], "file_1b6");
+	while (res) {
+		add_icon(res->exportname, "file_1b6");
+		res = res->next;
 	}
 }
 

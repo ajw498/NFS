@@ -24,17 +24,16 @@
 
 #include "rpc-calls.h"
 #include "portmapper-calls.h"
-/*#include "mount1-calls.h"*/
+#include "pcnfsd-calls.h"
+#include "mount1-calls.h"
 #include "mount3-calls.h"
-#include "nfs2-calls.h"
-/*#include "nfs3-calls.h"*/
 
 #include "sunfish.h"
 #include "browse.h"
 
 int enablelog = 0;
 
-static os_error *browse_initconn(struct conn_info *conn, const char *host, int tcp)
+static os_error *browse_initconn(struct conn_info *conn, const char *host, int tcp, struct pool *pool)
 {
 	conn->config = NULL;
 	conn->portmapper_port = PMAP_PORT;
@@ -59,8 +58,12 @@ static os_error *browse_initconn(struct conn_info *conn, const char *host, int t
 	conn->nfs3 = 0;
 	conn->toenc = (iconv_t)-1;
 	conn->fromenc = (iconv_t)-1;
-	if ((conn->pool = pinit(NULL)) == NULL) {
-		return gen_error(NOMEM,NOMEMMESS);
+	if (pool) {
+		conn->pool = pool;
+	} else {
+		if ((conn->pool = pinit(NULL)) == NULL) {
+			return gen_error(NOMEM,NOMEMMESS);
+		}
 	}
 	conn->txmutex = 0;
 	conn->rxmutex = NULL;
@@ -79,7 +82,7 @@ char *browse_gethost(struct hostinfo *info, int type)
 	static struct conn_info broadcastconn;
 
 	if (type == 0) {
-		err = browse_initconn(&broadcastconn, NULL, 0);
+		err = browse_initconn(&broadcastconn, NULL, 0, NULL);
 		if (err) return err->errmess;
 	}
 
@@ -105,10 +108,13 @@ char *browse_gethost(struct hostinfo *info, int type)
 	info->mount1udpport = 0;
 	info->mount3tcpport = 0;
 	info->mount3udpport = 0;
+	info->pcnfsdtcpport = 0;
+	info->pcnfsdudpport = 0;
 
 	list = res.list;
 	while (list) {
-		if (list->map.prog == MOUNT_RPC_PROGRAM) {
+		switch (list->map.prog) {
+		case MOUNT_RPC_PROGRAM:
 			if (list->map.vers == 1) {
 				if (list->map.prot == IPPROTO_UDP) {
 					info->mount1udpport = list->map.port;
@@ -122,6 +128,16 @@ char *browse_gethost(struct hostinfo *info, int type)
 					info->mount3tcpport = list->map.port;
 				}
 			}
+			break;
+		case PCNFSD_RPC_PROGRAM:
+			if (list->map.vers == PCNFSD_RPC_VERSION) {
+				if (list->map.prot == IPPROTO_UDP) {
+					info->pcnfsdudpport = list->map.port;
+				} else if (list->map.prot == IPPROTO_TCP) {
+					info->pcnfsdtcpport = list->map.port;
+				}
+			}
+			break;
 		}
 		list = list->next;
 	}
@@ -129,39 +145,64 @@ char *browse_gethost(struct hostinfo *info, int type)
 }
 
 
-char *browse_getexports(const char *host, unsigned port, unsigned mount3, unsigned tcp, char **ret)
+char *browse_getexports(const char *host, unsigned port, unsigned mount3, unsigned tcp, struct exportinfo **ret)
 {
-	exportlist32 res;
-	exportlist3 list;
 	os_error *err;
 	struct conn_info conn;
+	static struct pool *pool = NULL;
 
-	err = browse_initconn(&conn, host, tcp);
+	if (pool == NULL) pool = pinit(NULL);
+	if (pool == NULL) return NOMEMMESS;
+	pclear(pool);
+
+
+	err = browse_initconn(&conn, host, tcp, pool);
 	if (err) return err->errmess;
 	conn.mount_port = port;
 	conn.timeout = 2;
 	conn.retries = 3;
 
-	err = MOUNTPROC3_EXPORT(&res, &conn);
- if (err)  syslogf("Wibble",66,"browse_getexports error %s",err->errmess);
-	if (err) {
-		rpc_close_connection(&conn);
-		pfree(conn.pool);
-		return err->errmess;
-	}
+	if (mount3) {
+		exportlist32 res;
+		exportlist3 list;
 
-	int i = 0;
-	list = res.list;
-	while (list) {
-		syslogf("Wibble",66,"export: %s",list->filesys.data);
-		ret[i] = malloc(list->filesys.size + 1);
-		memcpy(ret[i], list->filesys.data, list->filesys.size);
-		ret[i++][list->filesys.size] = '\0';
-		list = list->next;
+		err = MOUNTPROC3_EXPORT(&res, &conn);
+		if (err) {
+			rpc_close_connection(&conn);
+			return err->errmess;
+		}
+
+		list = res.list;
+		while (list) {
+			*ret = palloc(sizeof(struct exportinfo), pool);
+			(*ret)->exportname = palloc(list->filesys.size + 1, pool);
+			memcpy((*ret)->exportname, list->filesys.data, list->filesys.size);
+			(*ret)->exportname[list->filesys.size] = '\0';
+			ret = &((*ret)->next);
+			list = list->next;
+		}
+	} else {
+		exportlist2 res;
+		exportlist list;
+
+		err = MNTPROC_EXPORT(&res, &conn);
+		if (err) {
+			rpc_close_connection(&conn);
+			return err->errmess;
+		}
+
+		list = res.list;
+		while (list) {
+			*ret = palloc(sizeof(struct exportinfo), pool);
+			(*ret)->exportname = palloc(list->filesys.size + 1, pool);
+			memcpy((*ret)->exportname, list->filesys.data, list->filesys.size);
+			(*ret)->exportname[list->filesys.size] = '\0';
+			ret = &((*ret)->next);
+			list = list->next;
+		}
 	}
-	ret[i] = NULL;
+	*ret = NULL;
 
 	err = rpc_close_connection(&conn);
-	pfree(conn.pool);
 	return err ? err->errmess : NULL;
 }

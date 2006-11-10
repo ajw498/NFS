@@ -34,12 +34,19 @@ struct hostinfo {
 	unsigned mount1udpport;
 	unsigned mount3tcpport;
 	unsigned mount3udpport;
+	unsigned pcnfsdtcpport;
+	unsigned pcnfsdudpport;
 	char host[256];
+};
+
+struct exportinfo {
+	char *exportname;
+	struct exportinfo *next;
 };
 
 char *browse_gethost(struct hostinfo *info, int type);
 
-char *browse_getexports(const char *host, unsigned port, unsigned mount3, unsigned tcp, char **ret);
+char *browse_getexports(const char *host, unsigned port, unsigned mount3, unsigned tcp, struct exportinfo **ret);
 
 #ifdef __cplusplus
 }
