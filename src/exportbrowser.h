@@ -83,6 +83,10 @@ private:
 	rtk::desktop::menu_item clear;
 	rtk::desktop::menu_item refreshwin;
 
+	rtk::desktop::menu displaymenu;
+	rtk::desktop::menu_item largeiconsitem;
+	rtk::desktop::menu_item smalliconsitem;
+
 	rtk::desktop::menu edit;
 	rtk::desktop::menu_item namemount;
 	rtk::desktop::menu_item filenames;

@@ -97,6 +97,14 @@ void sunfish::handle_event(rtk::events::close_window& ev)
 	}
 }
 
+void sunfish::smallicons(bool small)
+{
+	if (small != usesmallicons) {
+		usesmallicons = small;
+		// FIXME save to choices file
+	}
+}
+
 int main(void)
 {
 	sunfish app;

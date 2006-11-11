@@ -41,6 +41,7 @@ exportbrowser::exportbrowser(hostinfo host) :
 	info(host)
 {
 	title(info.host);
+	smallicons(false); //FIXME
 }
 
 void exportbrowser::refresh(int port, bool tcp, int version)
@@ -85,13 +86,23 @@ void exportbrowser::open_menu(const std::string& item, bool selection, rtk::even
 	menu.add(clear,2);
 	menu.add(refreshwin,3);
 	display.text("Display");
-	display.enabled(false);
+	display.attach_submenu(displaymenu);
 	edititem.text(selection ? "Selection" : "Edit '"+item+"'");
 	edititem.enabled(!selection && item.compare("") != 0);
 	edititem.attach_submenu(edit);
 	clear.text("Clear selection");
 	clear.enabled(item.compare("") != 0);
 	refreshwin.text("Refresh");
+
+	displaymenu.title("Display");
+	displaymenu.add(largeiconsitem, 0);
+	displaymenu.add(smalliconsitem, 1);
+
+	sunfish& app = *static_cast<sunfish *>(parent_application());
+	largeiconsitem.text("Large icons");
+	largeiconsitem.tick(!app.smallicons());
+	smalliconsitem.text("Small icons");
+	smalliconsitem.tick(app.smallicons());
 
 	edit.title("Edit export");
 	edit.add(namemount, 0);
@@ -109,6 +120,8 @@ void exportbrowser::open_menu(const std::string& item, bool selection, rtk::even
 
 void exportbrowser::handle_event(rtk::events::menu_selection& ev)
 {
+	sunfish& app = *static_cast<sunfish *>(parent_application());
+
 	if (ev.target() == &clear) {
 		for (int i = icons.size() - 1; i >= 0; i--) icons[i]->selected(false);
 	} else if (ev.target() == &refreshwin) {
@@ -116,14 +129,24 @@ void exportbrowser::handle_event(rtk::events::menu_selection& ev)
 	} else if (ev.target() == &namemount) {
 	} else if (ev.target() == &filenames) {
 		filenameswin.load(info.host, menuitem);
-		parent_application()->add(filenameswin, point(2*640,2*512));
+		app.add(filenameswin, point(2*640,2*512));
 		// bring to front if already open?
 	} else if (ev.target() == &connection) {
 		connectionwin.load(info.host, menuitem);
-		parent_application()->add(connectionwin, point(2*640,2*512));
+		app.add(connectionwin, point(2*640,2*512));
 	} else if (ev.target() == &uids) {
 		uidswin.load(info.host, menuitem);
-		parent_application()->add(uidswin, point(2*640,2*512));
+		app.add(uidswin, point(2*640,2*512));
+	} else if (ev.target() == &largeiconsitem) {
+		largeiconsitem.tick(true);
+		smalliconsitem.tick(false);
+		smallicons(false);
+		app.smallicons(false);
+	} else if (ev.target() == &smalliconsitem) {
+		largeiconsitem.tick(false);
+		smalliconsitem.tick(true);
+		smallicons(true);
+		app.smallicons(true);
 	}
 }
 

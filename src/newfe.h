@@ -65,6 +65,9 @@ public:
 	ibicon ibaricon;
 	std::vector<ibicon *> ibaricons;
 	std::vector<exportbrowser *> exportbrowsers;
+	void smallicons(bool small);
+	bool smallicons() { return usesmallicons; }
 private:
+	bool usesmallicons;
 };
 
