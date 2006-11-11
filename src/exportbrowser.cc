@@ -40,15 +40,21 @@ using rtk::graphics::box;
 exportbrowser::exportbrowser(hostinfo host) :
 	info(host)
 {
-	char *err;
-
 	title(info.host);
+}
 
+void exportbrowser::refresh(int port, bool tcp, int version)
+{
+	char *err;
 	struct exportinfo *res;
-	bool tcp = info.mount1udpport == 0;
-	int port = tcp ? info.mount1tcpport : info.mount1udpport;
-	if (port == 0) throw "No suitable mount service found";
-	err = browse_getexports(info.host, port, 1, tcp, &res);
+
+	usetcp = tcp;
+	nfsversion = version;
+	useport = port;
+
+	remove_all_icons();
+
+	err = browse_getexports(info.host, port, version == 3, tcp, &res);
 	if (err) throw err;
 	while (res) {
 		add_icon(res->exportname, "file_1b6");
@@ -56,12 +62,12 @@ exportbrowser::exportbrowser(hostinfo host) :
 	}
 }
 
-void exportbrowser::doubleclick(const std::string& item)
+void exportbrowser::doubleclick(const std::string& item, rtk::events::mouse_click& ev)
 {
 	string filename = "Sunfish:mounts.auto."+item;
 
-	sunfish *app = static_cast<sunfish *>(parent_application());
-	app->ggetuid.setup(info, item, *app);
+	sunfish& app = *static_cast<sunfish *>(parent_application());
+	app.ggetuid.setup(info, item, usetcp, nfsversion, app);
 }
 
 exportbrowser::~exportbrowser()
@@ -77,7 +83,7 @@ void exportbrowser::open_menu(const std::string& item, bool selection, rtk::even
 	menu.add(display,0);
 	menu.add(edititem,1);
 	menu.add(clear,2);
-	menu.add(refresh,3);
+	menu.add(refreshwin,3);
 	display.text("Display");
 	display.enabled(false);
 	edititem.text(selection ? "Selection" : "Edit '"+item+"'");
@@ -85,7 +91,7 @@ void exportbrowser::open_menu(const std::string& item, bool selection, rtk::even
 	edititem.attach_submenu(edit);
 	clear.text("Clear selection");
 	clear.enabled(item.compare("") != 0);
-	refresh.text("Refresh").enabled(false);
+	refreshwin.text("Refresh");
 
 	edit.title("Edit export");
 	edit.add(namemount, 0);
@@ -105,8 +111,8 @@ void exportbrowser::handle_event(rtk::events::menu_selection& ev)
 {
 	if (ev.target() == &clear) {
 		for (int i = icons.size() - 1; i >= 0; i--) icons[i]->selected(false);
-	} else if (ev.target() == &refresh) {
-		//broadcast();
+	} else if (ev.target() == &refreshwin) {
+		refresh(useport, usetcp, nfsversion);
 	} else if (ev.target() == &namemount) {
 	} else if (ev.target() == &filenames) {
 		filenameswin.load(info.host, menuitem);

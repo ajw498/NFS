@@ -86,6 +86,17 @@ void sunfish::handle_event(rtk::events::menu_selection& ev)
 	}
 }
 
+void sunfish::handle_event(rtk::events::close_window& ev)
+{
+	for (vector<exportbrowser*>::iterator i = exportbrowsers.begin(); i != exportbrowsers.end(); i++) {
+		if (ev.target() == *i) {
+			delete *i;
+			exportbrowsers.erase(i);
+			break;
+		}
+	}
+}
+
 int main(void)
 {
 	sunfish app;

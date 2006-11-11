@@ -21,6 +21,9 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+#ifndef HOSTBROWSER_H
+#define HOSTBROWSER_H
+
 #include "rtk/desktop/application.h"
 #include "rtk/desktop/menu_item.h"
 #include "rtk/desktop/menu.h"
@@ -62,7 +65,7 @@ public:
 	void handle_event(rtk::events::menu_selection& ev);
 	void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev);
 //	void drag_ended(bool adjust, rtk::events::user_drag_box& ev) {}
-	void doubleclick(const std::string& item);
+	void doubleclick(const std::string& item, rtk::events::mouse_click& ev);
 private:
 	void openexportbrowser(hostinfo *info, bool tcp, int version);
 	hostinfo *menuinfo;
@@ -92,4 +95,6 @@ private:
 	rtk::desktop::menu_item tcpnfs4;
 
 };
+
+#endif
 

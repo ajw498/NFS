@@ -21,6 +21,9 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
+#ifndef EXPORTBROWSER_H
+#define EXPORTBROWSER_H
+
 #include "rtk/desktop/menu_item.h"
 #include "rtk/desktop/menu.h"
 #include "rtk/desktop/filer_window.h"
@@ -59,15 +62,18 @@ class exportbrowser:
 public:
 	exportbrowser(hostinfo host);
 	~exportbrowser();
-//	void handle_event(rtk::events::close_window& ev) { parent_application()->terminate(); }
+	void refresh(int port, bool tcp, int version);
 	void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev);
 	void drag_ended(bool adjust, rtk::events::user_drag_box& ev);
-	void doubleclick(const std::string& item);
+	void doubleclick(const std::string& item, rtk::events::mouse_click& ev);
 	void handle_event(rtk::events::menu_selection& ev);
 private:
 	exportsave saveop;
 
 	hostinfo info;
+	bool usetcp;
+	int nfsversion;
+	int useport;
 
 	std::string menuitem;
 
@@ -75,7 +81,7 @@ private:
 	rtk::desktop::menu_item display;
 	rtk::desktop::menu_item edititem;
 	rtk::desktop::menu_item clear;
-	rtk::desktop::menu_item refresh;
+	rtk::desktop::menu_item refreshwin;
 
 	rtk::desktop::menu edit;
 	rtk::desktop::menu_item namemount;
@@ -87,4 +93,6 @@ private:
 	editconnection connectionwin;
 	edituid uidswin;
 };
+
+#endif
 

@@ -64,11 +64,13 @@ class getuid:
 public:
 	getuid();
 	~getuid();
-	void setup(const hostinfo& info, string name, application& parent);
+	void setup(const hostinfo& info, string name, bool tcp, int version, application& parent);
 	void handle_event(events::mouse_click& ev);
 private:
 	hostinfo host;
 	string exportname;
+	bool usetcp;
+	int nfsversion;
 	icon uidlabel;
 	icon gidlabel;
 	writable_field uid;

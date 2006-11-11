@@ -81,14 +81,23 @@ getuid::getuid()
 	add(layout1);
 }
 
-void getuid::setup(const hostinfo& info, string name, application& app)
+void getuid::setup(const hostinfo& info, string name, bool tcp, int version, application& app)
 {
 	mountchoices mountdetails;
 
+	// Open window near mouse position.
+	os::pointer_info_get blk;
+	os::Wimp_GetPointerInfo(blk);
+	blk.p -= point(64,0);
+
 	host = info;
 	exportname = name;
+	usetcp = tcp;
+	nfsversion = version;
 	string filename = mountdetails.genfilename(host.host, exportname);
 	mountdetails.load(filename);
+	mountdetails.tcp = tcp;
+	mountdetails.nfs3 = version == 3;
 	if (mountdetails.uidvalid ||
 	    mountdetails.username[0] ||
 	    (info.mount1udpport == 111) ||
@@ -99,6 +108,7 @@ void getuid::setup(const hostinfo& info, string name, application& app)
 		// is a RISC OS machine, and therefore doesn't need a valid
 		// uid/gid. If this assumption is wrong, then the user can
 		// always set the uid/gid from the export choices.
+		mountdetails.save(filename);
 		string cmd = "Filer_OpenDir ";
 		cmd += filename;
 		os::Wimp_StartTask(cmd.c_str());
@@ -108,20 +118,19 @@ void getuid::setup(const hostinfo& info, string name, application& app)
 		uid.validation("Kta;Pptr_write");
 		gid.validation("D*;Kta;Pptr_write");
 		explain.text("");
-		app.add(*this,point(640,512));
+		app.add(*this,blk.p);
 	} else {
 		uidlabel.text("User id");
 		gidlabel.text("Group id");
 		uid.validation("A0-9;Kta;Pptr_write");
 		gid.validation("A0-9 ;Kta;Pptr_write");
 		explain.text("Some systems may not require specific id values, in which case leave them blank");
-		app.add(*this,point(640,512));
+		app.add(*this,blk.p);
 	}
 	uid.text("");
 	gid.text("");
 }
 
-#include "newfe.h"
 
 void getuid::handle_event(events::mouse_click& ev)
 {
@@ -132,6 +141,8 @@ void getuid::handle_event(events::mouse_click& ev)
 		mountdetails.load(filename);
 		strcpy(mountdetails.server, host.host);
 		strcpy(mountdetails.exportname, exportname.c_str());
+		mountdetails.tcp = usetcp;
+		mountdetails.nfs3 = nfsversion == 3;
 
 		if (host.pcnfsdudpport || host.pcnfsdtcpport) {
 			char *err;

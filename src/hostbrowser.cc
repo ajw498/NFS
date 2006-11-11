@@ -48,28 +48,53 @@
 #include "browse.h"
 #include "hostbrowser.h"
 #include "exportbrowser.h"
+#include "newfe.h"
+
 
 using namespace std;
+using namespace rtk::graphics;
+
 
 void hostbrowser::openexportbrowser(hostinfo *info, bool tcp, int version)
 {
+	int port = 0;
+	int vers = 0;
+
+	if (tcp  && (version >= 3) && (port == 0)) {
+		port = info->mount3tcpport;
+		vers = 3;
+	}
+	if (tcp  && (version >= 2) && (port == 0)) {
+		port = info->mount1tcpport;
+		vers = 2;
+	}
+	if (tcp  && (port == 0)) tcp = false;
+	if (!tcp && (version >= 3) && (port == 0)) {
+		port = info->mount3udpport;
+		vers = 3;
+	}
+	if (!tcp && (version >= 2) && (port == 0)) {
+		port = info->mount1udpport;
+		vers = 2;
+	}
+
+	if (port == 0) throw "No suitable mount service found on remote server";
+
 	exportbrowser *eb = new exportbrowser(*info);
-	// Find centre of desktop.
-	rtk::graphics::box dbbox(parent_application()->bbox());
-	rtk::graphics::point dcentre((dbbox.xmin()+dbbox.xmax())/2,
-		(dbbox.ymin()+dbbox.ymax())/2);
 
-	// Find centre of window.
-	rtk::graphics::box cbbox(eb->bbox());
-	rtk::graphics::point ccentre((cbbox.xmin()+cbbox.xmax())/2,
-		(cbbox.ymin()+cbbox.ymax())/2);
+	eb->refresh(port, tcp, vers);
 
-	// Open window at centre of desktop.
+	// Open window near mouse position.
+	os::pointer_info_get blk;
+	os::Wimp_GetPointerInfo(blk);
+	blk.p -= point(64,0);
 
-	parent_application()->add(*eb, dcentre-ccentre);
+	sunfish *app = static_cast<sunfish *>(parent_application());
+	app->exportbrowsers.push_back(eb);
+	app->add(*eb, blk.p);
 }
 
-void hostbrowser::doubleclick(const std::string& item)
+void hostbrowser::doubleclick(const std::string& item, rtk::events::mouse_click& ev)
 {
 	openexportbrowser(&(hostinfos[item]), true, 4);
 }
