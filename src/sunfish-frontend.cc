@@ -1128,6 +1128,7 @@ void hostwin::abouttobeshown(void)
 		}
 	}*/
 
+#if 0
 	for (unsigned i = 0; i < items.size(); i++) {
 		char *exports[256];
 		syslogf("browse_getexports for ");
@@ -1149,6 +1150,7 @@ void hostwin::abouttobeshown(void)
 		mwin->set_title(items[i].host);
 		mwin->show();
 	}
+#endif
 
 //	xwindow_set_title(0, objectid, "NFS servers");
 	set_title("NFS servers");
