@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <swis.h>
+#include <unixlib.h>
 
 #include "sunfishdefs.h"
 #include "sunfish.h"
@@ -43,6 +44,21 @@ extern int module_base_address;
 
 typedef int veneer;
 
+struct fs_info_block {
+	veneer fsname;
+	veneer startuptext;
+	veneer fsentry_open;
+	veneer fsentry_getbytes;
+	veneer fsentry_putbytes;
+	veneer fsentry_args;
+	veneer fsentry_close;
+	veneer fsentry_file;
+	unsigned information_word;
+	veneer fsentry_func;
+	veneer fsentry_gbpb;
+	unsigned extra_information_word;
+};
+
 struct imagefs_info_block {
 	unsigned int information_word;
 	unsigned int filetype;
@@ -54,6 +70,8 @@ struct imagefs_info_block {
 	veneer imageentry_file;
 	veneer imageentry_func;
 };
+
+static const char *fsname = "Sunfish";
 
 /* A count of the number of connections that have logging enabled.
    We log all connections if any of them have logging enabled. */
@@ -95,13 +113,202 @@ static void logexit(_kernel_swi_regs *r, os_error *err)
 
 static void logentry(char *entry, char *filename, _kernel_swi_regs *r)
 {
-	syslogf(LOGNAME, LOGENTRY, "ImageEntry_%s %.8x %.8x %.8x %.8x %.8x %.8x %.8x %s", entry, r->r[0], r->r[1], r->r[2], r->r[3], r->r[4], r->r[5], r->r[6], filename);	
+	syslogf(LOGNAME, LOGENTRY, "ImageEntry_%s %.8x %.8x %.8x %.8x %.8x %.8x %.8x %s", entry, r->r[0], r->r[1], r->r[2], r->r[3], r->r[4], r->r[5], r->r[6], filename);
+}
+
+/* SWIs
+All registers preserved unless stated. All SWIs are non-reentrant.
+
+Sunfish_Mount
+Create a new mount. Will first dismount any existing mount of the same name.
+=> r0 disc name
+   r1 special field (or 0 for none)
+   r2 ptr to mountfile contents (null terminated)
+
+
+Sunfish_dismount
+Remove a mount.
+=> r0 disc name
+   r1 special field (or 0 for none)
+
+Sunfish_ListMounts
+Iterate through the list of currently mounted mounts.
+=> r0 start value (0 for first item)
+<= r0 next value (0 when last item reached)
+   r1 disc name (or 0 if no item)
+   r2 special field (or 0 if no special field)
+*/
+
+struct fsmount {
+	char *discname;
+	char *specialfield;
+	struct conn_info *conn;
+	struct fsmount *next;
+};
+
+static struct fsmount *fsmounts = NULL;
+
+static void fs_dismount_all(void)
+{
+	struct fsmount *mount = fsmounts;
+	struct fsmount *next;
+
+	while (mount) {
+		next = mount->next;
+		CALLENTRY(func_closeimage, mount->conn, (mount->conn));
+		free(mount->discname);
+		if (mount->specialfield) free(mount->specialfield);
+		free(mount);
+		mount = next;
+	}
+}
+
+static void fs_dismount(char *discname, char *specialfield)
+{
+	struct fsmount *mount = fsmounts;
+	struct fsmount **prevmount = &fsmounts;
+
+	/* Search for a matching mount */
+	while (mount) {
+		if (strcasecmp(mount->discname, discname) == 0) {
+			if (specialfield == NULL) {
+				if (mount->specialfield == NULL) break;
+			} else {
+				if ((mount->specialfield != NULL) &&
+				    (strcmp(specialfield, mount->specialfield) == 0)) {
+					break;
+				}
+			}
+		}
+		prevmount = &(mount->next);
+		mount = mount->next;
+	}
+
+	/* Remove mount if found */
+	if (mount) {
+		CALLENTRY(func_closeimage, mount->conn, (mount->conn));
+		free(mount->discname);
+		if (mount->specialfield) free(mount->specialfield);
+		*prevmount = mount->next;
+		free(mount);
+	}
+}
+
+_kernel_oserror *swi_handler(int swi_offset, _kernel_swi_regs *r, void *pw)
+{
+	os_error *err;
+	struct fsmount *mount;
+
+	(void)pw;
+
+	switch (swi_offset) {
+	case Sunfish_Mount - Sunfish_00:
+		/* Dismount any previous mount with the same name and special field */
+		fs_dismount((char *)(r->r[0]), (char *)(r->r[1]));
+
+		/* Create the new list entry */
+		mount = malloc(sizeof(struct fsmount));
+		if (mount == NULL) return gen_error(NOMEM,NOMEMMESS);
+		mount->discname = strdup((char *)(r->r[0]));
+		if (mount->discname == NULL) {
+			free(mount);
+			return gen_error(NOMEM,NOMEMMESS);
+		}
+		if (r->r[1]) {
+			mount->specialfield = strdup((char *)(r->r[1]));
+			if (mount->specialfield == NULL) {
+				free(mount->discname);
+				free(mount);
+				return gen_error(NOMEM,NOMEMMESS);
+			}
+		} else {
+			mount->specialfield = NULL;
+		}
+
+		/* Create the connection and mount the server */
+		err = func_newimage(0, (char *)(r->r[2]), &(mount->conn));
+		if (err) {
+			if (mount->specialfield == NULL) free(mount->specialfield);
+			free(mount->discname);
+			free(mount);
+			return err;
+		}
+
+		/* Add to linked list */
+		mount->next = fsmounts;
+		fsmounts = mount;
+		break;
+	case Sunfish_Dismount - Sunfish_00:
+		fs_dismount((char *)(r->r[0]), (char *)(r->r[1]));
+		break;
+	case Sunfish_ListMounts - Sunfish_00:
+		mount = (struct fsmount *)(r->r[0]);
+		if (mount == NULL) mount = fsmounts;
+		if (mount) {
+			r->r[0] = (int)(mount->next);
+			r->r[1] = (int)(mount->discname);
+			r->r[2] = (int)(mount->specialfield);
+		} else {
+			r->r[0] = 0;
+			r->r[1] = 0;
+			r->r[2] = 0;
+		}
+		break;
+	default:
+		return error_BAD_SWI;
+	}
+	return NULL;
+}
+
+/* Filenames are of the form :discname.$.foo.bar
+   We need to extract the discname and the foo.bar component, and then find
+   a matching connection. */
+static os_error *filename_to_conn(char *filename, char *specialfield, struct conn_info **conn, char **retfilename)
+{
+	struct fsmount *mount = fsmounts;
+	size_t discnamelen;
+
+	if (filename[0] == ':') filename++;
+
+	*retfilename = strchr(filename, '$');
+	if (*retfilename == NULL) return gen_error(INVALFILENAMEERR,"Invalid filename");
+
+	discnamelen = *retfilename - filename;
+	if (discnamelen && (filename[discnamelen - 1] == '.')) discnamelen--;
+
+	(*retfilename)++;
+	if (**retfilename == '.') (*retfilename)++;
+	if (**retfilename == '\0') *retfilename = "/";/*FIXME*/
+
+	while (mount) {
+		if (strncasecmp(mount->discname, filename, discnamelen) == 0) {
+			if (specialfield == NULL) {
+				if (mount->specialfield == NULL) break;
+			} else {
+				if ((mount->specialfield != NULL) &&
+				    (strcasecmp(specialfield, mount->specialfield) == 0)) {
+					break;
+				}
+			}
+		}
+		mount = mount->next;
+	}
+
+	if (mount) {
+		*conn = mount->conn;
+	} else {
+		return gen_error(NODISCERR, "Disc not found");
+	}
+
+	return NULL;
 }
 
 static os_error *declare_fs(void *private_word)
 {
 	struct imagefs_info_block info_block;
-	
+	struct fs_info_block fsinfo_block;
+	os_error *err;
+
 	info_block.information_word = 0;
 	info_block.filetype = SUNFISH_FILETYPE;
 	info_block.imageentry_open =     ((int)imageentry_open) - module_base_address;
@@ -112,7 +319,23 @@ static os_error *declare_fs(void *private_word)
 	info_block.imageentry_file =     ((int)imageentry_file) - module_base_address;
 	info_block.imageentry_func =     ((int)imageentry_func) - module_base_address;
 
-	return _swix(OS_FSControl, _INR(0,3), 35, module_base_address, ((int)(&info_block)) - module_base_address, private_word);
+	fsinfo_block.information_word = 0x80900000 | SUNFISH_FSNUMBER;
+	fsinfo_block.extra_information_word = 0;
+	fsinfo_block.fsname =              ((int)fsname) - module_base_address;
+	fsinfo_block.startuptext =         ((int)fsname) - module_base_address;
+	fsinfo_block.fsentry_open =     ((int)fsentry_open) - module_base_address;
+	fsinfo_block.fsentry_getbytes = ((int)imageentry_getbytes) - module_base_address;
+	fsinfo_block.fsentry_putbytes = ((int)imageentry_putbytes) - module_base_address;
+	fsinfo_block.fsentry_args =     ((int)imageentry_args) - module_base_address;
+	fsinfo_block.fsentry_close =    ((int)imageentry_close) - module_base_address;
+	fsinfo_block.fsentry_file =     ((int)fsentry_file) - module_base_address;
+	fsinfo_block.fsentry_func =     ((int)fsentry_func) - module_base_address;
+	fsinfo_block.fsentry_gbpb = 0;
+
+	err = _swix(OS_FSControl, _INR(0,3), 35, module_base_address, ((int)(&info_block)) - module_base_address, private_word);
+	if (err) return err;
+
+	return _swix(OS_FSControl, _INR(0,3), 12, module_base_address, ((int)(&fsinfo_block)) - module_base_address, private_word);
 }
 
 /* Must handle service redeclare */
@@ -127,19 +350,16 @@ void service_call(int service_number, _kernel_swi_regs *r, void *private_word)
 
 _kernel_oserror *initialise(const char *cmd_tail, int podule_base, void *private_word)
 {
-	os_error *err;
-
 	(void)cmd_tail;
 	(void)podule_base;
 
-	err = declare_fs(private_word);
-
-	return err;
+	return declare_fs(private_word);
 }
 
 _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 {
-	os_error *err = NULL;
+	os_error *err1 = NULL;
+	os_error *err2 = NULL;
 	static int finalised = 0;
 
 	(void)fatal;
@@ -148,7 +368,11 @@ _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 
 	if (enablelog) syslogf(LOGNAME, LOGENTRY, "Module finalisation");
 
-	if (!finalised) err = _swix(OS_FSControl, _INR(0,1), 36, SUNFISH_FILETYPE);
+	if (!finalised) {
+		err1 = _swix(OS_FSControl, _INR(0,1), 16, fsname);
+		err2 = _swix(OS_FSControl, _INR(0,1), 36, SUNFISH_FILETYPE);
+		fs_dismount_all();
+	}
 	finalised = 1;
 	/* OS_FSControl 36 can return an error which we want to notify the caller
 	   of, but that prevents the module from dying, and the next time
@@ -158,13 +382,15 @@ _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 
 	rpc_free_all_buffers();
 
-	return err;
+	if (err2) return err2;
+	return err1;
 }
 
 _kernel_oserror *imageentry_open_handler(_kernel_swi_regs *r, void *pw)
 {
 	os_error *err;
 	struct conn_info *conn = (struct conn_info *)(r->r[6]);
+	unsigned info_word;
 
 	(void)pw;
 
@@ -172,7 +398,39 @@ _kernel_oserror *imageentry_open_handler(_kernel_swi_regs *r, void *pw)
 
 	CONNENTRY(conn);
 
-	err = CALLENTRY(open_file, conn, ((char *)r->r[1], r->r[0], conn, (unsigned int *)&(r->r[0]), (struct file_handle **)&(r->r[1]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), (unsigned int *)&(r->r[4])));
+	info_word = 0;
+	err = CALLENTRY(open_file, conn, ((char *)r->r[1], r->r[0], conn, &info_word, (struct file_handle **)&(r->r[1]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), (unsigned int *)&(r->r[4])));
+	r->r[0] = info_word;
+
+	CONNEXIT(conn);
+
+	EXIT(r, err);
+
+	return err;
+}
+
+_kernel_oserror *fsentry_open_handler(_kernel_swi_regs *r, void *pw)
+{
+	os_error *err;
+	struct conn_info *conn;
+	char *filename;
+	unsigned info_word;
+
+
+	(void)pw;
+
+	ENTRY("Open    ", (char *)(r->r[1]), r);
+
+	err = filename_to_conn((char *)(r->r[1]), (char *)(r->r[6]), &conn, &filename);
+	if (err) return err;
+
+	CONNENTRY(conn);
+
+	/* Set bit 29 of r0, indicating it is a directory. Will be cleared by
+	   open_file if it is not. */
+	info_word = 0x20000000;
+	err = CALLENTRY(open_file, conn, (filename, r->r[0], conn, &info_word, (struct file_handle **)&(r->r[1]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), (unsigned int *)&(r->r[4])));
+	r->r[0] = info_word;
 
 	CONNEXIT(conn);
 
@@ -261,6 +519,9 @@ _kernel_oserror *imageentry_args_handler(_kernel_swi_regs *r, void *pw)
 			err = CALLENTRY(args_readdatestamp, handle->conn, (handle, (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3])));
 			CONNEXIT(handle->conn);
 			break;
+		case FSENTRY_ARGS_NEWIMAGESTAMP:
+			err = NULL;
+			break;
 		default:
 			err = gen_error(UNSUPP, UNSUPPMESS);
 	}
@@ -292,44 +553,64 @@ _kernel_oserror *imageentry_close_handler(_kernel_swi_regs *r, void *pw)
 	return err;
 }
 
-_kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
+static os_error *file_handler(char *filename, struct conn_info *conn, _kernel_swi_regs *r)
 {
 	os_error *err;
-	struct conn_info *conn = (struct conn_info *)(r->r[6]);
-
-	(void)pw;
-
-	ENTRY("File    ", (char *)(r->r[1]), r);
+	unsigned dummy;
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_FILE_SAVEFILE:
 			CONNENTRY(conn);
-			err = CALLENTRY(file_savefile, conn, ((char *)(r->r[1]), r->r[2], r->r[3], (char *)(r->r[4]), (char *)(r->r[5]),  conn, (char **)(&(r->r[6]))));
+			err = CALLENTRY(file_savefile, conn, (filename, r->r[2], r->r[3], (char *)(r->r[4]), (char *)(r->r[5]),  conn, (char **)(&(r->r[6]))));
+			CONNEXIT(conn);
+			break;
+		case FSENTRY_FILE_WRITELOAD:
+			CONNENTRY(conn);
+			err = CALLENTRY(file_readcatinfo, conn, (filename, conn, &(r->r[0]), &dummy, (unsigned int *)&(r->r[3]), &(r->r[4]), &(r->r[5])));
+			if (err == NULL) {
+				err = CALLENTRY(file_writecatinfo, conn, (filename, r->r[2], r->r[3], r->r[5], conn));
+			}
+			CONNEXIT(conn);
+			break;
+		case FSENTRY_FILE_WRITEEXEC:
+			CONNENTRY(conn);
+			err = CALLENTRY(file_readcatinfo, conn, (filename, conn, &(r->r[0]), (unsigned int *)&(r->r[2]), &dummy, &(r->r[4]), &(r->r[5])));
+			if (err == NULL) {
+				err = CALLENTRY(file_writecatinfo, conn, (filename, r->r[2], r->r[3], r->r[5], conn));
+			}
+			CONNEXIT(conn);
+			break;
+		case FSENTRY_FILE_WRITEATTR:
+			CONNENTRY(conn);
+			err = CALLENTRY(file_readcatinfo, conn, (filename, conn, &(r->r[0]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), &(r->r[4]), (int *)&dummy));
+			if (err == NULL) {
+				err = CALLENTRY(file_writecatinfo, conn, (filename, r->r[2], r->r[3], r->r[5], conn));
+			}
 			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FILE_WRITECATINFO:
 			CONNENTRY(conn);
-			err = CALLENTRY(file_writecatinfo, conn, ((char *)(r->r[1]), r->r[2], r->r[3], r->r[5], conn));
+			err = CALLENTRY(file_writecatinfo, conn, (filename, r->r[2], r->r[3], r->r[5], conn));
 			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FILE_READCATINFO:
 			CONNENTRY(conn);
-			err = CALLENTRY(file_readcatinfo, conn, ((char *)(r->r[1]), conn, &(r->r[0]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), &(r->r[4]), &(r->r[5])));
+			err = CALLENTRY(file_readcatinfo, conn, (filename, conn, &(r->r[0]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), &(r->r[4]), &(r->r[5])));
 			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FILE_DELETE:
 			CONNENTRY(conn);
-			err = CALLENTRY(file_delete, conn, ((char *)(r->r[1]), conn, &(r->r[0]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), &(r->r[4]), &(r->r[5])));
+			err = CALLENTRY(file_delete, conn, (filename, conn, &(r->r[0]), (unsigned int *)&(r->r[2]), (unsigned int *)&(r->r[3]), &(r->r[4]), &(r->r[5])));
 			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FILE_CREATEFILE:
 			CONNENTRY(conn);
-			err = CALLENTRY(file_createfile, conn, ((char *)(r->r[1]), r->r[2], r->r[3], (char *)(r->r[4]), (char *)(r->r[5]), conn));
+			err = CALLENTRY(file_createfile, conn, (filename, r->r[2], r->r[3], (char *)(r->r[4]), (char *)(r->r[5]), (char **)&(r->r[6]), conn));
 			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FILE_CREATEDIR:
 			CONNENTRY(conn);
-			err = CALLENTRY(file_createdir, conn, ((char *)(r->r[1]), r->r[2], r->r[3], conn));
+			err = CALLENTRY(file_createdir, conn, (filename, r->r[2], r->r[3], conn));
 			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FILE_READBLKSIZE:
@@ -340,49 +621,109 @@ _kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
 			err = gen_error(UNSUPP, UNSUPPMESS);
 	}
 
+	return err;
+}
+
+_kernel_oserror *imageentry_file_handler(_kernel_swi_regs *r, void *pw)
+{
+	os_error *err;
+	struct conn_info *conn = (struct conn_info *)(r->r[6]);
+	char *filename = (char *)(r->r[1]);
+
+	(void)pw;
+
+	ENTRY("File    ", filename, r);
+
+	err = file_handler(filename, conn, r);
 
 	EXIT(r, err);
 
 	return err;
 }
 
-_kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
+_kernel_oserror *fsentry_file_handler(_kernel_swi_regs *r, void *pw)
 {
+	struct conn_info *conn;
+	char *filename;
 	os_error *err;
-	struct conn_info *conn = (struct conn_info *)(r->r[6]);
 
 	(void)pw;
 
-	ENTRY("Func    ", r->r[0] == 22 ? "" : (char *)(r->r[1]), r);
+	ENTRY("FSFile  ", (char *)(r->r[1]), r);
+
+	err = filename_to_conn((char *)(r->r[1]), (char *)(r->r[6]), &conn, &filename);
+	if (err) return err;
+
+	err = file_handler(filename, conn, r);
+
+	EXIT(r, err);
+
+	return err;
+}
+
+static os_error *func_handler(char *filename, struct conn_info *conn, _kernel_swi_regs *r)
+{
+	os_error *err = NULL;
+	size_t len;
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_FUNC_RENAME:
 			CONNENTRY(conn);
-			err = CALLENTRY(func_rename, conn, ((char *)(r->r[1]), (char *)(r->r[2]), conn, &(r->r[1])));
+			err = CALLENTRY(func_rename, conn, (filename, (char *)(r->r[2]), conn, &(r->r[1])));
 			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FUNC_READDIR:
 			CONNENTRY(conn);
-			err = CALLENTRY(func_readdirinfo, conn, (0, (char *)r->r[1], (void *)r->r[2], r->r[3], r->r[4], r->r[5], conn, &(r->r[3]), &(r->r[4])));
+			err = CALLENTRY(func_readdirinfo, conn, (0, filename, (void *)r->r[2], r->r[3], r->r[4], r->r[5], conn, &(r->r[3]), &(r->r[4])));
 			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FUNC_READDIRINFO:
 			CONNENTRY(conn);
-			err = CALLENTRY(func_readdirinfo, conn, (1, (char *)r->r[1], (void *)r->r[2], r->r[3], r->r[4], r->r[5], conn, &(r->r[3]), &(r->r[4])));
+			err = CALLENTRY(func_readdirinfo, conn, (1, filename, (void *)r->r[2], r->r[3], r->r[4], r->r[5], conn, &(r->r[3]), &(r->r[4])));
+			CONNEXIT(conn);
+			break;
+		case FSENTRY_FUNC_SHUTDOWN:
+			break;
+		case FSENTRY_FUNC_READDIRINFO:
+			CONNENTRY(conn);
+			err = CALLENTRY(func_readdirinfo, conn, (2, filename, (void *)r->r[2], r->r[3], r->r[4], r->r[5], conn, &(r->r[3]), &(r->r[4])));
 			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FUNC_NEWIMAGE:
-			err = func_newimage(r->r[1],(struct conn_info **)&(r->r[1]));
+			err = func_newimage(r->r[1], NULL, (struct conn_info **)&(r->r[1]));
 			break;
 		case IMAGEENTRY_FUNC_CLOSEIMAGE:
 			conn = (struct conn_info *)(r->r[1]);
 			err = CALLENTRY(func_closeimage, conn, (conn));
 			break;
+		case FSENTRY_FUNC_CANONICALISE:
+			/* Only canonical form is accepted */
+			len = strlen((char *)r->r[1]) + 1;
+			if (r->r[3]) {
+				memcpy((char *)(r->r[3]), (char *)(r->r[1]), len < r->r[5] ? len : r->r[5]);
+				r->r[1] = r->r[3];
+				r->r[3] = len - r->r[5];
+				if (r->r[3] < 0) r->r[3] = 0;
+			} else {
+				r->r[3] = len;
+			}
+			len = strlen((char *)r->r[2]) + 1;
+			if (r->r[4]) {
+				memcpy((char *)(r->r[4]), (char *)(r->r[2]), len < r->r[6] ? len : r->r[6]);
+				r->r[2] = r->r[4];
+				r->r[4] = len - r->r[6];
+				if (r->r[4] < 0) r->r[4] = 0;
+			} else {
+				r->r[4] = len;
+			}
+			break;
+		case FSENTRY_FUNC_RESOLVEWILDCARD:
+			r->r[4] = -1;
+			break;
 		case IMAGEENTRY_FUNC_READBOOT:
 			/* This entry point is meaningless, but we must
 			   support it as *ex et al call it. */
 			r->r[2] = 0;
-			err = NULL;
 			break;
 
 		/* The following entrypoints are meaningless for NFS.
@@ -398,7 +739,42 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 		default:
 			err = gen_error(UNSUPP, UNSUPPMESS);
 	}
+	return err;
+}
 
+_kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
+{
+	os_error *err = NULL;
+	struct conn_info *conn = (struct conn_info *)(r->r[6]);
+	char *filename = (char *)(r->r[1]);
+
+	(void)pw;
+
+	ENTRY("Func    ", r->r[0] == IMAGEENTRY_FUNC_CLOSEIMAGE ? "" : (char *)(r->r[1]), r);
+
+	err = func_handler(filename, conn, r);
+
+	EXIT(r, err);
+
+	return err;
+}
+
+_kernel_oserror *fsentry_func_handler(_kernel_swi_regs *r, void *pw)
+{
+	struct conn_info *conn;
+	char *filename;
+	os_error *err = NULL;
+
+	(void)pw;
+
+	ENTRY("FSFunc  ", (char *)(r->r[1]), r);
+
+	if (r->r[0] != FSENTRY_FUNC_CANONICALISE) {
+		err = filename_to_conn((char *)(r->r[1]), (char *)(r->r[6]), &conn, &filename);
+		if (err) return err;
+	}
+
+	err = func_handler(filename, conn, r);
 
 	EXIT(r, err);
 

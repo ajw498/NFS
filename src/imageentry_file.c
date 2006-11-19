@@ -307,11 +307,9 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 	return NULL;
 }
 
-os_error *ENTRYFUNC(file_createfile) (char *filename, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn)
+os_error *ENTRYFUNC(file_createfile) (char *filename, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, char **leafname, struct conn_info *conn)
 {
-	char *leafname;
-
-	return createfile(filename, load, exec, buffer, buffer_end, conn, NULL, &leafname);
+	return createfile(filename, load, exec, buffer, buffer_end, conn, NULL, leafname);
 }
 
 os_error *ENTRYFUNC(file_createdir) (char *filename, unsigned int load, unsigned int exec, struct conn_info *conn)

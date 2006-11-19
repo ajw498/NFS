@@ -47,12 +47,23 @@
 
 
 /* The format of info returned for OS_GBPB 10 */
-struct dir_entry {
+struct dir10_entry {
 	unsigned int load;
 	unsigned int exec;
 	unsigned int len;
 	unsigned int attr;
 	unsigned int type;
+};
+
+/* The format of info returned for OS_GBPB 11 */
+struct dir11_entry {
+	unsigned int load;
+	unsigned int exec;
+	unsigned int len;
+	unsigned int attr;
+	unsigned int type;
+	unsigned internal;
+	char time[5];
 };
 
 os_error *ENTRYFUNC(func_closeimage) (struct conn_info *conn)
@@ -199,14 +210,16 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 				/* Ignore hidden files if so configured */
 			} else {
 				if (dirpos >= start) {
-					struct dir_entry *info_entry = NULL;
+					struct dir10_entry *info_entry = (struct dir10_entry *)bufferpos;
+					struct dir11_entry *fullinfo_entry = (struct dir11_entry *)bufferpos;
 					int filetype;
 					char *leafname;
 					unsigned len;
 
-					if (info) {
-						info_entry = (struct dir_entry *)bufferpos;
-						bufferpos += sizeof(struct dir_entry);
+					if (info == 1) {
+						bufferpos += sizeof(struct dir10_entry);
+					} else if (info == 2) {
+						bufferpos += sizeof(struct dir11_entry);
 					}
 
 					/* Check there is room in the output buffer. */
@@ -289,6 +302,14 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 #ifdef NFS3
 						}
 #endif
+						if (info == 2) {
+							fullinfo_entry->internal = 0;
+							fullinfo_entry->time[0] = (fullinfo_entry->exec & 0x000000FF);
+							fullinfo_entry->time[1] = (fullinfo_entry->exec & 0x0000FF00) >> 8;
+							fullinfo_entry->time[2] = (fullinfo_entry->exec & 0x00FF0000) >> 16;
+							fullinfo_entry->time[3] = (fullinfo_entry->exec & 0xFF000000) >> 24;
+							fullinfo_entry->time[4] = (fullinfo_entry->load & 0x000000FF);
+						}
 					}
 	
 					(*objsread)++;

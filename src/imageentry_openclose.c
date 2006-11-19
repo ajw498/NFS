@@ -116,7 +116,15 @@ os_error *ENTRYFUNC(open_file) (char *filename, int access, struct conn_info *co
 		}
 	}
 
-	if (finfo->attributes.type != NFREG) return gen_error(OPENCLOSEERRBASE + 0, "Cannot open a non-regular file");
+	if ((finfo->attributes.type != NFREG) &&
+	    !((finfo->attributes.type == NFDIR) &&
+	      (*file_info_word & 0x2000000))) {
+		/* Directories can be opened if this is an FS but not for ImageFSs */
+		return gen_error(OPENCLOSEERRBASE + 0, "Cannot open a non-regular file");
+	}
+
+	/* Clear directory bit if it is not a directory */
+	if (finfo->attributes.type != NFDIR) *file_info_word &= ~0x2000000;
 
 	handle = malloc(sizeof(struct file_handle));
 	if (handle == NULL) return gen_error(NOMEM, NOMEMMESS);
@@ -134,7 +142,7 @@ os_error *ENTRYFUNC(open_file) (char *filename, int access, struct conn_info *co
 	/* It is too difficult to determine if we will have permission to read
 	   or write the file so pretend that we can and return an error on read
 	   or write if necessary */
-	*file_info_word = 0xC0000000;
+	*file_info_word |= 0xC0000000;
 	*extent = filesize(finfo->attributes.size);
 	*fileswitchbuffersize = FAKE_BLOCKSIZE;
 	*allocatedspace = (*extent + (FAKE_BLOCKSIZE - 1)) & ~(FAKE_BLOCKSIZE - 1);

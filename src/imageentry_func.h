@@ -9,7 +9,7 @@
 
 
 
-os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhandle);
+os_error *func_newimage(unsigned int fileswitchhandle, char *config, struct conn_info **myhandle);
 
 void free_conn_info(struct conn_info *conn);
 

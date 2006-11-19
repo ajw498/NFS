@@ -8,6 +8,7 @@
 #define SUNFISH_H
 
 #define SUNFISH_FILETYPE 0x1b6
+#define SUNFISH_FSNUMBER 188
 
 /* Types for adding ,xyz extensions */
 #ifndef NEVER
