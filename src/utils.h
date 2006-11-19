@@ -115,6 +115,7 @@
 #define ICONVERR (ERRBASE + 54)
 
 #define NODISCERR (ERRBASE + 55)
+#define INVALFILENAMEERR (ERRBASE + 56)
 
 /* Directory not empty error number must match what filecore uses */
 #define ERRDIRNOTEMPTY 67764
