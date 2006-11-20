@@ -233,7 +233,7 @@ void NFSPROC3_NULL(void) = 0;
 
 
 struct GETATTR3args {
-   nfs_fh3  object;
+   nfs_fh3  fhandle;
 };
 
 struct GETATTR3resok {

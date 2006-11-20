@@ -278,7 +278,6 @@ static os_error *filename_to_conn(char *filename, char *specialfield, struct con
 
 	(*retfilename)++;
 	if (**retfilename == '.') (*retfilename)++;
-	if (**retfilename == '\0') *retfilename = "/";/*FIXME*/
 
 	while (mount) {
 		if (strncasecmp(mount->discname, filename, discnamelen) == 0) {
@@ -665,11 +664,29 @@ static os_error *func_handler(char *filename, struct conn_info *conn, _kernel_sw
 {
 	os_error *err = NULL;
 	size_t len;
+	char *to;
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_FUNC_RENAME:
 			CONNENTRY(conn);
-			err = CALLENTRY(func_rename, conn, (filename, (char *)(r->r[2]), conn, &(r->r[1])));
+			if (filename != (char *)(r->r[1])) {
+				/* FS, so check specialfield and discnames match */
+				if (r->r[6]) {
+					if (r->r[7] == 0) return NULL;
+					if (strcasecmp((char *)(r->r[6]), (char *)(r->r[7])) != 0) return NULL;
+				} else {
+					if (r->r[7] != 0) return NULL;
+				}
+				char *todisc = (char *)(r->r[2]);
+				to = strchr(todisc, '$');
+				if (to == NULL) return NULL;
+				if (strncasecmp((char *)(r->r[1]), todisc, to - todisc) != 0) return NULL;
+				to++;
+				if (*to == '.') to++;
+			} else {
+				to = (char *)(r->r[2]);
+			}
+			err = CALLENTRY(func_rename, conn, (filename, to, conn, &(r->r[1])));
 			CONNEXIT(conn);
 			break;
 		case IMAGEENTRY_FUNC_READDIR:
@@ -698,23 +715,31 @@ static os_error *func_handler(char *filename, struct conn_info *conn, _kernel_sw
 			break;
 		case FSENTRY_FUNC_CANONICALISE:
 			/* Only canonical form is accepted */
-			len = strlen((char *)r->r[1]) + 1;
-			if (r->r[3]) {
-				memcpy((char *)(r->r[3]), (char *)(r->r[1]), len < r->r[5] ? len : r->r[5]);
-				r->r[1] = r->r[3];
-				r->r[3] = len - r->r[5];
-				if (r->r[3] < 0) r->r[3] = 0;
+			if (r->r[1]) {
+				len = strlen((char *)r->r[1]) + 1;
+				if (r->r[3]) {
+					memcpy((char *)(r->r[3]), (char *)(r->r[1]), len < r->r[5] ? len : r->r[5]);
+					r->r[1] = r->r[3];
+					r->r[3] = len - r->r[5];
+					if (r->r[3] < 0) r->r[3] = 0;
+				} else {
+					r->r[3] = len;
+				}
 			} else {
-				r->r[3] = len;
+				r->r[3] = 0;
 			}
-			len = strlen((char *)r->r[2]) + 1;
-			if (r->r[4]) {
-				memcpy((char *)(r->r[4]), (char *)(r->r[2]), len < r->r[6] ? len : r->r[6]);
-				r->r[2] = r->r[4];
-				r->r[4] = len - r->r[6];
-				if (r->r[4] < 0) r->r[4] = 0;
+			if (r->r[2]) {
+				len = strlen((char *)r->r[2]) + 1;
+				if (r->r[4]) {
+					memcpy((char *)(r->r[4]), (char *)(r->r[2]), len < r->r[6] ? len : r->r[6]);
+					r->r[2] = r->r[4];
+					r->r[4] = len - r->r[6];
+					if (r->r[4] < 0) r->r[4] = 0;
+				} else {
+					r->r[4] = len;
+				}
 			} else {
-				r->r[4] = len;
+				r->r[4] = 0;
 			}
 			break;
 		case FSENTRY_FUNC_RESOLVEWILDCARD:
@@ -767,7 +792,7 @@ _kernel_oserror *fsentry_func_handler(_kernel_swi_regs *r, void *pw)
 
 	(void)pw;
 
-	ENTRY("FSFunc  ", (char *)(r->r[1]), r);
+	ENTRY("FSFunc  ", r->r[0] == FSENTRY_FUNC_CANONICALISE ? "" : (char *)(r->r[1]), r);
 
 	if (r->r[0] != FSENTRY_FUNC_CANONICALISE) {
 		err = filename_to_conn((char *)(r->r[1]), (char *)(r->r[6]), &conn, &filename);
