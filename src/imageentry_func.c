@@ -48,20 +48,20 @@
 
 /* The format of info returned for OS_GBPB 10 */
 struct dir10_entry {
-	unsigned int load;
-	unsigned int exec;
-	unsigned int len;
-	unsigned int attr;
-	unsigned int type;
+	unsigned load;
+	unsigned exec;
+	unsigned len;
+	unsigned attr;
+	unsigned type;
 };
 
 /* The format of info returned for OS_GBPB 11 */
 struct dir11_entry {
-	unsigned int load;
-	unsigned int exec;
-	unsigned int len;
-	unsigned int attr;
-	unsigned int type;
+	unsigned load;
+	unsigned exec;
+	unsigned len;
+	unsigned attr;
+	unsigned type;
 	unsigned internal;
 	char time[5];
 };
@@ -219,7 +219,7 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 					if (info == 1) {
 						bufferpos += sizeof(struct dir10_entry);
 					} else if (info == 2) {
-						bufferpos += sizeof(struct dir11_entry);
+						bufferpos += 29; /* Would be sizeof(struct dir11_entry) (but minus the padding)*/
 					}
 
 					/* Check there is room in the output buffer. */
