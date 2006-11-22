@@ -81,7 +81,7 @@ mountchoices::mountchoices(void) :
 
 string mountchoices::genfilename(const string& host, const string& mountname)
 {
-	string filename = "Sunfish:mounts.auto.";
+	string filename = "<Choices$Write>.Sunfish.mounts.auto.";
 	for (size_t i = 0; i < host.length(); i++) {
 		if (isalnum(host[i]) || (host[i] == '/')) {
 			filename += host[i];

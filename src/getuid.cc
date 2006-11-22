@@ -48,6 +48,7 @@
 #include "getuid.h"
 
 
+
 using namespace std;
 using namespace rtk;
 using namespace rtk::desktop;
@@ -81,6 +82,8 @@ getuid::getuid()
 	add(layout1);
 }
 
+void sunfish_mount(const char *discname, const char *specialfield, const char *config);
+
 void getuid::setup(const hostinfo& info, string name, bool tcp, int version, application& app)
 {
 	mountchoices mountdetails;
@@ -108,9 +111,12 @@ void getuid::setup(const hostinfo& info, string name, bool tcp, int version, app
 		// is a RISC OS machine, and therefore doesn't need a valid
 		// uid/gid. If this assumption is wrong, then the user can
 		// always set the uid/gid from the export choices.
-		mountdetails.save(filename);
-		string cmd = "Filer_OpenDir ";
-		cmd += filename;
+		sunfish_mount(exportname.c_str(), host.host, mountdetails.stringsave().c_str());
+		string cmd = "Filer_OpenDir Sunfish#";
+		cmd += host.host;
+		cmd += "::";
+		cmd += exportname;
+		cmd += ".$";
 		os::Wimp_StartTask(cmd.c_str());
 	} else if (info.pcnfsdudpport || info.pcnfsdtcpport) {
 		uidlabel.text("Username");
@@ -131,11 +137,12 @@ void getuid::setup(const hostinfo& info, string name, bool tcp, int version, app
 	gid.text("");
 }
 
+#include "newfe.h"
 
 void getuid::handle_event(events::mouse_click& ev)
 {
 	if (ev.buttons() == 2) {
-	} else if (ev.target() == &save) {
+	} else if ((ev.target() == &save) || (ev.target() == &set)) {
 		mountchoices mountdetails;
 		string filename = mountdetails.genfilename(host.host, exportname);
 		mountdetails.load(filename);
@@ -156,10 +163,14 @@ void getuid::handle_event(events::mouse_click& ev)
 			strcpy(mountdetails.gids, gid.text().c_str());
 		}
 		mountdetails.uidvalid = true;
-		mountdetails.save(filename);
+		if (ev.target() == &save) mountdetails.save(filename);
 
-		string cmd = "Filer_OpenDir ";
-		cmd += filename;
+		sunfish_mount(exportname.c_str(), host.host, mountdetails.stringsave().c_str());
+		string cmd = "Filer_OpenDir Sunfish#";
+		cmd += host.host;
+		cmd += "::";
+		cmd += exportname;
+		cmd += ".$";
 		os::Wimp_StartTask(cmd.c_str());
 
 		if (ev.buttons() == 4) remove();
@@ -172,4 +183,13 @@ void getuid::handle_event(events::mouse_click& ev)
 
 getuid::~getuid()
 {
+}
+
+
+#include <swis.h>
+
+void sunfish_mount(const char *discname, const char *specialfield, const char *config)
+{
+	_kernel_oserror *err = _swix(Sunfish_Mount, _INR(0,2), discname, specialfield, config);
+	if (err) throw err->errmess;
 }
