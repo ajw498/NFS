@@ -27,7 +27,7 @@
 #include "browse.h"
 #include "sunfish.h"
 #include "sunfishdefs.h"
-#include "newfe.h"
+#include "sunfish-frontend.h"
 
 
 using namespace std;

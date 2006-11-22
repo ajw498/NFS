@@ -137,8 +137,6 @@ void getuid::setup(const hostinfo& info, string name, bool tcp, int version, app
 	gid.text("");
 }
 
-#include "newfe.h"
-
 void getuid::handle_event(events::mouse_click& ev)
 {
 	if (ev.buttons() == 2) {

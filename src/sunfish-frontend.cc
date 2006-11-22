@@ -40,7 +40,7 @@
 #include "rtk/os/wimp.h"
 
 
-#include "newfe.h"
+#include "sunfish-frontend.h"
 
 
 using namespace std;

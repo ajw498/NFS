@@ -199,17 +199,7 @@ $(ASMOBJS) \
 $(COMMONOBJS) \
 rpc.o \
 browse.o \
-tbelib.o \
-sunfish-frontend.o
-
-NEWFEAPPOBJS = \
-$(SUNFISHGENOBJS) \
-$(COMMONGENOBJS) \
-$(ASMOBJS) \
-$(COMMONOBJS) \
-rpc.o \
-browse.o \
-newfe.o \
+sunfish-frontend.o \
 exportbrowser.o \
 hostbrowser.o \
 getuid.o \
@@ -252,10 +242,7 @@ $(MOONFISHMODOBJS) $(MOONFISHAPPOBJS): auto
 
 
 ../!Sunfish/!RunImage: $(SUNFISHAPPOBJS)
-	$(CXX) $(CXXFLAGS) $(SUNFISHAPPOBJS) -o $@ $(APPLIBS)
-
-newfe: $(NEWFEAPPOBJS)
-	$(CXX) $(CXXFLAGS) $(NEWFEAPPOBJS)  -o $@ -lrtk:a.rtk $(APPLIBS)
+	$(CXX) $(CXXFLAGS) $(SUNFISHAPPOBJS) -o $@ -lrtk:a.rtk $(APPLIBS)
 
 ../!Moonfish/!RunImage: $(MOONFISHAPPOBJS)
 	$(CC) $(CFLAGS) $(MOONFISHAPPOBJS) -o $@ $(APPLIBS)

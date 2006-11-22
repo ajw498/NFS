@@ -48,7 +48,7 @@
 #include "browse.h"
 #include "hostbrowser.h"
 #include "exportbrowser.h"
-#include "newfe.h"
+#include "sunfish-frontend.h"
 
 
 using namespace std;
