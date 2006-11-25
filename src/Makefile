@@ -288,6 +288,6 @@ clean:
 	-rm -f ../!Moonfish/!RunImage
 	-rm -f debug-server
 	-rm -f $(MOONFISHAPPOBJS) $(MOONFISHMODOBJS)
-	-rm -f $(SUNFISHAPPOBJS) $(SUNFISHMODOBJS) $(NEWFEAPPOBJS)
+	-rm -f $(SUNFISHAPPOBJS) $(SUNFISHMODOBJS)
 	-rm -f $(MOONFISHDEBUGOBJS)
 	-rm -rf auto
