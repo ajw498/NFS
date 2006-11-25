@@ -1,3 +1,6 @@
+vx.xx xx-xxx-xx
+Fixed timestamp setting for OS_File 0 if the file already existed.
+
 v1.09 16-Oct-06
 Fixed bug that caused the wrong attributes to be returned for a symlink that
 couldn't be followed.

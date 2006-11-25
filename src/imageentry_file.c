@@ -242,14 +242,14 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 			if (renameres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (renameres.status);
 		}
 
-		/* Set the file size */
+		/* Set the file size and time stamp */
 		commonfh_to_fh(sattrargs.file, finfo->objhandle);
 #ifdef NFS3
 		sattrargs.attributes.mode.set_it = FALSE;
 		sattrargs.attributes.uid.set_it = FALSE;
 		sattrargs.attributes.gid.set_it = FALSE;
 		sattrargs.attributes.atime.set_it = DONT_CHANGE;
-		sattrargs.attributes.mtime.set_it = DONT_CHANGE;
+		ENTRYFUNC(loadexec_to_setmtime) (load, exec, &(createargs.how.u.obj_attributes.mtime));
 		sattrargs.attributes.size.set_it = TRUE;
 		sattrargs.attributes.size.u.size = buffer_end - buffer;
 		sattrargs.guard.check = FALSE;
@@ -258,10 +258,9 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 		sattrargs.attributes.uid = NOVALUE;
 		sattrargs.attributes.gid = NOVALUE;
 		sattrargs.attributes.size = buffer_end - buffer;
-		sattrargs.attributes.mtime.seconds = NOVALUE;
-		sattrargs.attributes.mtime.useconds = NOVALUE;
 		sattrargs.attributes.atime.seconds = NOVALUE;
 		sattrargs.attributes.atime.useconds = NOVALUE;
+		loadexec_to_timeval(load, exec, &(createargs.attributes.mtime.seconds), &(createargs.attributes.mtime.useconds), 1);
 #endif
 		err = NFSPROC(SETATTR, (&sattrargs, &sattrres, conn));
 		if (err) return err;
