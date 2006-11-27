@@ -403,6 +403,8 @@ static int rpc_connect_socket(struct conn_info *conn)
 {
 	int ret;
 
+	conn->connected = 0;
+
 	if (conn->tcp) {
 		ret = rpc_create_socket(conn);
 		if (ret) return ret;
@@ -500,10 +502,12 @@ static int poll_tx(struct request_entry *entry)
 	}
 
 	if (ret == -1) {
-		if ((errno == EWOULDBLOCK) || (errno == ENOTCONN)) return 0;
+		if (errno == EWOULDBLOCK) return 0;
+		if ((errno == ENOTCONN) && (entry->conn->connected == 0)) return 0;
 		return errno;
 	}
 	if (ret > 0) {
+		entry->conn->connected = 1;
 		entry->tx.position += ret;
 	}
 
@@ -574,7 +578,7 @@ static int poll_rx(struct conn_info *conn)
 
 	ret = recvfrom(conn->sock, currentrx->buffer + currentrx->position, len, 0, (struct sockaddr *)&addr, &addrlen);
 	if (ret == -1) {
-		if ((errno == EWOULDBLOCK) || (errno == ENOTCONN)) {
+		if (errno == EWOULDBLOCK) {
 			if (!conn->tcp) free_rx_buffer(currentrx);
 			return 0;
 		}

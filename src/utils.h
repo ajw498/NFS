@@ -204,6 +204,7 @@ struct conn_info {
 	char *config;
 	struct sockaddr_in sockaddr;
 	int sock;
+	int connected;
 	long timeout;
 	int retries;
 	int hidden;
