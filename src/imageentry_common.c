@@ -31,6 +31,7 @@
 #include <unixlib.h>
 
 #include "imageentry_common.h"
+#include "imageentry_func.h"
 
 #include "sunfish.h"
 
@@ -178,17 +179,24 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 	struct objinfo *retinfo;
 	os_error *err;
 	int follow;
+	int stale = 0;
 
 	if ((retinfo = palloc(sizeof(struct objinfo), conn->pool)) == NULL) return gen_error(NOMEM, NOMEMMESS);
 
 	if (leafname[0]) {
+restart:
 		lookupargs.name.data = leafname;
 		lookupargs.name.size = *len;
 		commonfh_to_fh(lookupargs.dir, *dirhandle);
 
 		err = NFSPROC(LOOKUP, (&lookupargs, &lookupres, conn));
 		if (err) return err;
-	
+		if ((lookupres.status == NFSERR_STALE) && !stale) {
+			stale = 1;
+			ENTRYFUNC(func_newimage_mount) (conn);
+			goto restart;
+		}
+
 		if (!simple && lookupres.status == NFSERR_NOENT) {
 			struct opaque *file;
 
@@ -198,7 +206,7 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 				*status = NFSERR_NOENT;
 				return NULL;
 			}
-	
+
 			lookupargs.name.data = file->data;
 			lookupargs.name.size = file->size;
 			memcpy(leafname, file->data, file->size);
@@ -232,10 +240,16 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 		struct attrstat getattrres;
 #endif
 
+restart2:
 		commonfh_to_fh(getattrargs.fhandle, *dirhandle);
 
 		err = NFSPROC(GETATTR, (&getattrargs, &getattrres, conn));
 		if (err) return err;
+		if ((getattrres.status == NFSERR_STALE) && !stale) {
+			stale = 1;
+			ENTRYFUNC(func_newimage_mount) (conn);
+			goto restart2;
+		}
 		if (getattrres.status != NFS_OK) {
 			*status = lookupres.status;
 			return NULL;
