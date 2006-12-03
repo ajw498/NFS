@@ -46,6 +46,7 @@
 #include "sunfishdefs.h"
 
 #include "getuid.h"
+#include "sunfish-frontend.h"
 
 
 
@@ -84,7 +85,7 @@ getuid::getuid()
 
 void sunfish_mount(const char *discname, const char *specialfield, const char *config);
 
-void getuid::setup(const hostinfo& info, string name, bool tcp, int version, application& app)
+void getuid::setup(const hostinfo& info, string name, bool tcp, int version, sunfish& app)
 {
 	mountchoices mountdetails;
 
@@ -99,6 +100,8 @@ void getuid::setup(const hostinfo& info, string name, bool tcp, int version, app
 	nfsversion = version;
 	string filename = mountdetails.genfilename(host.host, exportname);
 	mountdetails.load(filename);
+	strcpy(mountdetails.server, host.host);
+	strcpy(mountdetails.exportname, exportname.c_str());
 	mountdetails.tcp = tcp;
 	mountdetails.nfs3 = version == 3;
 	if (mountdetails.uidvalid ||
@@ -111,13 +114,7 @@ void getuid::setup(const hostinfo& info, string name, bool tcp, int version, app
 		// is a RISC OS machine, and therefore doesn't need a valid
 		// uid/gid. If this assumption is wrong, then the user can
 		// always set the uid/gid from the export choices.
-		sunfish_mount(exportname.c_str(), host.host, mountdetails.stringsave().c_str());
-		string cmd = "Filer_OpenDir Sunfish#";
-		cmd += host.host;
-		cmd += "::";
-		cmd += exportname;
-		cmd += ".$";
-		os::Wimp_StartTask(cmd.c_str());
+		create_mount(mountdetails, app);
 	} else if (info.pcnfsdudpport || info.pcnfsdtcpport) {
 		uidlabel.text("Username");
 		gidlabel.text("Password");
@@ -162,14 +159,7 @@ void getuid::handle_event(events::mouse_click& ev)
 		}
 		mountdetails.uidvalid = true;
 		if (ev.target() == &save) mountdetails.save(filename);
-
-		sunfish_mount(exportname.c_str(), host.host, mountdetails.stringsave().c_str());
-		string cmd = "Filer_OpenDir Sunfish#";
-		cmd += host.host;
-		cmd += "::";
-		cmd += exportname;
-		cmd += ".$";
-		os::Wimp_StartTask(cmd.c_str());
+		create_mount(mountdetails, *static_cast<sunfish *>(parent_application()));
 
 		if (ev.buttons() == 4) remove();
 	} else if (ev.target() == &cancel) {
@@ -177,6 +167,31 @@ void getuid::handle_event(events::mouse_click& ev)
 		gid.text("");
 		if (ev.buttons() == 4) remove();
 	}
+}
+
+void getuid::create_mount(mountchoices& mountdetails, sunfish& app)
+{
+	string cmd = "Filer_OpenDir Sunfish";
+	string mountname;
+	string sf;
+	if (mountdetails.nicename[0]) {
+		sunfish_mount(mountdetails.nicename, NULL, mountdetails.stringsave().c_str());
+		cmd += "::";
+		cmd += mountdetails.nicename;
+		mountname = mountdetails.nicename;
+	} else {
+		sunfish_mount(exportname.c_str(), host.host, mountdetails.stringsave().c_str());
+		cmd += "#";
+		cmd += host.host;
+		cmd += "::";
+		cmd += exportname;
+		mountname = mountdetails.exportname;
+		sf = host.host;
+	}
+	cmd += ".$";
+	os::Wimp_StartTask(cmd.c_str());
+
+	app.add_mounticon(mountname, sf);
 }
 
 getuid::~getuid()

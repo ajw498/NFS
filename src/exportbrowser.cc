@@ -65,8 +65,6 @@ void exportbrowser::refresh(int port, bool tcp, int version)
 
 void exportbrowser::doubleclick(const std::string& item, rtk::events::mouse_click& ev)
 {
-	string filename = "Sunfish:mounts.auto."+item;
-
 	sunfish& app = *static_cast<sunfish *>(parent_application());
 	app.ggetuid.setup(info, item, usetcp, nfsversion, app);
 }
@@ -127,6 +125,9 @@ void exportbrowser::handle_event(rtk::events::menu_selection& ev)
 	} else if (ev.target() == &refreshwin) {
 		refresh(useport, usetcp, nfsversion);
 	} else if (ev.target() == &namemount) {
+		namewin.load(info.host, menuitem);
+		app.add(namewin, point(2*640,2*512));
+		// bring to front if already open?
 	} else if (ev.target() == &filenames) {
 		filenameswin.load(info.host, menuitem);
 		app.add(filenameswin, point(2*640,2*512));

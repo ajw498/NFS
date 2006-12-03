@@ -44,10 +44,11 @@ class ibicon:
 	public rtk::events::menu_selection::handler
 {
 public:
-	ibicon(std::string text);
+	ibicon(const std::string& icontext, const std::string& special);
 	void handle_event(rtk::events::menu_selection& ev);
 	void handle_event(rtk::events::mouse_click& ev);
 	rtk::desktop::menu_item ibdismount;
+	std::string specialfield;
 private:
 	rtk::desktop::menu ibmenu;
 	rtk::desktop::menu_item ibinfo;

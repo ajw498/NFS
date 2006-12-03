@@ -55,23 +55,32 @@ using rtk::graphics::box;
 
 sunfish::sunfish():
 	application("Sunfish newfe"),
-	ibaricon("")
+	ibaricon("", "")
 {
 	add(ibaricon);
+	getmounts();
 }
 
-void sunfish::add_mounticon(const std::string &name)
+void sunfish::add_mounticon(const std::string &name, const std::string &specialfield)
 {
-	ibicon *i = new ibicon(name);
-	if (ibaricons.size() == 0) {
-		ibaricon.remove();
+	for (unsigned i = 0; i < ibaricons.size(); i++) {
+		if ((ibaricons[i]->text() == name) && (ibaricons[i]->specialfield == specialfield)) return;
+	}
+
+	ibicon *i = new ibicon(name, specialfield);
+	if (ibaricons.size() > 0) {
+		if (ibaricons[ibaricons.size() - 1]->layout_valid()) {
+			i->iconbar_position(-4);
+			i->iconbar_priority(ibaricons[ibaricons.size() - 1]->handle());
+		}
 	} else {
-		i->iconbar_position(-4);
-		i->iconbar_priority(ibaricons[ibaricons.size() - 1]->handle());
+		ibaricon.remove();
 	}
 	ibaricons.push_back(i);
 	add(*i);
 }
+
+void sunfish_dismount(const char *discname, const char *specialfield);
 
 void sunfish::handle_event(rtk::events::menu_selection& ev)
 {
@@ -79,6 +88,19 @@ void sunfish::handle_event(rtk::events::menu_selection& ev)
 		if (ev.target() == &((*i)->ibdismount)) {
 			//
 			if (ibaricons.size() == 1) add(ibaricon);
+			string cmd = "Filer_CloseDir Sunfish";
+			const char *sf = NULL;
+			if ((*i)->specialfield.length()) {
+				cmd += "#";
+				cmd += (*i)->specialfield;
+				sf = (*i)->specialfield.c_str();
+			}
+			cmd += "::";
+			cmd += (*i)->text();
+			cmd += ".$";
+			os::Wimp_StartTask(cmd.c_str());
+
+			sunfish_dismount((*i)->text().c_str(), sf);
 			delete *i;
 			ibaricons.erase(i);
 			break;
@@ -151,3 +173,29 @@ void __cyg_profile_func_exit(int a,int b)
 
 }
 
+#include <swis.h>
+
+void sunfish_dismount(const char *discname, const char *specialfield)
+{
+	_kernel_oserror *err = _swix(Sunfish_Dismount, _INR(0,1), discname, specialfield);
+	if (err) throw err->errmess;
+}
+
+void sunfish::getmounts()
+{
+	_kernel_oserror *err;
+	int start = 0;
+	do {
+		char *discname;
+		char *specialfield;
+
+		err = _swix(Sunfish_ListMounts, _IN(0) | _OUTR(0,2), start, &start, &discname, &specialfield);
+		if (err) throw err->errmess;
+
+		if (discname) {
+			if (specialfield == NULL) specialfield = "";
+			syslogf("Wibble", 3, "Start %d '%s' '%s'",start, discname, specialfield);
+			add_mounticon(discname, specialfield);
+		}
+	} while (start);
+}

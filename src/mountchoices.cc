@@ -75,7 +75,7 @@ mountchoices::mountchoices(void) :
 	username[0] = '\0';
 	password[0] = '\0';
 	gids[0] = '\0';
-	leafname[0] = '\0';
+	nicename[0] = '\0';
 	strcpy(encoding, "No conversion");
 }
 
@@ -108,6 +108,7 @@ string mountchoices::stringsave()
 	str << "Protocol: NFS" << (nfs3 ? "3" : "2");
 	str << "\nServer: " << server;
 	str << "\nExport: " << exportname;
+	if (nicename[0]) str << "\nNicename: " << nicename;
 	if (usepcnfsd) {
 		str << "\nPassword: " << password;
 		str << "\nUsername: " << username;
@@ -213,6 +214,8 @@ void mountchoices::load(const string& filename)
 			tcp = /*case*/strcmp(val, "tcp") == 0;
 		} else if (CHECK("Export")) {
 			strcpy(exportname, val);
+		} else if (CHECK("Nicename")) {
+			strcpy(nicename, val);
 		} else if (CHECK("UID")) {
 			usepcnfsd = false;
 			uidvalid = true;

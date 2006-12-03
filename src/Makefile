@@ -207,6 +207,7 @@ mountchoices.o \
 editfilenames.o \
 editconnection.o \
 edituid.o \
+editname.o \
 ibicon.o
 
 MOONFISHOBJS = \

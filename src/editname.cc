@@ -21,13 +21,10 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#ifndef GETUID_H
-#define GETUID_H
-
 #include "rtk/desktop/application.h"
 #include "rtk/desktop/menu_item.h"
 #include "rtk/desktop/menu.h"
-#include "rtk/desktop/window.h"
+#include "rtk/desktop/filer_window.h"
 #include "rtk/desktop/info_dbox.h"
 #include "rtk/desktop/ibar_icon.h"
 #include "rtk/desktop/label.h"
@@ -42,50 +39,71 @@
 #include "rtk/events/null_reason.h"
 #include "rtk/os/wimp.h"
 
-#include <fstream>
-#include <string>
-
 #include "sunfish.h"
 #include "sunfishdefs.h"
 
-#include "browse.h"
+#include "editname.h"
 #include "mountchoices.h"
 
-using namespace std;
-using namespace rtk;
-using namespace rtk::desktop;
-using rtk::graphics::point;
-using rtk::graphics::box;
+#include <sstream>
+#include <iomanip>
 
-class sunfish;
-
-class getuid:
-	public window,
-	public events::mouse_click::handler
+editname::editname()
 {
-public:
-	getuid();
-	~getuid();
-	void setup(const hostinfo& info, string name, bool tcp, int version, sunfish& parent);
-	void handle_event(events::mouse_click& ev);
-	void create_mount(mountchoices& mountdetails, sunfish& app);
-private:
-	hostinfo host;
-	string exportname;
-	bool usetcp;
-	int nfsversion;
-	icon uidlabel;
-	icon gidlabel;
-	writable_field uid;
-	writable_field gid;
-	icon explain;
-	action_button cancel;
-	action_button set;
-	default_button save;
-	column_layout layout1;
-	grid_layout layout2;
-	row_layout layout3;
-};
+	title("Name mount");
+	close_icon(false);
 
-#endif
+	description.text("this names the mount for you");
+	name.text("1234567890");
+	cancel.text("Cancel");
+	savebutton.text("Save");
 
+	layout1.margin(16).ygap(8);
+	layout1.add(description);
+	layout1.add(name);
+	layout1.add(layout2);
+
+	layout2.xgap(16);
+	layout2.add(cancel);
+	layout2.add(savebutton);
+
+	add(layout1);
+}
+
+
+void editname::load(const string& host, string& exportname)
+{
+	mountchoices mountinfo;
+	if (host.length() > 0) {
+		filename = mountinfo.genfilename(host, exportname);
+	}
+	mountinfo.load(filename);
+
+	name.text(mountinfo.nicename);
+}
+
+void editname::save()
+{
+	mountchoices mountinfo;
+	mountinfo.load(filename);
+
+	strcpy(mountinfo.nicename, name.text().c_str());
+
+	mountinfo.save(filename);
+}
+
+void editname::handle_event(events::mouse_click& ev)
+{
+	if (ev.buttons() == 2) {
+	} else if (ev.target() == &savebutton) {
+		save();
+		if (ev.buttons() == 4) remove();
+	} else if (ev.target() == &cancel) {
+		if (ev.buttons() == 4) {
+			remove();
+		} else {
+			string none;
+			load(none, none);
+		}
+	}
+}

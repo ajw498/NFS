@@ -50,7 +50,8 @@ using rtk::graphics::point;
 using rtk::graphics::box;
 
 
-ibicon::ibicon(std::string icontext)
+ibicon::ibicon(const std::string& icontext, const std::string& special):
+	specialfield(special)
 {
 	proginfo.add("Name","Sunfish");
 	proginfo.add("Purpose","Mount NFS servers");
@@ -105,7 +106,6 @@ void ibicon::handle_event(rtk::events::menu_selection& ev)
 		// Open window at centre of desktop.
 		app->add(app->_window,dcentre-ccentre);
 		app->_window.broadcast();
-		app->add_mounticon("Wibbly");
 	} else if (ev.target() == &ibquit) {
 		app->terminate();
 	}

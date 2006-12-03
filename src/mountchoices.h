@@ -60,7 +60,7 @@ public:
 	bool usepcnfsd;
 	bool tcp;
 	bool nfs3;
-	char leafname[STRMAX];
+	char nicename[STRMAX];
 	char encoding[STRMAX];
 
 	mountchoices();

@@ -21,35 +21,20 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#ifndef GETUID_H
-#define GETUID_H
+#ifndef EDITNAME_H
+#define EDITNAME_H
 
-#include "rtk/desktop/application.h"
-#include "rtk/desktop/menu_item.h"
-#include "rtk/desktop/menu.h"
 #include "rtk/desktop/window.h"
-#include "rtk/desktop/info_dbox.h"
-#include "rtk/desktop/ibar_icon.h"
-#include "rtk/desktop/label.h"
 #include "rtk/desktop/writable_field.h"
 #include "rtk/desktop/action_button.h"
 #include "rtk/desktop/default_button.h"
+#include "rtk/desktop/radio_button.h"
+#include "rtk/desktop/option_button.h"
 #include "rtk/desktop/grid_layout.h"
 #include "rtk/desktop/row_layout.h"
 #include "rtk/desktop/column_layout.h"
-#include "rtk/events/menu_selection.h"
-#include "rtk/events/close_window.h"
-#include "rtk/events/null_reason.h"
-#include "rtk/os/wimp.h"
+#include "rtk/events/mouse_click.h"
 
-#include <fstream>
-#include <string>
-
-#include "sunfish.h"
-#include "sunfishdefs.h"
-
-#include "browse.h"
-#include "mountchoices.h"
 
 using namespace std;
 using namespace rtk;
@@ -57,34 +42,25 @@ using namespace rtk::desktop;
 using rtk::graphics::point;
 using rtk::graphics::box;
 
-class sunfish;
-
-class getuid:
+class editname:
 	public window,
 	public events::mouse_click::handler
 {
 public:
-	getuid();
-	~getuid();
-	void setup(const hostinfo& info, string name, bool tcp, int version, sunfish& parent);
+	editname();
+	void load(const string& host, string& exportname);
+	void save();
 	void handle_event(events::mouse_click& ev);
-	void create_mount(mountchoices& mountdetails, sunfish& app);
 private:
-	hostinfo host;
-	string exportname;
-	bool usetcp;
-	int nfsversion;
-	icon uidlabel;
-	icon gidlabel;
-	writable_field uid;
-	writable_field gid;
-	icon explain;
+	string filename;
+
+	icon description;
+	writable_field name;
+
 	action_button cancel;
-	action_button set;
-	default_button save;
+	default_button savebutton;
 	column_layout layout1;
-	grid_layout layout2;
-	row_layout layout3;
+	row_layout layout2;
 };
 
 #endif

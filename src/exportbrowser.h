@@ -36,6 +36,7 @@
 #include "editfilenames.h"
 #include "editconnection.h"
 #include "edituid.h"
+#include "editname.h"
 #include "mountchoices.h"
 
 
@@ -96,6 +97,7 @@ private:
 	editfilenames filenameswin;
 	editconnection connectionwin;
 	edituid uidswin;
+	editname namewin;
 };
 
 #endif
