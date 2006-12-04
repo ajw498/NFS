@@ -277,15 +277,22 @@ static int rpc_create_socket(struct conn_info *conn)
 		struct sockaddr_in name;
 		int port = conn->localportmin;
 		int ret;
+		int tries = 0;
+		static int lastport = 0;
 
 		memset(&name, 0, sizeof(name));
 		name.sin_family = AF_INET;
 		name.sin_addr.s_addr = (int)htonl(INADDR_ANY);
 
+		if ((lastport >= conn->localportmin) && (lastport <= conn->localportmax)) {
+			port = lastport;
+		}
 		do {
 			name.sin_port = htons(port++);
 			ret = bind(conn->sock, (struct sockaddr *)&name, sizeof(name));
-		} while (ret != 0 && port <= conn->localportmax);
+			if (port > conn->localportmax) port = conn->localportmin;
+		} while (ret != 0 && (tries++ < 200));
+		lastport = port;
 
 		if (ret) {
 			close(conn->sock);
