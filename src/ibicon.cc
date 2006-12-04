@@ -86,6 +86,34 @@ ibicon::ibicon(const std::string& icontext, const std::string& special):
 	iconbar_position(-5).iconbar_priority(0x10000000);
 }
 
+void ibicon::opendir()
+{
+	string cmd = "Filer_OpenDir Sunfish";
+
+	if (specialfield.length() > 0) {
+		cmd += "#";
+		cmd += specialfield;
+	}
+	cmd += "::";
+	cmd += text();
+	cmd += ".$";
+	os::Wimp_StartTask(cmd.c_str());
+}
+
+void ibicon::closedir()
+{
+	string cmd = "Filer_CloseDir Sunfish";
+
+	if (specialfield.length() > 0) {
+		cmd += "#";
+		cmd += specialfield;
+	}
+	cmd += "::";
+	cmd += text();
+	cmd += ".$";
+	os::Wimp_StartTask(cmd.c_str());
+}
+
 void ibicon::handle_event(rtk::events::menu_selection& ev)
 {
 	sunfish *app = static_cast<sunfish *>(parent_application());
@@ -106,6 +134,9 @@ void ibicon::handle_event(rtk::events::menu_selection& ev)
 		// Open window at centre of desktop.
 		app->add(app->_window,dcentre-ccentre);
 		app->_window.broadcast();
+	} else if (ev.target() == &ibdismount) {
+		closedir();
+		dismount();
 	} else if (ev.target() == &ibquit) {
 		app->terminate();
 	}
@@ -119,7 +150,7 @@ void ibicon::handle_event(rtk::events::mouse_click& ev)
 		if (ev.buttons() == 2) {
 			ibmenu.show(ev);
 		} else if ((ev.buttons() == 4) && text_and_sprite()) {
-			// FIXME open filer directory window
+			opendir();
 		} else {
 			// Find centre of desktop.
 			rtk::graphics::box dbbox(app->bbox());
@@ -138,3 +169,16 @@ void ibicon::handle_event(rtk::events::mouse_click& ev)
 	}
 }
 
+#include <swis.h>
+
+void ibicon::mount(const char *config)
+{
+	_kernel_oserror *err = _swix(Sunfish_Mount, _INR(0,2), text().c_str(), specialfield.length() ? specialfield.c_str() : NULL, config);
+	if (err) throw err->errmess;
+}
+
+void ibicon::dismount()
+{
+	_kernel_oserror *err = _swix(Sunfish_Dismount, _INR(0,1), text().c_str(), specialfield.length() ? specialfield.c_str() : NULL);
+	if (err) throw err->errmess;
+}

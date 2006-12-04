@@ -47,6 +47,10 @@ public:
 	ibicon(const std::string& icontext, const std::string& special);
 	void handle_event(rtk::events::menu_selection& ev);
 	void handle_event(rtk::events::mouse_click& ev);
+	void opendir();
+	void closedir();
+	void mount(const char *config);
+	void dismount();
 	rtk::desktop::menu_item ibdismount;
 	std::string specialfield;
 private:

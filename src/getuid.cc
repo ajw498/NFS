@@ -83,8 +83,6 @@ getuid::getuid()
 	add(layout1);
 }
 
-void sunfish_mount(const char *discname, const char *specialfield, const char *config);
-
 void getuid::setup(const hostinfo& info, string name, bool tcp, int version, sunfish& app)
 {
 	mountchoices mountdetails;
@@ -171,38 +169,21 @@ void getuid::handle_event(events::mouse_click& ev)
 
 void getuid::create_mount(mountchoices& mountdetails, sunfish& app)
 {
-	string cmd = "Filer_OpenDir Sunfish";
 	string mountname;
 	string sf;
 	if (mountdetails.nicename[0]) {
-		sunfish_mount(mountdetails.nicename, NULL, mountdetails.stringsave().c_str());
-		cmd += "::";
-		cmd += mountdetails.nicename;
 		mountname = mountdetails.nicename;
 	} else {
-		sunfish_mount(exportname.c_str(), host.host, mountdetails.stringsave().c_str());
-		cmd += "#";
-		cmd += host.host;
-		cmd += "::";
-		cmd += exportname;
 		mountname = mountdetails.exportname;
 		sf = host.host;
 	}
-	cmd += ".$";
-	os::Wimp_StartTask(cmd.c_str());
 
-	app.add_mounticon(mountname, sf);
+	ibicon *icon = app.add_mounticon(mountname, sf);
+	icon->mount(mountdetails.stringsave().c_str());
+	icon->opendir();
 }
 
 getuid::~getuid()
 {
 }
 
-
-#include <swis.h>
-
-void sunfish_mount(const char *discname, const char *specialfield, const char *config)
-{
-	_kernel_oserror *err = _swix(Sunfish_Mount, _INR(0,2), discname, specialfield, config);
-	if (err) throw err->errmess;
-}
