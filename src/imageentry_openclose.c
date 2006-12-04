@@ -151,11 +151,12 @@ os_error *ENTRYFUNC(open_file) (char *filename, int access, struct conn_info *co
 
 os_error *ENTRYFUNC(close_file) (struct file_handle *handle, unsigned int load, unsigned int exec)
 {
+	os_error *err;
+
 #ifdef NFS3
 	if (handle->commitneeded) {
 		struct COMMIT3args args;
 		struct COMMIT3res res;
-		os_error *err;
 
 		commonfh_to_fh(args.file, handle->fhandle);
 		args.offset = 0;
@@ -168,13 +169,40 @@ os_error *ENTRYFUNC(close_file) (struct file_handle *handle, unsigned int load, 
 	}
 #endif
 
-	/* The filetype shouldn't have changed since the file was opened and
-	   the server will set the datestamp for us, therefore there is not
-	   much point in us explicitly updating the attributes.
-	   Additionally, the operation could fail if we don't have permission
-	   even though the file was successfully open for reading. */
-	load = load;
-	exec = exec;
+	/* The filetype shouldn't have changed since the file was opened.
+	   So only the datestamp needs updating. */
+	if ((load & 0xFFF00000) == 0xFFF00000) {
+#ifdef NFS3
+		struct sattrargs3 sattrargs;
+		struct sattrres3 sattrres;
+#else
+		struct sattrargs sattrargs;
+		struct sattrres sattrres;
+#endif
+		commonfh_to_fh(sattrargs.file, handle->fhandle);
+#ifdef NFS3
+		sattrargs.attributes.mode.set_it = FALSE;
+		sattrargs.attributes.uid.set_it = FALSE;
+		sattrargs.attributes.gid.set_it = FALSE;
+		sattrargs.attributes.atime.set_it = DONT_CHANGE;
+		ENTRYFUNC(loadexec_to_setmtime) (load, exec, &(sattrargs.attributes.mtime));
+		sattrargs.attributes.size.set_it = FALSE;
+		sattrargs.guard.check = FALSE;
+#else
+		sattrargs.attributes.mode = NOVALUE;
+		sattrargs.attributes.uid = NOVALUE;
+		sattrargs.attributes.gid = NOVALUE;
+		sattrargs.attributes.size = NOVALUE;
+		sattrargs.attributes.atime.seconds = NOVALUE;
+		sattrargs.attributes.atime.useconds = NOVALUE;
+		loadexec_to_timeval(load, exec, &(sattrargs.attributes.mtime.seconds), &(sattrargs.attributes.mtime.useconds), 1);
+#endif
+		err = NFSPROC(SETATTR, (&sattrargs, &sattrres, handle->conn));
+		if (err) return err;
+		/* Ignore NFS errors, as the operation could fail if we don't
+		   have permission even though the file was successfully open
+		   for reading. */
+	}
 
 	free(handle);
 
