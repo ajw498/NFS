@@ -53,10 +53,10 @@ using rtk::graphics::box;
 ibicon::ibicon(const std::string& icontext, const std::string& special):
 	specialfield(special)
 {
-	proginfo.add("Name","Sunfish");
-	proginfo.add("Purpose","Mount NFS servers");
-	proginfo.add("Author","© Alex Waugh, 2003-2006");
-	proginfo.add("Version",Module_VersionString " (" Module_Date ")");
+	proginfo.add("Name", "Sunfish");
+	proginfo.add("Purpose", "Mount NFS servers");
+	proginfo.add("Author", "© Alex Waugh, 2003-2006");
+	proginfo.add("Version", Module_VersionString " (" Module_Date ")");
 	ibinfo.text("Info");
 	ibinfo.attach_dbox(proginfo);
 	ibhelp.text("Help...");

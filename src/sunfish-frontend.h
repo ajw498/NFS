@@ -43,6 +43,7 @@
 #include "hostbrowser.h"
 #include "exportbrowser.h"
 #include "ibicon.h"
+#include "mountchoices.h"
 
 #include <stdarg.h>
 
@@ -59,7 +60,7 @@ public:
 	sunfish();
 	void handle_event(rtk::events::menu_selection& ev);
 	void handle_event(rtk::events::close_window& ev);
-	ibicon *add_mounticon(const std::string &name, const std::string &specialfield);
+	ibicon *add_mounticon(const std::string &name, const std::string &specialfield, bool& found);
 	void getmounts();
 	getuid ggetuid;
 	hostbrowser _window;
@@ -68,6 +69,7 @@ public:
 	std::vector<exportbrowser *> exportbrowsers;
 	void smallicons(bool small);
 	bool smallicons() { return usesmallicons; }
+	aliases hostaliases;
 private:
 	bool usesmallicons;
 };

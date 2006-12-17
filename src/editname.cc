@@ -44,6 +44,7 @@
 
 #include "editname.h"
 #include "mountchoices.h"
+#include "sunfish-frontend.h"
 
 #include <sstream>
 #include <iomanip>
@@ -71,29 +72,28 @@ editname::editname()
 }
 
 
-void editname::load(const string& host, string& exportname)
+void editname::load(const string& host, const string& exportname, sunfish& app)
 {
-	mountchoices mountinfo;
-	if (host.length() > 0) {
-		filename = mountinfo.genfilename(host, exportname);
+	if (host != "") {
+		hostname = host;
+		exportdir = exportname;
 	}
-	mountinfo.load(filename);
 
-	name.text(mountinfo.nicename);
+	name.text(app.hostaliases.getalias(hostname, exportdir));
 }
 
 void editname::save()
 {
-	mountchoices mountinfo;
-	mountinfo.load(filename);
+	sunfish& app = *static_cast<sunfish *>(parent_application());
 
-	strcpy(mountinfo.nicename, name.text().c_str());
+	app.hostaliases.add(name.text(), hostname, exportdir);
 
-	mountinfo.save(filename);
+	app.hostaliases.save();
 }
 
 void editname::handle_event(events::mouse_click& ev)
 {
+	sunfish& app = *static_cast<sunfish *>(parent_application());
 	if (ev.buttons() == 2) {
 	} else if (ev.target() == &savebutton) {
 		save();
@@ -103,7 +103,7 @@ void editname::handle_event(events::mouse_click& ev)
 			remove();
 		} else {
 			string none;
-			load(none, none);
+			load(none, none, app);
 		}
 	}
 }

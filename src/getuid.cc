@@ -169,16 +169,16 @@ void getuid::handle_event(events::mouse_click& ev)
 
 void getuid::create_mount(mountchoices& mountdetails, sunfish& app)
 {
-	string mountname;
 	string sf;
-	if (mountdetails.nicename[0]) {
-		mountname = mountdetails.nicename;
-	} else {
-		mountname = mountdetails.exportname;
-		sf = host.host;
+	string hostalias = app.hostaliases.getalias(mountdetails.server, mountdetails.exportname);
+
+	if (hostalias == "") {
+		hostalias = mountdetails.exportname;
+		sf = mountdetails.server;
 	}
 
-	ibicon *icon = app.add_mounticon(mountname, sf);
+	bool found;
+	ibicon *icon = app.add_mounticon(hostalias, sf, found);
 	icon->mount(mountdetails.stringsave().c_str());
 	icon->opendir();
 }

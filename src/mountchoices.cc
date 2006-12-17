@@ -75,7 +75,6 @@ mountchoices::mountchoices(void) :
 	username[0] = '\0';
 	password[0] = '\0';
 	gids[0] = '\0';
-	nicename[0] = '\0';
 	strcpy(encoding, "No conversion");
 }
 
@@ -108,7 +107,6 @@ string mountchoices::stringsave()
 	str << "Protocol: NFS" << (nfs3 ? "3" : "2");
 	str << "\nServer: " << server;
 	str << "\nExport: " << exportname;
-	if (nicename[0]) str << "\nNicename: " << nicename;
 	if (usepcnfsd) {
 		str << "\nPassword: " << password;
 		str << "\nUsername: " << username;
@@ -195,7 +193,7 @@ void mountchoices::load(const string& filename)
 		if (CHECK("#")) {
 			/* A comment */
 		} else if (CHECK("Protocol")) {
-			nfs3 = /*case*/strcmp(val, "NFS3") == 0;
+			nfs3 = strcasecmp(val, "NFS3") == 0;
 		} else if (CHECK("Server")) {
 			strcpy(server, val);
 		} else if (CHECK("MachineName")) {
@@ -211,11 +209,9 @@ void mountchoices::load(const string& filename)
 		} else if (CHECK("PCNFSDPort")) {
 			pcnfsdport = (int)strtol(val, NULL, 10);
 		} else if (CHECK("Transport")) {
-			tcp = /*case*/strcmp(val, "tcp") == 0;
+			tcp = strcasecmp(val, "tcp") == 0;
 		} else if (CHECK("Export")) {
 			strcpy(exportname, val);
-		} else if (CHECK("Nicename")) {
-			strcpy(nicename, val);
 		} else if (CHECK("UID")) {
 			usepcnfsd = false;
 			uidvalid = true;
@@ -269,3 +265,98 @@ void mountchoices::load(const string& filename)
 	fclose(file);
 }
 
+
+void aliases::save()
+{
+	FILE *file;
+	file = fopen("<Choices$Dir>.Sunfish.aliases", "w");
+	if (file == NULL) throw rtk::os::exception(_kernel_last_oserror());
+
+	for (vector<alias>::iterator i = data.begin(); i != data.end(); ++i) {
+		fprintf(file, "%s#%s#%s\n", i->alias.c_str(), i->host.c_str(), i->dir.c_str());
+	}
+	fclose(file);
+}
+
+void aliases::load()
+{
+	FILE *file;
+	char buffer[STRMAX];
+
+	file = fopen("Choices:Sunfish.aliases", "r");
+	if (file == NULL) return;
+
+	while (fgets(buffer, STRMAX, file) != NULL) {
+		char *val;
+		char *aliasname;
+		char *host;
+		char *dir;
+
+		aliasname = val = buffer;
+		while (*val && *val != '#' && *val != '\n') val++;
+		if (*val) *val++ = '\0';
+		host = val;
+		while (*val && *val != '#' && *val != '\n') val++;
+		if (*val) *val++ = '\0';
+		dir = val;
+		while (*val && *val != '\n') val++;
+		if (*val) *val++ = '\0';
+
+		alias newalias;
+		newalias.alias = aliasname;
+		newalias.host = host;
+		newalias.dir = dir;
+		data.push_back(newalias);
+	}
+	fclose(file);
+}
+
+void aliases::add(const string& aliasname, const string& host, const string& dir)
+{
+	bool added = false;
+
+	// Search for existing entries to use
+	// This relies on the aliases in the vector being unique,
+	// and the host-dir pairs being unique
+	for (vector<alias>::iterator i = data.begin(); i != data.end(); ++i) {
+		if ((i->alias == aliasname) || ((i->host == host) && (i->dir == dir))) {
+			if (added) {
+				data.erase(i);
+				break;
+			} else {
+				i->alias = aliasname;
+				i->host = host;
+				i->dir = dir;
+				added = true;
+			}
+		}
+	}
+	if (!added) {
+		alias newalias;
+		newalias.alias = aliasname;
+		newalias.host = host;
+		newalias.dir = dir;
+		data.push_back(newalias);
+	}
+}
+
+void aliases::gethost(const string& aliasname, string& host, string& dir)
+{
+	for (vector<alias>::iterator i = data.begin(); i != data.end(); ++i) {
+		if (i->alias == aliasname) {
+			host = i->host;
+			dir = i->dir;
+			return;
+		}
+	}
+	host = "";
+	dir = "";
+}
+
+string aliases::getalias(const string& host, const string& dir)
+{
+	for (vector<alias>::iterator i = data.begin(); i != data.end(); ++i) {
+		if ((i->host == host) && (i->dir == dir)) return i->alias;
+	}
+	return "";
+}

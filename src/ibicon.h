@@ -52,13 +52,13 @@ public:
 	void mount(const char *config);
 	void dismount();
 	rtk::desktop::menu_item ibdismount;
+	rtk::desktop::menu_item ibsave;
 	std::string specialfield;
 private:
 	rtk::desktop::menu ibmenu;
 	rtk::desktop::menu_item ibinfo;
 	rtk::desktop::menu_item ibhelp;
 	rtk::desktop::menu_item ibbrowse;
-	rtk::desktop::menu_item ibsave;
 	rtk::desktop::menu_item ibfree;
 	rtk::desktop::menu_item ibquit;
 	rtk::desktop::prog_info_dbox proginfo;

@@ -25,6 +25,7 @@
 #define MOUNTCHOICES_H
 
 #include <string>
+#include <vector>
 
 #define STRMAX 256
 
@@ -60,7 +61,6 @@ public:
 	bool usepcnfsd;
 	bool tcp;
 	bool nfs3;
-	char nicename[STRMAX];
 	char encoding[STRMAX];
 
 	mountchoices();
@@ -68,6 +68,25 @@ public:
 	void load(const std::string& filename);
 	std::string stringsave();
 	std::string genfilename(const std::string& host, const std::string& mountname);
+};
+
+using std::string;
+
+struct alias {
+	string alias;
+	string host;
+	string dir;
+};
+
+class aliases {
+public:
+	void save();
+	void load();
+	void add(const string& aliasname, const string& host, const string& dir);
+	void gethost(const string& aliasname, string& host, string& dir);
+	string getalias(const string& host, const string& dir);
+private:
+	std::vector<alias> data;
 };
 
 #endif

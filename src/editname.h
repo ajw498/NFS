@@ -42,17 +42,20 @@ using namespace rtk::desktop;
 using rtk::graphics::point;
 using rtk::graphics::box;
 
+class sunfish;
+
 class editname:
 	public window,
 	public events::mouse_click::handler
 {
 public:
 	editname();
-	void load(const string& host, string& exportname);
+	void load(const string& host, const string& exportname, sunfish& app);
 	void save();
 	void handle_event(events::mouse_click& ev);
 private:
-	string filename;
+	string hostname;
+	string exportdir;
 
 	icon description;
 	writable_field name;

@@ -172,17 +172,5 @@ void editfilenames::handle_event(events::mouse_click& ev)
 			string none;
 			load(none, none);
 		}
-	} else if (ev.target() == &extalways) {
-		extalways.selected(true);  // Can this be put into the radio_button class?
-	} else if (ev.target() == &extneeded) {
-		extneeded.selected(true);
-	} else if (ev.target() == &extnever) {
-		extnever.selected(true);
-	} else if (ev.target() == &showalways) {
-		showalways.selected(true);
-	} else if (ev.target() == &showroot) {
-		showroot.selected(true);
-	} else if (ev.target() == &shownever) {
-		shownever.selected(true);
 	}
 }

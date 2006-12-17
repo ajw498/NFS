@@ -125,7 +125,7 @@ void exportbrowser::handle_event(rtk::events::menu_selection& ev)
 	} else if (ev.target() == &refreshwin) {
 		refresh(useport, usetcp, nfsversion);
 	} else if (ev.target() == &namemount) {
-		namewin.load(info.host, menuitem);
+		namewin.load(info.host, menuitem,app);
 		app.add(namewin, point(2*640,2*512));
 		// bring to front if already open?
 	} else if (ev.target() == &filenames) {

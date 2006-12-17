@@ -58,16 +58,21 @@ sunfish::sunfish():
 	ibaricon("", "")
 {
 	add(ibaricon);
+	hostaliases.load();
 	getmounts();
 }
 
-ibicon *sunfish::add_mounticon(const std::string &name, const std::string &specialfield)
+ibicon *sunfish::add_mounticon(const std::string &name, const std::string &specialfield, bool& found)
 {
 	for (unsigned i = 0; i < ibaricons.size(); i++) {
-		if ((ibaricons[i]->text() == name) && (ibaricons[i]->specialfield == specialfield)) return ibaricons[i];
+		if ((ibaricons[i]->text() == name) && (ibaricons[i]->specialfield == specialfield)) {
+			found = true;
+			return ibaricons[i];
+		}
 	}
 
 	ibicon *i = new ibicon(name, specialfield);
+	found = false;
 	if (ibaricons.size() > 0) {
 		if (ibaricons[ibaricons.size() - 1]->layout_valid()) {
 			i->iconbar_position(-4);
@@ -81,6 +86,8 @@ ibicon *sunfish::add_mounticon(const std::string &name, const std::string &speci
 	return i;
 }
 
+#include <stdio.h>
+
 void sunfish::handle_event(rtk::events::menu_selection& ev)
 {
 	for (vector<ibicon*>::iterator i = ibaricons.begin(); i != ibaricons.end(); i++) {
@@ -90,7 +97,21 @@ void sunfish::handle_event(rtk::events::menu_selection& ev)
 			delete *i;
 			ibaricons.erase(i);
 			break;
+		} else if (ev.target() == &((*i)->ibsave)) {
+			FILE *file = fopen("<Choices$Write>.Sunfish.savemounts","w");
+			if (file == NULL) throw "Cannot open file";
+			for (vector<ibicon*>::iterator j = ibaricons.begin(); j != ibaricons.end(); j++) {
+				fprintf(file, "%s\n%s\n", (*j)->text().c_str(), (*j)->specialfield.c_str());
+			}
+			fclose(file);
+			break;
 		}
+	}
+	if (ev.target() == &(ibaricon.ibsave)) {
+		FILE *file = fopen("<Choices$Write>.Sunfish.savemounts","w");
+		if (file == NULL) throw "Cannot open file";
+		fprintf(file, "\n\n");
+		fclose(file);
 	}
 }
 
@@ -160,22 +181,68 @@ void __cyg_profile_func_exit(int a,int b)
 }
 
 #include <swis.h>
+#include "rtk/os/wimp.h"
 
 
 void sunfish::getmounts()
 {
 	_kernel_oserror *err;
+	bool found;
 	int start = 0;
 	do {
-		char *discname;
-		char *specialfield;
+		const char *discname;
+		const char *specialfield;
 
 		err = _swix(Sunfish_ListMounts, _IN(0) | _OUTR(0,2), start, &start, &discname, &specialfield);
-		if (err) throw err->errmess;
+		/* Ignore errors */
+		if (err) break;
 
-		if (discname) {
-			if (specialfield == NULL) specialfield = "";
-			add_mounticon(discname, specialfield);
-		}
+		if (discname) add_mounticon(discname, specialfield ? specialfield : "", found);
 	} while (start);
+
+	FILE *file = fopen("Choices:Sunfish.savemounts","r");
+	if (file) {
+		char discname[256];
+		char specialfield[256];
+		while (1) {
+			if (fgets(discname, 256, file) == NULL) break;
+			discname[255] = '\0';
+			char *end = discname;
+			while (*end && *end != '\n') end++;
+			if (*end == '\n') *end = '\0';
+			if (fgets(specialfield, 256, file) == NULL) break;
+			specialfield[255] = '\0';
+			end = specialfield;
+			while (*end && *end != '\n') end++;
+			if (*end == '\n') *end = '\0';
+
+			string hostname;
+			string exportname;
+			if (specialfield[0]) {
+				hostname = specialfield;
+				exportname = discname;
+			} else {
+				hostaliases.gethost(discname, hostname, exportname);
+				if (hostname == "") continue;
+			}
+			mountchoices mountdetails;
+			string filename = mountdetails.genfilename(hostname, exportname);
+			mountdetails.load(filename);
+			strcpy(mountdetails.server, hostname.c_str());
+			strcpy(mountdetails.exportname, exportname.c_str());
+			/* FIXME mountdetails.tcp = usetcp;
+			mountdetails.nfs3 = nfsversion == 3;*/
+
+			try {
+				ibicon *icon = add_mounticon(discname, specialfield, found);
+				if (!found) icon->mount(mountdetails.stringsave().c_str());
+			}
+			catch (...) {
+				/* Ignore errors */
+				//FIXME syslog them?
+			}
+		}
+
+		fclose(file);
+	}
 }
