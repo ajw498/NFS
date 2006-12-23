@@ -242,7 +242,7 @@ $(MOONFISHMODOBJS) $(MOONFISHAPPOBJS): auto
 
 
 
-../!Sunfish/!RunImage: $(SUNFISHAPPOBJS)
+../!Sunfish/!RunImage: $(SUNFISHAPPOBJS) <rtk$$path>a.rtk
 	$(CXX) $(CXXFLAGS) $(SUNFISHAPPOBJS) -o $@ -lrtk:a.rtk $(APPLIBS)
 
 ../!Moonfish/!RunImage: $(MOONFISHAPPOBJS)
