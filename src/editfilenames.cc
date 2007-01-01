@@ -63,33 +63,37 @@ editfilenames::editfilenames()
 	casesensitive.text("Case sensitive");
 //	encoding.labeltext("Encoding");
 	defaultfiletypelabel.text("Default filetype");
+	defaultfiletype.min_size(point(96,0));
+	defaultfiletype.validation(defaultfiletype.validation()+";A0-9A-Fa-f");
+	defaultfiletype.text("",3);
 	extalways.text("Always add ,xyz extensions").esg(2);
 	extneeded.text("Add ,xyz extensions only when needed").esg(2);
 	extnever.text("Never add ,xyz extensions").esg(2);
 	unixex.text("Set filetype to UnixEx for executable files");
 	followsymlinks.text("Follow symlinks");
+	symlinklevels.min_size(point(64,0));
+	symlinklevels.validation(symlinklevels.validation()+";A0-9");
+	symlinklevels.text("",2);
 	symlinklabel.text("levels");
 	cancel.text("Cancel");
 	savebutton.text("Save");
+	filenames.text("Filenames");
+	filenames.add(layout5);
+	filetypes.text("Filetypes");
+	filetypes.add(layout6);
 
 	layout1.margin(16).ygap(8);
-	layout1.add(showalways);
-	layout1.add(showroot);
-	layout1.add(shownever);
-	layout1.add(casesensitive);
-	layout1.add(layout2);
-	layout1.add(extalways);
-	layout1.add(extneeded);
-	layout1.add(extnever);
-	layout1.add(unixex);
-	layout1.add(layout3);
+	layout1.add(filenames);
+	layout1.add(filetypes);
 	layout1.add(layout4);
 
-	layout2.xgap(8);
+	layout2.xgap(8).xfit(false);
+	layout2.xbaseline(xbaseline_left);
 	layout2.add(defaultfiletypelabel);
 	layout2.add(defaultfiletype);
 
-	layout3.xgap(16);
+	layout3.xgap(8).xfit(false);
+	layout3.xbaseline(xbaseline_left);
 	layout3.add(followsymlinks);
 	layout3.add(symlinklevels);
 	layout3.add(symlinklabel);
@@ -97,6 +101,20 @@ editfilenames::editfilenames()
 	layout4.xgap(16);
 	layout4.add(cancel);
 	layout4.add(savebutton);
+
+	layout5.ygap(8);
+	layout5.add(showalways);
+	layout5.add(showroot);
+	layout5.add(shownever);
+	layout5.add(casesensitive);
+	layout5.add(layout3);
+
+	layout6.ygap(8);
+	layout6.add(layout2);
+	layout6.add(extalways);
+	layout6.add(extneeded);
+	layout6.add(extnever);
+	layout6.add(unixex);
 
 	add(layout1);
 }

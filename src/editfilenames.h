@@ -30,6 +30,7 @@
 #include "rtk/desktop/default_button.h"
 #include "rtk/desktop/radio_button.h"
 #include "rtk/desktop/option_button.h"
+#include "rtk/desktop/labelled_box.h"
 #include "rtk/desktop/grid_layout.h"
 #include "rtk/desktop/row_layout.h"
 #include "rtk/desktop/column_layout.h"
@@ -54,8 +55,8 @@ public:
 private:
 	string filename;
 
-//	labelledbox filenames;
-//	labelledbox filetypes;
+	labelled_box filenames;
+	labelled_box filetypes;
 	radio_button showalways;
 	radio_button showroot;
 	radio_button shownever;
@@ -76,6 +77,8 @@ private:
 	row_layout layout2;
 	row_layout layout3;
 	row_layout layout4;
+	column_layout layout5;
+	column_layout layout6;
 };
 
 #endif
