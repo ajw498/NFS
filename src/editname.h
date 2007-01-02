@@ -50,10 +50,11 @@ class editname:
 {
 public:
 	editname();
-	void load(const string& host, const string& exportname, sunfish& app);
+	void open(const string& host, const string& exportname, sunfish& app);
 	void save();
 	void handle_event(events::mouse_click& ev);
 private:
+	void load(const string& host, const string& exportname, sunfish& app);
 	string hostname;
 	string exportdir;
 

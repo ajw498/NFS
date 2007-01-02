@@ -54,8 +54,8 @@ editname::editname()
 	title("Name mount");
 	close_icon(false);
 
-	description.text("this names the mount for you");
-	name.text("1234567890");
+	description.text("Set the local discname of the mount");
+	name.text("",256);
 	cancel.text("Cancel");
 	savebutton.text("Save");
 
@@ -71,6 +71,19 @@ editname::editname()
 	add(layout1);
 }
 
+void editname::open(const string& host, const string& exportname, sunfish& app)
+{
+	load(host, exportname, app);
+
+	// Open window near mouse position.
+	os::pointer_info_get blk;
+	os::Wimp_GetPointerInfo(blk);
+
+	app.add(*this, blk.p - point(64,0));
+
+	name.set_caret_position(point(),-1,name.text().length());
+	//FIXME - This doesn't work, probably because the window doesn't exist yet...
+}
 
 void editname::load(const string& host, const string& exportname, sunfish& app)
 {
