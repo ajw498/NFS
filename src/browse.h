@@ -44,7 +44,14 @@ struct exportinfo {
 	struct exportinfo *next;
 };
 
-char *browse_gethost(struct hostinfo *info, int type);
+enum broadcast_type {
+	BROADCAST,
+	LISTEN,
+	CLOSE,
+	HOST
+};
+
+char *browse_gethost(struct hostinfo *info, enum broadcast_type type, const char *hostname);
 
 char *browse_getexports(const char *host, unsigned port, unsigned mount3, unsigned tcp, struct exportinfo **ret);
 

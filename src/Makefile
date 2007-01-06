@@ -208,7 +208,8 @@ editfilenames.o \
 editconnection.o \
 edituid.o \
 editname.o \
-ibicon.o
+ibicon.o \
+searchhost.o
 
 MOONFISHOBJS = \
 request-decode.o \

@@ -49,6 +49,7 @@
 #include "sunfishdefs.h"
 
 #include "browse.h"
+#include "searchhost.h"
 
 
 class hostbrowser:
@@ -60,18 +61,21 @@ public:
 	hostbrowser();
 	~hostbrowser();
 	void broadcast();
-	void handle_event(rtk::events::close_window& ev) { parent_application()->terminate(); }
+	void handle_event(rtk::events::close_window& ev) { }
 	void handle_event(rtk::events::null_reason& ev);
 	void handle_event(rtk::events::menu_selection& ev);
 	void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev);
 //	void drag_ended(bool adjust, rtk::events::user_drag_box& ev) {}
 	void doubleclick(const std::string& item, rtk::events::mouse_click& ev);
+	void search(std::string host);
 private:
 	void openexportbrowser(hostinfo *info, bool tcp, int version);
 	hostinfo *menuinfo;
 	time_t broadcasttime;
-	int broadcasttype;
+	enum broadcast_type broadcasttype;
 	std::map<std::string, hostinfo> hostinfos;
+	std::vector<std::string> extrahosts;
+	searchhost searchwin;
 
 	rtk::desktop::menu menu;
 	rtk::desktop::menu_item display;

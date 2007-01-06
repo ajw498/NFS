@@ -99,7 +99,8 @@ void hostbrowser::doubleclick(const std::string& item, rtk::events::mouse_click&
 	openexportbrowser(&(hostinfos[item]), true, 4);
 }
 
-hostbrowser::hostbrowser()
+hostbrowser::hostbrowser() :
+	searchwin(*this)
 {
 	title("NFS servers");
 	min_x_size(300);
@@ -108,25 +109,49 @@ hostbrowser::hostbrowser()
 void hostbrowser::broadcast()
 {
 	broadcasttime = clock();
-	broadcasttype = 0;
+	broadcasttype = BROADCAST;
 
-		if (rtk::desktop::application* app=parent_application()) {
-	app->register_null(*this);
+	if (rtk::desktop::application* app=parent_application()) {
+		app->register_null(*this);
 	}
+
+	remove_all_icons();
+	hostinfos.erase(hostinfos.begin(),hostinfos.end());
+
+	for (vector<string>::iterator i = extrahosts.begin(); i != extrahosts.end(); ++i) {
+		hostinfo info;
+		char *err = browse_gethost(&info, HOST, i->c_str());
+		if (err) {
+			extrahosts.erase(i);
+			throw err;
+		}
+
+		if (info.valid) {
+			hostinfos[info.host] = info;
+			add_icon(info.host, "fileserver");
+		}
+	}
+	broadcasttime = clock();
+}
+
+void hostbrowser::search(string host)
+{
+	extrahosts.push_back(host);
+	broadcast();
 }
 
 void hostbrowser::handle_event(rtk::events::null_reason& ev)
 {
 	char *err;
 
-	if (clock() > broadcasttime + 100) {
+	if ((clock() > broadcasttime + 100) && (broadcasttype == LISTEN)) {
 		parent_application()->deregister_null(*this);
-		err = browse_gethost(NULL, 2);
+		err = browse_gethost(NULL, CLOSE, NULL);
 		if (err) throw err;
 	} else {
 		hostinfo info;
-		err = browse_gethost(&info, broadcasttype);
-		broadcasttype = 1;
+		err = browse_gethost(&info, broadcasttype, NULL);
+		broadcasttype = LISTEN;
 		if (err) throw err;
 
 		if (info.valid) {
@@ -160,8 +185,8 @@ void hostbrowser::open_menu(const std::string& item, bool selection, rtk::events
 	browseitem.text(selection ? "Selection" : "Browse '"+item+"'");
 	browseitem.enabled(!selection && item.compare("") != 0);
 	browseitem.attach_submenu(transport);
-	searchfor.text("Search for");
-	searchfor.enabled(false);
+	searchfor.text("Search for host");
+	searchfor.attach_dbox(searchwin);
 	clear.text("Clear selection");
 	clear.enabled(item.compare("") != 0);
 	refresh.text("Refresh");

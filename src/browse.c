@@ -45,8 +45,8 @@ static os_error *browse_initconn(struct conn_info *conn, const char *host, int t
 	conn->nfs_port = 0;
 	conn->pcnfsd_port = 0;
 	conn->tcp = tcp;
-	conn->timeout = 30;
-	conn->retries = 0;
+	conn->timeout = 2;
+	conn->retries = 1;
 	conn->username = NULL;
 	conn->password = NULL;
 	conn->uid = 0;
@@ -78,25 +78,39 @@ static os_error *browse_initconn(struct conn_info *conn, const char *host, int t
 	return rpc_init_connection(conn);
 }
 
-char *browse_gethost(struct hostinfo *info, int type)
+char *browse_gethost(struct hostinfo *info, enum broadcast_type type, const char *hostname)
 {
 	pmaplist2 res;
 	pmaplist list;
 	os_error *err;
 	static struct conn_info broadcastconn;
+	enum callctl blocking = RXNONBLOCKING;
 
-	if (type == 0) {
+	if (type == BROADCAST) {
 		err = browse_initconn(&broadcastconn, NULL, 0, NULL);
 		if (err) return err->errmess;
+		blocking = TXNONBLOCKING;
 	}
 
-	if (type == 2) {
+	if (type == CLOSE) {
 		err = rpc_close_connection(&broadcastconn);
 		pfree(broadcastconn.pool);
 		return err ? err->errmess : NULL;
 	}
 
-	err = PMAPPROC_DUMP(&res, &broadcastconn, type == 0 ? TXNONBLOCKING : RXNONBLOCKING);
+	if (type == HOST) {
+		err = browse_initconn(&broadcastconn, hostname, 0, NULL);
+		if (err) return err->errmess;
+		blocking = TXBLOCKING;
+	}
+
+	err = PMAPPROC_DUMP(&res, &broadcastconn, blocking);
+
+	if (type == HOST) {
+		rpc_close_connection(&broadcastconn);
+		pfree(broadcastconn.pool);
+	}
+
 	if (err) {
 		if (err == ERR_WOULDBLOCK) {
 			info->valid = 0;
