@@ -173,7 +173,8 @@ imageentry_common.o
 ASMOBJS = \
 base.o \
 callback.o \
-memcpy.o
+memcpy.o \
+free.o
 
 COMMONOBJS = \
 pools.o \

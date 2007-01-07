@@ -465,3 +465,74 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 	return NULL;
 }
 
+
+/* Read free space */
+os_error *ENTRYFUNC(func_free) (char *filename, struct conn_info *conn, unsigned *freelo, unsigned *freehi, unsigned *biggestobj, unsigned *sizelo, unsigned *sizehi, unsigned *usedlo, unsigned *usedhi)
+{
+	struct objinfo *finfo;
+#ifdef NFS3
+	struct FSSTAT3args args;
+	struct FSSTAT3res res;
+#else
+	struct statfsargs args;
+	struct statfsres res;
+#endif
+	os_error *err;
+	uint64_t free;
+	uint64_t size;
+
+	err = ENTRYFUNC(filename_to_finfo) (filename, 1, NULL, &finfo, NULL, NULL, NULL, conn);
+	if (err) return err;
+	if (finfo == NULL) return ENTRYFUNC(gen_nfsstatus_error) (NFSERR_NOENT);
+
+	commonfh_to_fh(args.fhandle, finfo->objhandle);
+	err = NFSPROC(STATFS, (&args, &res, conn));
+	if (err) return err;
+	if (res.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (res.status);
+
+#ifdef NFS3
+	free = res.u.resok.fbytes;
+	size = res.u.resok.tbytes;
+#else
+	free = ((uint64_t)res.u.info.bfree) * ((uint64_t)res.u.info.bsize);
+	size = ((uint64_t)res.u.info.blocks) * ((uint64_t)res.u.info.bsize);
+#endif
+	if (freehi) {
+		*freehi = (unsigned)(free >> 32);
+		*freelo = (unsigned)(free & 0xFFFFFFFF);
+	} else {
+		if ((free >> 32) != 0ULL) {
+			*freelo = 0xFFFFFFFF;
+			if (biggestobj) *biggestobj = 0x7FFFFFFF;
+		} else {
+			*freelo = (unsigned)free;
+			if (biggestobj) *biggestobj = (unsigned)free;
+		}
+	}
+	if (sizehi) {
+		*sizehi = (unsigned)(size >> 32);
+		*sizelo = (unsigned)(size & 0xFFFFFFFF);
+	} else {
+		if ((size >> 32) != 0ULL) {
+			*sizelo = 0xFFFFFFFF;
+		} else {
+			*sizelo = (unsigned)size;
+		}
+	}
+
+	if (usedlo) {
+		uint64_t used = size - free;
+		if (usedhi) {
+			*usedhi = (unsigned)(used >> 32);
+			*usedlo = (unsigned)(used & 0xFFFFFFFF);
+		} else {
+			if ((used >> 32) != 0ULL) {
+				*usedlo = 0xFFFFFFFF;
+			} else {
+				*usedlo = (unsigned)used;
+			}
+		}
+	}
+
+	return NULL;
+}

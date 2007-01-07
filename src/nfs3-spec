@@ -697,7 +697,7 @@ readdirplusres3 NFSPROC3_READDIRPLUS(readdirplusargs3) = 17;
 
 
 struct FSSTAT3args {
-     nfs_fh3   fsroot;
+     nfs_fh3   fhandle;
 };
 
 struct FSSTAT3resok {
@@ -722,7 +722,7 @@ default:
      FSSTAT3resfail resfail;
 };
 
-FSSTAT3res NFSPROC3_FSSTAT(FSSTAT3args) = 18;
+FSSTAT3res NFSPROC3_STATFS(FSSTAT3args) = 18;
 
 
 const FSF3_LINK        = 0x0001;

@@ -21,5 +21,7 @@ ENTRYFUNCDECL(os_error *, func_readdirinfo, (int info, char *dirname, char *buff
 
 ENTRYFUNCDECL(os_error *, func_rename, (char *oldfilename, char *newfilename, struct conn_info *conn, int *renamefailed));
 
+ENTRYFUNCDECL(os_error *, func_free, (char *filename, struct conn_info *conn, unsigned *freelo, unsigned *freehi, unsigned *biggestobj, unsigned *sizelo, unsigned *sizehi, unsigned *usedlo, unsigned *usedhi));
+
 os_error *func_readboot(int *option);
 

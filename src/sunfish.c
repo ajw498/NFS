@@ -42,6 +42,8 @@
 
 extern int module_base_address;
 
+extern void free_wrapper(void);
+
 typedef int veneer;
 
 struct fs_info_block {
@@ -137,6 +139,10 @@ Iterate through the list of currently mounted mounts.
 <= r0 next value (0 when last item reached)
    r1 disc name (or 0 if no item)
    r2 special field (or 0 if no special field)
+
+Sunfish_Free
+Called by free_wrapper for reason codes 0,1,2 with registers unchanged.
+
 */
 
 struct fsmount {
@@ -192,6 +198,78 @@ static void fs_dismount(char *discname, char *specialfield)
 		*prevmount = mount->next;
 		free(mount);
 	}
+}
+
+/* Filenames are of the form :discname.$.foo.bar
+   We need to extract the discname and the foo.bar component, and then find
+   a matching connection. */
+static os_error *filename_to_conn(char *filename, char *specialfield, struct conn_info **conn, char **retfilename)
+{
+	struct fsmount *mount = fsmounts;
+	size_t discnamelen;
+
+	if (filename[0] == ':') filename++;
+
+	*retfilename = strchr(filename, '$');
+	if (*retfilename == NULL) return gen_error(INVALFILENAMEERR,"Invalid filename");
+
+	discnamelen = *retfilename - filename;
+	if (discnamelen && (filename[discnamelen - 1] == '.')) discnamelen--;
+
+	(*retfilename)++;
+	if (**retfilename == '.') (*retfilename)++;
+
+	while (mount) {
+		if (strncasecmp(mount->discname, filename, discnamelen) == 0) {
+			if (specialfield == NULL) {
+				if (mount->specialfield == NULL) break;
+			} else {
+				if ((mount->specialfield != NULL) &&
+				    (strcasecmp(specialfield, mount->specialfield) == 0)) {
+					break;
+				}
+			}
+		}
+		mount = mount->next;
+	}
+
+	if (mount) {
+		*conn = mount->conn;
+	} else {
+		return gen_error(NODISCERR, "Disc not found");
+	}
+
+	return NULL;
+}
+
+/* Get the free space for the free module */
+static os_error *getfree(char *id, unsigned *freelo, unsigned *freehi, unsigned *sizelo, unsigned *sizehi, unsigned *usedlo, unsigned *usedhi)
+{
+	char discname[256];
+	char *hash;
+	char *specialfield = NULL;
+	char *filename = discname;
+	struct conn_info *conn;
+	char *retfilename;
+	os_error *err;
+
+	/* The id is specialfield#discname, or just discname if no special
+	   field. Therefore we need to separate them, and convert to a
+	   filename that filename_to_con can parse. */
+	snprintf(discname, sizeof(discname), "%s.$", id);
+	hash = strchr(discname, '#');
+	if (hash) {
+		specialfield = discname;
+		*hash++ = '\0';
+		filename = hash;
+	}
+
+	err = filename_to_conn(filename, specialfield, &conn, &retfilename);
+	if (err) return err;
+	err = CALLENTRY(func_free, conn, (retfilename, conn, freelo, freehi, NULL, sizelo, sizehi, usedlo, usedhi));
+	if (err) return err;
+
+	return NULL;
 }
 
 _kernel_oserror *swi_handler(int swi_offset, _kernel_swi_regs *r, void *pw)
@@ -254,51 +332,38 @@ _kernel_oserror *swi_handler(int swi_offset, _kernel_swi_regs *r, void *pw)
 			r->r[2] = 0;
 		}
 		break;
+	case Sunfish_Free - Sunfish_00:
+		switch (r->r[0]) {
+		case 0:
+			/* NOP */
+			break;
+		case 1:
+			/* Get device name */
+			r->r[0] = strlen((char *)(r->r[3]));
+			memcpy((char *)(r->r[2]), (char *)(r->r[3]), r->r[0] + 1);
+			break;
+		case 2: {
+			/* Get free space */
+			unsigned *buf = (unsigned *)(r->r[2]);
+
+			err = getfree((char *)(r->r[3]), buf + 1, NULL, buf, NULL, buf + 2, NULL);
+			if (err) return err;
+			break;
+			}
+		case 4: {
+			/* Get free space 64 bit */
+			unsigned *buf = (unsigned *)(r->r[2]);
+
+			err = getfree((char *)(r->r[3]), buf + 2, buf + 3, buf, buf + 1, buf + 4, buf + 5);
+			if (err) return err;
+			r->r[0] = 0;
+			break;
+			}
+		}
+		break;
 	default:
 		return error_BAD_SWI;
 	}
-	return NULL;
-}
-
-/* Filenames are of the form :discname.$.foo.bar
-   We need to extract the discname and the foo.bar component, and then find
-   a matching connection. */
-static os_error *filename_to_conn(char *filename, char *specialfield, struct conn_info **conn, char **retfilename)
-{
-	struct fsmount *mount = fsmounts;
-	size_t discnamelen;
-
-	if (filename[0] == ':') filename++;
-
-	*retfilename = strchr(filename, '$');
-	if (*retfilename == NULL) return gen_error(INVALFILENAMEERR,"Invalid filename");
-
-	discnamelen = *retfilename - filename;
-	if (discnamelen && (filename[discnamelen - 1] == '.')) discnamelen--;
-
-	(*retfilename)++;
-	if (**retfilename == '.') (*retfilename)++;
-
-	while (mount) {
-		if (strncasecmp(mount->discname, filename, discnamelen) == 0) {
-			if (specialfield == NULL) {
-				if (mount->specialfield == NULL) break;
-			} else {
-				if ((mount->specialfield != NULL) &&
-				    (strcasecmp(specialfield, mount->specialfield) == 0)) {
-					break;
-				}
-			}
-		}
-		mount = mount->next;
-	}
-
-	if (mount) {
-		*conn = mount->conn;
-	} else {
-		return gen_error(NODISCERR, "Disc not found");
-	}
-
 	return NULL;
 }
 
@@ -320,8 +385,8 @@ static os_error *declare_fs(void *private_word)
 
 	fsinfo_block.information_word = 0x80900000 | SUNFISH_FSNUMBER;
 	fsinfo_block.extra_information_word = 0;
-	fsinfo_block.fsname =              ((int)fsname) - module_base_address;
-	fsinfo_block.startuptext =         ((int)fsname) - module_base_address;
+	fsinfo_block.fsname =           ((int)fsname) - module_base_address;
+	fsinfo_block.startuptext =      ((int)fsname) - module_base_address;
 	fsinfo_block.fsentry_open =     ((int)fsentry_open) - module_base_address;
 	fsinfo_block.fsentry_getbytes = ((int)imageentry_getbytes) - module_base_address;
 	fsinfo_block.fsentry_putbytes = ((int)imageentry_putbytes) - module_base_address;
@@ -349,8 +414,13 @@ void service_call(int service_number, _kernel_swi_regs *r, void *private_word)
 
 _kernel_oserror *initialise(const char *cmd_tail, int podule_base, void *private_word)
 {
+	os_error *err;
+
 	(void)cmd_tail;
 	(void)podule_base;
+
+	err = _swix(Free_Register, _INR(0,2), SUNFISH_FSNUMBER, free_wrapper, 0);
+	if (err) syslogf(LOGNAME, LOGERROR, "Error %x, %s", err->errnum, err->errmess);
 
 	return declare_fs(private_word);
 }
@@ -368,6 +438,9 @@ _kernel_oserror *finalise(int fatal, int podule_base, void *private_word)
 	if (enablelog) syslogf(LOGNAME, LOGENTRY, "Module finalisation");
 
 	if (!finalised) {
+		err1 = _swix(Free_DeRegister, _INR(0,2), SUNFISH_FSNUMBER, free_wrapper, 0);
+		if (err1) syslogf(LOGNAME, LOGERROR, "Error %x, %s", err1->errnum, err1->errmess);
+
 		err1 = _swix(OS_FSControl, _INR(0,1), 16, fsname);
 		err2 = _swix(OS_FSControl, _INR(0,1), 36, SUNFISH_FILETYPE);
 		fs_dismount_all();
@@ -751,13 +824,23 @@ static os_error *func_handler(char *filename, struct conn_info *conn, _kernel_sw
 			r->r[2] = 0;
 			break;
 
+		case IMAGEENTRY_FUNC_READFREESPACE:
+			CONNENTRY(conn);
+			err = CALLENTRY(func_free, conn, (filename, conn, (unsigned *)&(r->r[0]), NULL, (unsigned *)&(r->r[1]), (unsigned *)&(r->r[2]), NULL, NULL, NULL));
+			CONNEXIT(conn);
+			break;
+		case IMAGEENTRY_FUNC_READFREESPACE64:
+			CONNENTRY(conn);
+			err = CALLENTRY(func_free, conn, (filename, conn, (unsigned *)&(r->r[0]), (unsigned *)&(r->r[1]), (unsigned *)&(r->r[2]), (unsigned *)&(r->r[3]), (unsigned *)&(r->r[4]), NULL, NULL));
+			CONNEXIT(conn);
+			break;
+
 		/* The following entrypoints are meaningless for NFS.
 		   We could fake them, but I think it is better to give an error */
 		case IMAGEENTRY_FUNC_READDEFECT:
 		case IMAGEENTRY_FUNC_ADDDEFECT:
 		case IMAGEENTRY_FUNC_WRITEBOOT:
 		case IMAGEENTRY_FUNC_READUSEDSPACE:
-		case IMAGEENTRY_FUNC_READFREESPACE:
 		case IMAGEENTRY_FUNC_NAME:
 		case IMAGEENTRY_FUNC_STAMP:
 		case IMAGEENTRY_FUNC_GETUSAGE:

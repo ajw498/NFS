@@ -134,6 +134,24 @@ void hostbrowser::broadcast()
 	broadcasttime = clock();
 }
 
+void hostbrowser::open(sunfish& app)
+{
+	point pos;
+
+	if (parent_application()) {
+		// We are already open, so find the current position
+		pos = origin();
+	} else {
+		// Find centre of desktop.
+		box dbbox(app.bbox());
+		point dcentre((dbbox.xmin()+dbbox.xmax())/2, (dbbox.ymin()+dbbox.ymax())/2);
+
+		pos = dcentre;
+	}
+	app.add(*this,pos);
+	broadcast();
+}
+
 void hostbrowser::search(string host)
 {
 	extrahosts.push_back(host);

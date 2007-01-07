@@ -761,7 +761,7 @@ failure:
 	return SUCCESS;
 }
 
-enum accept_stat NFSPROC3_FSSTAT(struct FSSTAT3args *args, struct FSSTAT3res *res, struct server_conn *conn)
+enum accept_stat NFSPROC3_STATFS(struct FSSTAT3args *args, struct FSSTAT3res *res, struct server_conn *conn)
 {
 	char *path;
 	unsigned int freelo;
@@ -769,7 +769,7 @@ enum accept_stat NFSPROC3_FSSTAT(struct FSSTAT3args *args, struct FSSTAT3res *re
 	unsigned int sizelo;
 	unsigned int sizehi;
 
-	NF(nfs3fh_to_path(&(args->fsroot), &path, conn));
+	NF(nfs3fh_to_path(&(args->fhandle), &path, conn));
 	res->u.resok.obj_attributes.attributes_follow = TRUE;
 	NF(get_fattr(path, -1, &(res->u.resok.obj_attributes.u.attributes), NULL, conn));
 

@@ -63,7 +63,7 @@ public:
 	ibicon *add_mounticon(const std::string &name, const std::string &specialfield, bool& found);
 	void getmounts();
 	getuid ggetuid;
-	hostbrowser _window;
+	hostbrowser browserwin;
 	ibicon ibaricon;
 	std::vector<ibicon *> ibaricons;
 	std::vector<exportbrowser *> exportbrowsers;

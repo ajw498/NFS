@@ -16,7 +16,7 @@ swi-chunk-base-number: &58bc0
 
 swi-handler-code: swi_handler
 
-swi-decoding-table: Sunfish, Mount, Dismount, ListMounts
+swi-decoding-table: Sunfish, Mount, Dismount, ListMounts, Free
 
 service-call-handler: service_call &40
 

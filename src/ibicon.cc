@@ -116,35 +116,32 @@ void ibicon::closedir()
 
 void ibicon::handle_event(rtk::events::menu_selection& ev)
 {
-	sunfish *app = static_cast<sunfish *>(parent_application());
+	sunfish& app = *static_cast<sunfish *>(parent_application());
 
 	if (ev.target() == &ibhelp) {
 		os::Wimp_StartTask("Filer_Run <Sunfish$Dir>.!Help");
 	} else if (ev.target() == &ibbrowse) {
-		// Find centre of desktop.
-		rtk::graphics::box dbbox(app->bbox());
-		rtk::graphics::point dcentre((dbbox.xmin()+dbbox.xmax())/2,
-			(dbbox.ymin()+dbbox.ymax())/2);
-
-		// Find centre of window.
-		rtk::graphics::box cbbox(app->_window.bbox());
-		rtk::graphics::point ccentre((cbbox.xmin()+cbbox.xmax())/2,
-			(cbbox.ymin()+cbbox.ymax())/2);
-
-		// Open window at centre of desktop.
-		app->add(app->_window,dcentre-ccentre);
-		app->_window.broadcast();
+		app.browserwin.open(app);
 	} else if (ev.target() == &ibdismount) {
 		closedir();
 		dismount();
+	} else if (ev.target() == &ibfree) {
+		string cmd = "ShowFree -fs Sunfish ";
+
+		if (specialfield.length() > 0) {
+			cmd += specialfield;
+			cmd += "#";
+		}
+		cmd += text();
+		os::Wimp_StartTask(cmd.c_str());
 	} else if (ev.target() == &ibquit) {
-		app->terminate();
+		parent_application()->terminate();
 	}
 }
 
 void ibicon::handle_event(rtk::events::mouse_click& ev)
 {
-	sunfish *app = static_cast<sunfish *>(parent_application());
+	sunfish& app = *static_cast<sunfish *>(parent_application());
 
 	if (ev.target() == this) {
 		if (ev.buttons() == 2) {
@@ -152,19 +149,7 @@ void ibicon::handle_event(rtk::events::mouse_click& ev)
 		} else if ((ev.buttons() == 4) && text_and_sprite()) {
 			opendir();
 		} else {
-			// Find centre of desktop.
-			rtk::graphics::box dbbox(app->bbox());
-			rtk::graphics::point dcentre((dbbox.xmin()+dbbox.xmax())/2,
-				(dbbox.ymin()+dbbox.ymax())/2);
-
-			// Find centre of window.
-			rtk::graphics::box cbbox(app->_window.bbox());
-			rtk::graphics::point ccentre((cbbox.xmin()+cbbox.xmax())/2,
-				(cbbox.ymin()+cbbox.ymax())/2);
-
-			// Open window at centre of desktop.
-			app->add(app->_window,dcentre-ccentre);
-			app->_window.broadcast();
+			app.browserwin.open(app);
 		}
 	}
 }
