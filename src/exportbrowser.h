@@ -26,10 +26,10 @@
 
 #include "rtk/desktop/menu_item.h"
 #include "rtk/desktop/menu.h"
-#include "rtk/desktop/filer_window.h"
 #include "rtk/events/menu_selection.h"
 #include "rtk/events/save_to_app.h"
 #include "rtk/transfer/save.h"
+#include "filer_window.h"
 
 
 #include "browse.h"
@@ -57,7 +57,7 @@ private:
 
 
 class exportbrowser:
-	public rtk::desktop::filer_window,
+	public filer_window,
 	public rtk::events::menu_selection::handler
 {
 public:

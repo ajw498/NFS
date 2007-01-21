@@ -24,7 +24,6 @@
 #include "rtk/desktop/application.h"
 #include "rtk/desktop/menu_item.h"
 #include "rtk/desktop/menu.h"
-#include "rtk/desktop/filer_window.h"
 #include "rtk/desktop/info_dbox.h"
 #include "rtk/desktop/ibar_icon.h"
 #include "rtk/desktop/label.h"
@@ -103,7 +102,7 @@ hostbrowser::hostbrowser() :
 	searchwin(*this)
 {
 	title("NFS servers");
-	min_x_size(300);
+	min_win_size(point(300,0));
 }
 
 void hostbrowser::broadcast()

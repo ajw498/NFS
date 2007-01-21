@@ -27,7 +27,6 @@
 #include "rtk/desktop/application.h"
 #include "rtk/desktop/menu_item.h"
 #include "rtk/desktop/menu.h"
-#include "rtk/desktop/filer_window.h"
 #include "rtk/desktop/info_dbox.h"
 #include "rtk/desktop/ibar_icon.h"
 #include "rtk/desktop/label.h"
@@ -41,6 +40,7 @@
 #include "rtk/events/close_window.h"
 #include "rtk/events/null_reason.h"
 #include "rtk/os/wimp.h"
+#include "filer_window.h"
 
 #include <map>
 #include <string>
@@ -54,7 +54,7 @@
 class sunfish;
 
 class hostbrowser:
-	public rtk::desktop::filer_window,
+	public filer_window,
 	public rtk::events::null_reason::handler,
 	public rtk::events::menu_selection::handler
 {

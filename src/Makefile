@@ -8,6 +8,7 @@ MODLIBS = TCPIPLIBS:o.unixlibzm TCPIPLIBS:o.inetlibzm TCPIPLibs:o.socklib5zm -l 
 
 APPLIBS = -l TCPIPLIBS:o.unixlib TCPIPLIBS:o.inetlib -l TCPIPLibs:o.socklib5 -l OSLibSupport:o.OSLibSupport32 -l OSLib:o.OSLib32 -l libiconv:libiconv
 
+DISTCC = distcc
 
 ifneq (,$(findstring release,$(MAKECMDGOALS)))
 
@@ -22,8 +23,8 @@ CFLAGSG = -O0 -mpoke-function-name
 
 endif
 
-CXX = g++
-CC = gcc
+CXX = $(DISTCC) g++
+CC = $(DISTCC) gcc
 CFLAGS = $(INCLUDE) -Wall -mthrowback -std=c99 -pedantic  -mlibscl $(CFLAGSG)
 CXXFLAGS = $(INCLUDE) -Irtk: -Wall -mthrowback -mlibscl $(CFLAGSG)
 
@@ -31,8 +32,8 @@ ifneq (,$(findstring gcc,$(MAKECMDGOALS)))
 
 EXTRATARGET := $(EXTRATARGET) gcc
 
-MODCC = gcc
-MODCFLAGS =  $(INCLUDE) -DMODULE -Wall -mthrowback -mlibscl -std=c99 -pedantic $(CFLAGSG) 
+MODCC = $(DISTCC) gcc
+MODCFLAGS =  $(INCLUDE) -DMODULE -Wall -mthrowback -mlibscl -std=c99 -pedantic $(CFLAGSG)
 
 MODULE = -mmodule
 
@@ -210,7 +211,9 @@ editconnection.o \
 edituid.o \
 editname.o \
 ibicon.o \
-searchhost.o
+searchhost.o \
+gridwrap_layout.o \
+filer_window.o
 
 MOONFISHOBJS = \
 request-decode.o \
