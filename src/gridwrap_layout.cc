@@ -3,11 +3,13 @@
 #include <functional>
 
 #include "rtk/graphics/gcontext.h"
+#include "rtk/desktop/basic_window.h"
 #include "gridwrap_layout.h"
-
 
 using std::min;
 using std::max;
+
+#define FILERWIN
 
 gridwrap_layout::gridwrap_layout(size_type cells):
 	_cells(cells),
@@ -80,7 +82,7 @@ box gridwrap_layout::min_wrap_bbox(const box& wbox) const
 
 	size_type xcells, ycells;
 	box bbox(wbox);
-	reflow(bbox,xcells,ycells);
+	reflow(bbox,true,xcells,ycells);
 	return bbox;
 }
 
@@ -125,7 +127,7 @@ void gridwrap_layout::resize() const
 
 // Reflow the grid to fit within bbox. Returns the number of cells wide and
 // high, and updated the bbox
-void gridwrap_layout::reflow(box& bbox, size_type& xcells, size_type& ycells) const
+void gridwrap_layout::reflow(box& bbox, bool shrinkx, size_type& xcells, size_type& ycells) const
 {
 	// Remove margin.
 	box ibox(bbox-_margin);
@@ -137,6 +139,11 @@ void gridwrap_layout::reflow(box& bbox, size_type& xcells, size_type& ycells) co
 	// Find the maximum number of cells we can fit in the x direction
 	xcells = (ibox.xsize() + _xgap) / (_xbs.offset(xbaseline_left,xbaseline_right,_minwidth) + _xgap);
 
+#ifdef FILERWIN
+	int excess = (ibox.xsize() + _xgap) - (xcells * (_xbs.offset(xbaseline_left,xbaseline_right,_minwidth) + _xgap));
+	if (!shrinkx && ((xcells < _cells) || (excess == 0))) xcells -= 1;
+#endif
+
 	if (xcells < 1) xcells = 1;
 	if (xcells > _cells) xcells = _cells;
 
@@ -145,7 +152,7 @@ void gridwrap_layout::reflow(box& bbox, size_type& xcells, size_type& ycells) co
 	// Work out the excess space, and align suitably within
 	int xspare = ibox.xsize() - (xcells * _xbs.offset(xbaseline_left,xbaseline_right,_minwidth) + (xcells - 1) * _xgap);
 	int yspare = ibox.ysize() - (ycells * _ybs.offset(ybaseline_bottom,ybaseline_top,_minheight) + (ycells - 1) * _ygap);
-	point offset;
+
 	switch (xbaseline())
 	{
 	case xbaseline_left:
@@ -161,6 +168,16 @@ void gridwrap_layout::reflow(box& bbox, size_type& xcells, size_type& ycells) co
 	default:
 		break;
 	}
+
+#ifdef FILERWIN
+	// Make x size 1 cell wider than needed, to allow the window to expand
+	bbox.xmax(bbox.xmax()+_xbs.offset(xbaseline_left,xbaseline_right,_minwidth) + _xgap);
+	// Restrict the maximum x size to be enough to hold all cells, plus
+	// 1 pixel (to allow detection of when the window is full width)
+	int xsize = _margin.xsize() + _cells * (_xbs.offset(xbaseline_left,xbaseline_right,_minwidth) + _xgap) - _xgap + 2;
+	if (bbox.xsize() > xsize) bbox.xmax(bbox.xmin()+xsize);
+#endif
+
 	switch (ybaseline())
 	{
 	case ybaseline_top:
@@ -181,10 +198,10 @@ void gridwrap_layout::reflow(box& bbox, size_type& xcells, size_type& ycells) co
 void gridwrap_layout::reformat(const point& origin,const box& pbbox)
 {
 	// Fit bounding box to parent.
-	box bbox=fit(pbbox);
+	box bbox=pbbox;
 
 	size_type oldxcells=_xcells;
-	reflow(bbox,_xcells,_ycells);
+	reflow(bbox,false,_xcells,_ycells);
 
 	// Update origin and bounding box of this component, force redraw
 	// if necessary.  (This must happen before reformat() is called for
@@ -238,6 +255,14 @@ void gridwrap_layout::reformat(const point& origin,const box& pbbox)
 				y++;
 			}
 		}
+#ifdef FILERWIN
+		// Invalidate the parent to allow the work area to shrink if needed.
+		// When this reformat is called again because of this, the _xcells
+		// won't have changed, so we won't reformat all children again and
+		// get into an infinite loop 
+		basic_window* parent=parent_work_area();
+		if (parent) parent->invalidate();
+#endif
 	}
 }
 

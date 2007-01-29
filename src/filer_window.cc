@@ -9,6 +9,7 @@ filer_window::filer_window(rtk::graphics::point size):
 	_smallicons(false)
 {
 	min_win_size(point(1,0));
+	ignore_extent(false);
 	y_scroll_bar(true);
 	adjust_icon(true);
 	toggle_icon(true);
@@ -193,12 +194,16 @@ filer_window& filer_window::remove_all_icons()
 	return *this;
 }
 
-rtk::graphics::box filer_window::max_bbox() const
+void filer_window::reformat(const point& origin,const box& pbbox)
 {
-	rtk::graphics::box mbbox(rtk::desktop::window::max_bbox());
-	mbbox.xmax(layout.min_bbox().xsize());
-	mbbox.ymin(-layout.bbox().ysize());
-	return mbbox;
+	rtk::graphics::box mbbox = pbbox;
+	if (mbbox.ysize() > layout.bbox().ysize()) {
+		mbbox.ymin(mbbox.ymax()-layout.bbox().ysize());
+	}
+	if (mbbox.xsize() > layout.bbox().xsize()) {
+		mbbox.xmax(mbbox.xmin()+layout.bbox().xsize());
+	}
+	basic_window::reformat(origin, mbbox);
 }
 
 filer_window& filer_window::smallicons(bool smallicons)

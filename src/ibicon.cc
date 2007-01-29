@@ -96,7 +96,7 @@ void ibicon::opendir()
 	cmd += "::";
 	cmd += text();
 	cmd += ".$";
-	os::Wimp_StartTask(cmd.c_str());
+	os::Wimp_StartTask(cmd.c_str(), 0);
 }
 
 void ibicon::closedir()
@@ -110,7 +110,7 @@ void ibicon::closedir()
 	cmd += "::";
 	cmd += text();
 	cmd += ".$";
-	os::Wimp_StartTask(cmd.c_str());
+	os::Wimp_StartTask(cmd.c_str(), 0);
 }
 
 void ibicon::handle_event(rtk::events::menu_selection& ev)
@@ -118,7 +118,7 @@ void ibicon::handle_event(rtk::events::menu_selection& ev)
 	sunfish& app = *static_cast<sunfish *>(parent_application());
 
 	if (ev.target() == &ibhelp) {
-		os::Wimp_StartTask("Filer_Run <Sunfish$Dir>.!Help");
+		os::Wimp_StartTask("Filer_Run <Sunfish$Dir>.!Help", 0);
 	} else if (ev.target() == &ibbrowse) {
 		app.browserwin.open(app);
 	} else if (ev.target() == &ibdismount) {
@@ -132,7 +132,7 @@ void ibicon::handle_event(rtk::events::menu_selection& ev)
 			cmd += "#";
 		}
 		cmd += text();
-		os::Wimp_StartTask(cmd.c_str());
+		os::Wimp_StartTask(cmd.c_str(), 0);
 	} else if (ev.target() == &ibquit) {
 		parent_application()->terminate();
 	}

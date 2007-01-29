@@ -90,7 +90,7 @@ protected:
 	virtual void remove_notify(component& c);
 private:
 	void update_baselines() const;
-	void reflow(box& bbox, size_type& xcells, size_type& ycells) const;
+	void reflow(box& bbox, bool shrinkx, size_type& xcells, size_type& ycells) const;
 public:
 	/** Get number of cells.
 	 * @return the number of cells

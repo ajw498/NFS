@@ -20,11 +20,11 @@ class filer_window:
 public:
 	filer_window(rtk::graphics::point size=rtk::graphics::point(640,512));
 	~filer_window();
+	virtual void reformat(const point& origin,const box& pbbox);
 	void handle_event(rtk::events::mouse_click& ev);
 	void handle_event(rtk::events::user_drag_box& ev);
 	gridwrap_layout layout;
 	std::vector<rtk::desktop::icon *> icons;
-	rtk::graphics::box max_bbox() const;
 
 	filer_window& add_icon(const std::string& text, const std::string& sprite, int index=-1);
 	filer_window& remove_icon(int index);
