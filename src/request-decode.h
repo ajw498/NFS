@@ -1,7 +1,7 @@
 /*
 	$Id$
 
-	Functions to implement decoding of recieved RPC calls.
+	Functions to implement decoding of received RPC calls.
 
 
 	Copyright (C) 2006 Alex Waugh

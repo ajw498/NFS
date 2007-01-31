@@ -34,7 +34,7 @@
 
 /* Create special cases for writes so that we can pass the data direct to the
    sendmsg call without having to copy it. We can't do this with reads because
-   we don't know which reply we are going to recieve next at the point when we
+   we don't know which reply we are going to receive next at the point when we
    allocate the buffer .*/
 #ifdef NFS3
 static os_error *NFSPROC3_FASTWRITE(writeargs3 *args, writeres3 *res, struct conn_info *conn, enum callctl calltype)

@@ -379,7 +379,7 @@ int conn_poll(void)
 		}
 	}
 
-	/* Decode any requests that have been fully recieved */
+	/* Decode any requests that have been fully received */
 	for (i = 0; i < MAXCONNS; i++) {
 		if (conns[i].state == DECODE) {
 			conns[i].export = NULL;

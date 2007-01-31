@@ -525,7 +525,7 @@ static int poll_tx(struct request_entry *entry)
 	return 0;
 }
 
-/* Search all outstanding tx buffers for a matching xid to the just recieved rx buffer */
+/* Search all outstanding tx buffers for a matching xid to the just received rx buffer */
 static void match_rx_buffer(struct buffer_list *currentrx)
 {
 	struct request_entry *entry = request_entries;
@@ -534,7 +534,7 @@ static void match_rx_buffer(struct buffer_list *currentrx)
 		if (((unsigned *)(entry->tx.buffer))[entry->conn->tcp ? 1 : 0] == ((unsigned *)(currentrx->buffer))[0]) {
 			/* xid match */
 			if (entry->rx) {
-				/* This xid has already recieved a reply, so this must be a duplicate. */
+				/* This xid has already received a reply, so this must be a duplicate. */
 				free_rx_buffer(currentrx);
 				return;
 			}
@@ -561,7 +561,7 @@ char *rpc_get_last_host(void)
 	return host;
 }
 
-/* Recieve as much data as we can without blocking */
+/* receive as much data as we can without blocking */
 static int poll_rx(struct conn_info *conn)
 {
 	int ret;
@@ -785,7 +785,7 @@ os_error *rpc_do_call(int prog, enum callctl calltype, void *extradata, int extr
 		poll_connections();
 	} while ((calltype == TXBLOCKING || calltype == RXBLOCKING) && rxentry->status != DONE);
 
-	/* Return if the oldest request has not been recieved. This will only
+	/* Return if the oldest request has not been received. This will only
 	   ever be the case if we are non-blocking */
 	if (rxentry->status != DONE) return ERR_WOULDBLOCK;
 
@@ -799,14 +799,14 @@ os_error *rpc_do_call(int prog, enum callctl calltype, void *extradata, int extr
 	if (rxentry->nextpipelined) rxentry->nextpipelined->prevpipelined = NULL;
 
 	if (rxentry->error) {
-		return gen_error(RPCERRBASE + 8, "Error when sending or recieving data (%s)",xstrerror(rxentry->error));
+		return gen_error(RPCERRBASE + 8, "Error when sending or receiving data (%s)",xstrerror(rxentry->error));
 	}
 
 	/* Setup buffers and parse header */
 	ibuf = rxentry->rx->buffer;
 	ibufend = ibuf + rxentry->rx->len;
 
-	/* If broadcasting then remove rx buffer so we can recieve another reply */
+	/* If broadcasting then remove rx buffer so we can receive another reply */
 	if (conn->server == NULL) rxentry->rx = NULL;
 
 	if (process_rpc_msg(INPUT, &reply_header, conn->pool)) goto buffer_overflow;
