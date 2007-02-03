@@ -82,7 +82,7 @@ ibicon::ibicon(const std::string& icontext, const std::string& special):
 		text_and_sprite(true).validation("Sfile_1b6");
 	}
 	attach_menu(ibmenu);
-	iconbar_position(-5).iconbar_priority(0x10000000);
+	position(-5).priority(0x10000000);
 }
 
 void ibicon::opendir()

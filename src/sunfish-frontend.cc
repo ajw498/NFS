@@ -74,8 +74,8 @@ ibicon *sunfish::add_mounticon(const std::string &name, const std::string &speci
 	found = false;
 	if (ibaricons.size() > 0) {
 		if (ibaricons[ibaricons.size() - 1]->layout_valid()) {
-			i->iconbar_position(-4);
-			i->iconbar_priority(ibaricons[ibaricons.size() - 1]->handle());
+			i->position(-4);
+			i->priority(ibaricons[ibaricons.size() - 1]->handle());
 		}
 	} else {
 		ibaricon.remove();

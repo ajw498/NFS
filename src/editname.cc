@@ -81,7 +81,6 @@ void editname::open(const string& host, const string& exportname, sunfish& app)
 	app.add(*this, blk.p - point(64,0));
 
 	name.set_caret_position(point(),-1,name.text().length());
-	//FIXME - This doesn't work, probably because the window doesn't exist yet...
 }
 
 void editname::load(const string& host, const string& exportname, sunfish& app)
