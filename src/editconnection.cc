@@ -46,12 +46,14 @@
 
 #include <sstream>
 
-editconnection::editconnection()
+editconnection::editconnection() :
+	maxdata(1024, 8192, 1024)
 {
 	title("Connection choices");
 	close_icon(false);
 
-	//maxdata.labeltext("Max data buffer size"); // Units?
+	maxdata.label("Max data buffer size");
+	maxdata.units("KB");
 	pipelining.text("Pipeline requests to increase speed");
 	timeoutlabel.text("Timeout");
 	timeoutunits.text("seconds");
@@ -62,6 +64,7 @@ editconnection::editconnection()
 
 	layout1.margin(16).ygap(8);
 	layout1.add(pipelining);
+	layout1.add(maxdata);
 	layout1.add(layout2);
 	layout1.add(logging);
 	layout1.add(layout3);
@@ -89,6 +92,7 @@ void editconnection::load(const string& host, string& exportname)
 	}
 	mountinfo.load(filename);
 
+	maxdata.value(mountinfo.maxdatabuffer ? mountinfo.maxdatabuffer : 4096);
 	pipelining.selected(mountinfo.pipelining);
 	ostringstream time;
 	time<<mountinfo.timeout;
@@ -104,6 +108,7 @@ void editconnection::save()
 	mountchoices mountinfo;
 	mountinfo.load(filename);
 
+	mountinfo.maxdatabuffer = maxdata.value();
 	mountinfo.pipelining = pipelining.selected();
 	mountinfo.timeout = atoi(timeout.text().c_str());
 	mountinfo.retries = atoi(retries.text().c_str());

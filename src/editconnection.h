@@ -33,6 +33,7 @@
 #include "rtk/desktop/grid_layout.h"
 #include "rtk/desktop/row_layout.h"
 #include "rtk/desktop/column_layout.h"
+#include "rtk/desktop/number_range.h"
 #include "rtk/events/mouse_click.h"
 
 
@@ -54,7 +55,7 @@ public:
 private:
 	string filename;
 
-//	numberrange maxdata;
+	number_range<int> maxdata;
 	option_button pipelining;
 	icon timeoutlabel;
 	writable_field timeout;
