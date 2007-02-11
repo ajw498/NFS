@@ -213,7 +213,8 @@ editname.o \
 ibicon.o \
 searchhost.o \
 gridwrap_layout.o \
-filer_window.o
+filer_window.o \
+button_row_layout.o
 
 MOONFISHOBJS = \
 request-decode.o \

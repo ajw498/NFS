@@ -42,6 +42,8 @@
 #include "rtk/events/null_reason.h"
 #include "rtk/os/wimp.h"
 
+#include "button_row_layout.h"
+
 #include <fstream>
 #include <string>
 
@@ -84,7 +86,7 @@ private:
 	default_button save;
 	column_layout layout1;
 	grid_layout layout2;
-	row_layout layout3;
+	button_row_layout layout3;
 };
 
 #endif
