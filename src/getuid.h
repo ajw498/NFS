@@ -1,7 +1,7 @@
 /*
 	$Id$
 
-	Frontend for browsing and creating mounts
+	Dialogue box for getting the UID/GID or username/password
 
 
 	Copyright (C) 2006 Alex Waugh
@@ -24,54 +24,48 @@
 #ifndef GETUID_H
 #define GETUID_H
 
-#include "rtk/desktop/application.h"
-#include "rtk/desktop/menu_item.h"
-#include "rtk/desktop/menu.h"
 #include "rtk/desktop/window.h"
-#include "rtk/desktop/info_dbox.h"
-#include "rtk/desktop/ibar_icon.h"
-#include "rtk/desktop/label.h"
 #include "rtk/desktop/writable_field.h"
 #include "rtk/desktop/action_button.h"
 #include "rtk/desktop/default_button.h"
 #include "rtk/desktop/grid_layout.h"
 #include "rtk/desktop/row_layout.h"
 #include "rtk/desktop/column_layout.h"
-#include "rtk/events/menu_selection.h"
-#include "rtk/events/close_window.h"
-#include "rtk/events/null_reason.h"
-#include "rtk/os/wimp.h"
+#include "rtk/events/mouse_click.h"
+#include "rtk/events/key_pressed.h"
 
 #include "button_row_layout.h"
-
-#include <fstream>
-#include <string>
-
-#include "sunfish.h"
-#include "sunfishdefs.h"
 
 #include "browse.h"
 #include "mountchoices.h"
 
-using namespace std;
+
 using namespace rtk;
 using namespace rtk::desktop;
-using rtk::graphics::point;
-using rtk::graphics::box;
 
 class sunfish;
 
 class getuid:
 	public window,
-	public events::mouse_click::handler
+	public events::mouse_click::handler,
+	public events::key_pressed::handler
 {
 public:
 	getuid();
-	~getuid();
-	void setup(const hostinfo& info, string name, bool tcp, int version, sunfish& parent);
+
+	// Setup the mount details and open with window if needed
+	void setup(const hostinfo& info, std::string name, bool tcp, int version, sunfish& parent);
+
 	void handle_event(events::mouse_click& ev);
-	void create_mount(mountchoices& mountdetails, sunfish& app);
+	void handle_event(events::key_pressed& ev);
+
 private:
+	// Use the current details to create the mount details
+	void use(bool save);
+
+	// Create a mount with the given details
+	void create_mount(mountchoices& mountdetails, sunfish& app);
+
 	hostinfo host;
 	string exportname;
 	bool usetcp;
@@ -80,13 +74,15 @@ private:
 	icon gidlabel;
 	writable_field uid;
 	writable_field gid;
-	icon explain;
+	icon explain1;
+	icon explain2;
 	action_button cancel;
 	action_button set;
 	default_button save;
 	column_layout layout1;
 	grid_layout layout2;
 	button_row_layout layout3;
+	column_layout layout4;
 };
 
 #endif
