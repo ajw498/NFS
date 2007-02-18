@@ -1,7 +1,7 @@
 /*
 	$Id$
 
-	Frontend for browsing and creating mounts
+	Edit the discname of the mount
 
 
 	Copyright (C) 2006 Alex Waugh
@@ -21,32 +21,11 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#include "rtk/desktop/application.h"
-#include "rtk/desktop/menu_item.h"
-#include "rtk/desktop/menu.h"
-#include "rtk/desktop/info_dbox.h"
-#include "rtk/desktop/ibar_icon.h"
-#include "rtk/desktop/label.h"
-#include "rtk/desktop/writable_field.h"
-#include "rtk/desktop/action_button.h"
-#include "rtk/desktop/default_button.h"
-#include "rtk/desktop/grid_layout.h"
-#include "rtk/desktop/row_layout.h"
-#include "rtk/desktop/column_layout.h"
-#include "rtk/events/menu_selection.h"
-#include "rtk/events/close_window.h"
-#include "rtk/events/null_reason.h"
-#include "rtk/os/wimp.h"
-
-#include "sunfish.h"
-#include "sunfishdefs.h"
 
 #include "editname.h"
 #include "mountchoices.h"
 #include "sunfish-frontend.h"
 
-#include <sstream>
-#include <iomanip>
 
 editname::editname()
 {
@@ -116,5 +95,17 @@ void editname::handle_event(events::mouse_click& ev)
 			string none;
 			load(none, none, app);
 		}
+	}
+}
+
+void editname::handle_event(events::key_pressed& ev)
+{
+	if (ev.code() == 13) {
+		// Return
+		save();
+		remove();
+	} else if (ev.code() == 27) {
+		// Escape
+		remove();
 	}
 }

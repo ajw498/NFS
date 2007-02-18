@@ -1,7 +1,7 @@
 /*
 	$Id$
 
-	Frontend for browsing and creating mounts
+	Edit the discname of the mount
 
 
 	Copyright (C) 2006 Alex Waugh
@@ -34,25 +34,26 @@
 #include "rtk/desktop/row_layout.h"
 #include "rtk/desktop/column_layout.h"
 #include "rtk/events/mouse_click.h"
-
+#include "rtk/events/key_pressed.h"
+#include "button_row_layout.h"
 
 using namespace std;
 using namespace rtk;
 using namespace rtk::desktop;
-using rtk::graphics::point;
-using rtk::graphics::box;
 
 class sunfish;
 
 class editname:
 	public window,
-	public events::mouse_click::handler
+	public events::mouse_click::handler,
+	public events::key_pressed::handler
 {
 public:
 	editname();
 	void open(const string& host, const string& exportname, sunfish& app);
 	void save();
 	void handle_event(events::mouse_click& ev);
+	void handle_event(events::key_pressed& ev);
 private:
 	void load(const string& host, const string& exportname, sunfish& app);
 	string hostname;
@@ -64,7 +65,7 @@ private:
 	action_button cancel;
 	default_button savebutton;
 	column_layout layout1;
-	row_layout layout2;
+	button_row_layout layout2;
 };
 
 #endif
