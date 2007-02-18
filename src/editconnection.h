@@ -1,7 +1,7 @@
 /*
 	$Id$
 
-	Frontend for browsing and creating mounts
+	Edit connection related choices
 
 
 	Copyright (C) 2006 Alex Waugh
@@ -35,24 +35,29 @@
 #include "rtk/desktop/column_layout.h"
 #include "rtk/desktop/number_range.h"
 #include "rtk/events/mouse_click.h"
+#include "rtk/events/key_pressed.h"
+#include "button_row_layout.h"
 
 
 using namespace std;
 using namespace rtk;
 using namespace rtk::desktop;
-using rtk::graphics::point;
-using rtk::graphics::box;
+
+class sunfish;
 
 class editconnection:
 	public window,
-	public events::mouse_click::handler
+	public events::mouse_click::handler,
+	public events::key_pressed::handler
 {
 public:
 	editconnection();
+	void open(const string& host, string& exportname, sunfish& app);
+	void handle_event(events::mouse_click& ev);
+	void handle_event(events::key_pressed& ev);
+private:
 	void load(const string& host, string& exportname);
 	void save();
-	void handle_event(events::mouse_click& ev);
-private:
 	string filename;
 
 	number_range<int> maxdata;
@@ -67,7 +72,7 @@ private:
 	default_button savebutton;
 	column_layout layout1;
 	grid_layout layout2;
-	row_layout layout3;
+	button_row_layout layout3;
 };
 
 #endif

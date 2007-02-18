@@ -131,8 +131,7 @@ void exportbrowser::handle_event(rtk::events::menu_selection& ev)
 		app.add(filenameswin, point(2*640,2*512));
 		// bring to front if already open?
 	} else if (ev.target() == &connection) {
-		connectionwin.load(info.host, menuitem);
-		app.add(connectionwin, point(2*640,2*512));
+		connectionwin.open(info.host, menuitem, app);
 	} else if (ev.target() == &uids) {
 		uidswin.load(info.host, menuitem);
 		app.add(uidswin, point(2*640,2*512));
