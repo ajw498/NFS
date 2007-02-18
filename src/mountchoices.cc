@@ -110,7 +110,7 @@ string mountchoices::stringsave()
 	if (usepcnfsd) {
 		str << "\nPassword: " << password;
 		str << "\nUsername: " << username;
-	} else {
+	} else if (uidvalid) {
 		int gid;
 		char *othergids;
 		str << "\nuid: " << uid;
