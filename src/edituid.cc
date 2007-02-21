@@ -1,7 +1,7 @@
 /*
 	$Id$
 
-	Frontend for browsing and creating mounts
+	Edit UID/permissions related choices
 
 
 	Copyright (C) 2006 Alex Waugh
@@ -21,25 +21,8 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#include "rtk/desktop/application.h"
-#include "rtk/desktop/menu_item.h"
-#include "rtk/desktop/menu.h"
-#include "rtk/desktop/info_dbox.h"
-#include "rtk/desktop/ibar_icon.h"
-#include "rtk/desktop/label.h"
-#include "rtk/desktop/writable_field.h"
-#include "rtk/desktop/action_button.h"
-#include "rtk/desktop/default_button.h"
-#include "rtk/desktop/grid_layout.h"
-#include "rtk/desktop/row_layout.h"
-#include "rtk/desktop/column_layout.h"
-#include "rtk/events/menu_selection.h"
-#include "rtk/events/close_window.h"
-#include "rtk/events/null_reason.h"
-#include "rtk/os/wimp.h"
 
-#include "sunfish.h"
-#include "sunfishdefs.h"
+#include "sunfish-frontend.h"
 
 #include "edituid.h"
 #include "mountchoices.h"
@@ -49,17 +32,33 @@
 
 edituid::edituid()
 {
-	title("UID and permissions choices");
+	title("ID and permissions choices");
 	close_icon(false);
 
-	uidlabel.text("uid");
-	gidslabel.text("gids");
-	umasklabel.text("umask");
-	unumasklabel.text("unumask");
+	uidlabel.text("UID").xbaseline(xbaseline_right);
+	uidlabel.xfit(false);
+	gidslabel.text("GIDs").xbaseline(xbaseline_right);
+	gidslabel.xfit(false);
+	umasklabel.text("umask").xbaseline(xbaseline_right);
+	umasklabel.xfit(false);
+	unumasklabel.text("unumask").xbaseline(xbaseline_right);
+	unumasklabel.xfit(false);
+	umaskoctal.text("(octal)");
+	unumaskoctal.text("(octal)");
 	cancel.text("Cancel");
 	savebutton.text("Save");
 
-	layout1.margin(16).ygap(8);
+	uid.min_size(point(200,0));
+	uid.text("", 10);
+	gids.text("", 30);
+	umask.text("", 3);
+	unumask.text("", 3);
+	uid.validation(uid.validation() + ";A0-9");
+	gids.validation(gids.validation() + ";A0-9 ");
+	umask.validation(umask.validation() + ";A0-7");
+	unumask.validation(unumask.validation() + ";A0-7");
+
+	layout1.margin(16).ygap(16);
 	layout1.add(layout2);
 	layout1.add(layout3);
 
@@ -70,8 +69,10 @@ edituid::edituid()
 	layout2.add(gids, 1, 1);
 	layout2.add(umasklabel, 0, 2);
 	layout2.add(umask, 1, 2);
+	layout2.add(umaskoctal, 2, 2);
 	layout2.add(unumasklabel, 0, 3);
 	layout2.add(unumask, 1, 3);
+	layout2.add(unumaskoctal, 2, 3);
 
 	layout3.xgap(16);
 	layout3.add(cancel);
@@ -80,6 +81,18 @@ edituid::edituid()
 	add(layout1);
 }
 
+void edituid::open(const string& host, string& exportname, sunfish& app)
+{
+	load(host, exportname);
+
+	// Open window near mouse position.
+	os::pointer_info_get blk;
+	os::Wimp_GetPointerInfo(blk);
+	blk.p -= point(64,0);
+
+	app.add(*this,blk.p);
+	uid.set_caret_position(point(),-1,uid.text().length());
+}
 
 void edituid::load(const string& host, string& exportname)
 {
@@ -109,6 +122,7 @@ void edituid::save()
 	mountinfo.load(filename);
 
 	mountinfo.uid = atoi(uid.text().c_str());
+	mountinfo.uidvalid = true;
 	strcpy(mountinfo.gids, uid.text().c_str());
 	mountinfo.umask = strtol(umask.text().c_str(), NULL, 8);
 	mountinfo.unumask = strtol(unumask.text().c_str(), NULL, 8);
@@ -129,5 +143,17 @@ void edituid::handle_event(events::mouse_click& ev)
 			string none;
 			load(none, none);
 		}
+	}
+}
+
+void edituid::handle_event(events::key_pressed& ev)
+{
+	if (ev.code() == 13) {
+		// Return
+		save();
+		remove();
+	} else if (ev.code() == 27) {
+		// Escape
+		remove();
 	}
 }

@@ -133,8 +133,7 @@ void exportbrowser::handle_event(rtk::events::menu_selection& ev)
 	} else if (ev.target() == &connection) {
 		connectionwin.open(info.host, menuitem, app);
 	} else if (ev.target() == &uids) {
-		uidswin.load(info.host, menuitem);
-		app.add(uidswin, point(2*640,2*512));
+		uidswin.open(info.host, menuitem, app);
 	} else if (ev.target() == &largeiconsitem) {
 		largeiconsitem.tick(true);
 		smalliconsitem.tick(false);
