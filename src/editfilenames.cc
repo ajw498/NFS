@@ -152,7 +152,7 @@ void editfilenames::save()
 		mountinfo.showhidden = 2;
 	}
 	mountinfo.casesensitive = casesensitive.selected();
-	strcpy(mountinfo.encoding, encoding.text().c_str());
+	mountinfo.encoding = encoding.text();
 	mountinfo.defaultfiletype = strtoul(defaultfiletype.text().c_str(), NULL, 16);
 	if (extalways.selected()) {
 		mountinfo.addext = 2;

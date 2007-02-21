@@ -1,7 +1,7 @@
 /*
 	$Id$
 
-	Frontend for creating mount files
+	Mount choices reading and writing
 
 
 	Copyright (C) 2003 Alex Waugh
@@ -27,7 +27,7 @@
 #include <string>
 #include <vector>
 
-#define STRMAX 256
+using std::string;
 
 class mountchoices {
 public:
@@ -47,30 +47,28 @@ public:
 	int timeout;
 	int retries;
 	bool logging;
-	char server[STRMAX];
-	char exportname[STRMAX];
-	char machinename[STRMAX];
-	char username[STRMAX];
-	char password[STRMAX];
+	string server;
+	string exportname;
+	string machinename;
+	string username;
+	string password;
 	int localportmin;
 	int localportmax;
 	bool uidvalid;
 	unsigned uid;
-	char gids[STRMAX];
+	string gids;
 	unsigned umask;
 	bool usepcnfsd;
 	bool tcp;
 	bool nfs3;
-	char encoding[STRMAX];
+	string encoding;
 
 	mountchoices();
-	void save(const std::string& filename);
-	void load(const std::string& filename);
-	std::string stringsave();
-	std::string genfilename(const std::string& host, const std::string& mountname);
+	void save(const string& filename);
+	void load(const string& filename);
+	string stringsave();
+	string genfilename(const string& host, const string& mountname);
 };
-
-using std::string;
 
 struct alias {
 	string alias;

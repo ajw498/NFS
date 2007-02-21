@@ -123,7 +123,7 @@ void edituid::save()
 
 	mountinfo.uid = atoi(uid.text().c_str());
 	mountinfo.uidvalid = true;
-	strcpy(mountinfo.gids, uid.text().c_str());
+	mountinfo.gids = gids.text();
 	mountinfo.umask = strtol(umask.text().c_str(), NULL, 8);
 	mountinfo.unumask = strtol(unumask.text().c_str(), NULL, 8);
 

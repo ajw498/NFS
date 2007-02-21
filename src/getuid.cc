@@ -78,8 +78,8 @@ void getuid::setup(const hostinfo& info, string name, bool tcp, int version, sun
 	nfsversion = version;
 	string filename = mountdetails.genfilename(host.host, exportname);
 	mountdetails.load(filename);
-	strcpy(mountdetails.server, host.host);
-	strcpy(mountdetails.exportname, exportname.c_str());
+	mountdetails.server = string(host.host);
+	mountdetails.exportname = exportname;
 	mountdetails.tcp = tcp;
 	mountdetails.nfs3 = version == 3;
 	if (mountdetails.uidvalid ||
@@ -119,8 +119,8 @@ void getuid::use(bool save)
 	mountchoices mountdetails;
 	string filename = mountdetails.genfilename(host.host, exportname);
 	mountdetails.load(filename);
-	strcpy(mountdetails.server, host.host);
-	strcpy(mountdetails.exportname, exportname.c_str());
+	mountdetails.server = string(host.host);
+	mountdetails.exportname = exportname;
 	mountdetails.tcp = usetcp;
 	mountdetails.nfs3 = nfsversion == 3;
 
@@ -128,12 +128,14 @@ void getuid::use(bool save)
 		char *err;
 		bool tcp = host.pcnfsdudpport == 0;
 		int port = tcp ? host.pcnfsdtcpport : host.pcnfsdudpport;
+		char gidstr[256];
 
-		err = browse_lookuppassword(host.host, port, tcp, uid.text().c_str(), gid.text().c_str(), &mountdetails.uid, &mountdetails.umask, mountdetails.gids, sizeof(mountdetails.gids));
+		err = browse_lookuppassword(host.host, port, tcp, uid.text().c_str(), gid.text().c_str(), &mountdetails.uid, &mountdetails.umask, gidstr, sizeof(gidstr));
 		if (err) throw err;
+		mountdetails.gids = string(gidstr);
 	} else {
 		mountdetails.uid = atoi(uid.text().c_str());
-		strcpy(mountdetails.gids, gid.text().c_str());
+		mountdetails.gids = gid.text();
 	}
 	mountdetails.uidvalid = true;
 	if (save) mountdetails.save(filename);

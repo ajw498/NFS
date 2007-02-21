@@ -1,7 +1,7 @@
 /*
 	$Id$
 
-	Frontend for creating mount files
+	Mount choices reading and writing
 
 
 	Copyright (C) 2003 Alex Waugh
@@ -37,6 +37,9 @@
 #include "mountchoices.h"
 
 using namespace std;
+
+#define STRMAX 256
+
 extern "C" {
 // These are declared in unixlib.h but without C linkage
 int strcasecmp(char const*, char const*);
@@ -67,15 +70,9 @@ mountchoices::mountchoices(void) :
 	umask(022),
 	usepcnfsd(false),
 	tcp(false),
-	nfs3(false)
+	nfs3(false),
+	encoding("No conversion")
 {
-	server[0] = '\0';
-	exportname[0] = '\0';
-	machinename[0] = '\0';
-	username[0] = '\0';
-	password[0] = '\0';
-	gids[0] = '\0';
-	strcpy(encoding, "No conversion");
 }
 
 string mountchoices::genfilename(const string& host, const string& mountname)
@@ -114,7 +111,7 @@ string mountchoices::stringsave()
 		int gid;
 		char *othergids;
 		str << "\nuid: " << uid;
-		gid = (int)strtol(gids, &othergids, 10);
+		gid = (int)strtol(gids.c_str(), &othergids, 10);
 		str << "\ngid: " << gid;
 		str << "\ngids: " << othergids;
 		str << "\numask: " << oct << setw(3) << setfill('0') << umask;
@@ -133,7 +130,7 @@ string mountchoices::stringsave()
 	if (mountport) str << "\nMountPort: " << mountport;
 	if (localportmin && localportmin) str << "\nLocalPort: " << localportmin << " " << localportmax;
 	if (machinename[0]) str << "\nMachineName: " << machinename;
-	if ((strcasecmp(encoding, "No conversion") != 0) && encoding[0]) str << "\nEncoding: " << encoding;
+	if ((strcasecmp(encoding.c_str(), "No conversion") != 0) && encoding.length()) str << "\nEncoding: " << encoding;
 
 	str << "\nMaxDataBuffer: " << maxdatabuffer;
 	str << "\nPipelining: " << pipelining;
@@ -195,11 +192,11 @@ void mountchoices::load(const string& filename)
 		} else if (CHECK("Protocol")) {
 			nfs3 = strcasecmp(val, "NFS3") == 0;
 		} else if (CHECK("Server")) {
-			strcpy(server, val);
+			server = val;
 		} else if (CHECK("MachineName")) {
-			strcpy(machinename, val);
+			machinename = val;
 		} else if (CHECK("Encoding")) {
-			strcpy(encoding, val);
+			encoding = val;
 		} else if (CHECK("PortMapperPort")) {
 			portmapperport = (int)strtol(val, NULL, 10);
 		} else if (CHECK("MountPort")) {
@@ -211,19 +208,18 @@ void mountchoices::load(const string& filename)
 		} else if (CHECK("Transport")) {
 			tcp = strcasecmp(val, "tcp") == 0;
 		} else if (CHECK("Export")) {
-			strcpy(exportname, val);
+			exportname = val;
 		} else if (CHECK("UID")) {
 			usepcnfsd = false;
 			uidvalid = true;
 			uid = (int)strtol(val, NULL, 10);
 		} else if (CHECK("GID") || CHECK("GIDs")) {
-			strncat(gids, val, STRMAX - strlen(gids));
-			gids[STRMAX - 1] = '\0';
+			gids += val;
 		} else if (CHECK("Username")) {
 			usepcnfsd = 1;
-			strcpy(username, val);
+			username = val;
 		} else if (CHECK("Password")) {
-			strcpy(password, val);
+			password = val;
 		} else if (CHECK("Logging")) {
 			logging = (int)strtol(val, NULL, 10);
 		} else if (CHECK("umask")) {

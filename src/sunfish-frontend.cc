@@ -227,8 +227,8 @@ void sunfish::getmounts()
 			mountchoices mountdetails;
 			string filename = mountdetails.genfilename(hostname, exportname);
 			mountdetails.load(filename);
-			strcpy(mountdetails.server, hostname.c_str());
-			strcpy(mountdetails.exportname, exportname.c_str());
+			mountdetails.server = hostname;
+			mountdetails.exportname = exportname;
 			/* FIXME mountdetails.tcp = usetcp;
 			mountdetails.nfs3 = nfsversion == 3;*/
 
