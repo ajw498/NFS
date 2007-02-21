@@ -1,7 +1,7 @@
 /*
 	$Id$
 
-	Frontend for browsing and creating mounts
+	Edit filename and filetype related choices
 
 
 	Copyright (C) 2006 Alex Waugh
@@ -21,33 +21,14 @@
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 */
 
-#include "rtk/desktop/application.h"
-#include "rtk/desktop/menu_item.h"
-#include "rtk/desktop/menu.h"
-#include "rtk/desktop/info_dbox.h"
-#include "rtk/desktop/ibar_icon.h"
-#include "rtk/desktop/label.h"
-#include "rtk/desktop/writable_field.h"
-#include "rtk/desktop/action_button.h"
-#include "rtk/desktop/default_button.h"
-#include "rtk/desktop/grid_layout.h"
-#include "rtk/desktop/row_layout.h"
-#include "rtk/desktop/column_layout.h"
-#include "rtk/events/menu_selection.h"
-#include "rtk/events/close_window.h"
-#include "rtk/events/null_reason.h"
-#include "rtk/os/wimp.h"
 
-#include "sunfish.h"
-#include "sunfishdefs.h"
+#include "sunfish-frontend.h"
 
 #include "editfilenames.h"
 #include "mountchoices.h"
 
+#include <sstream>
 
-using namespace std;
-using namespace rtk;
-using namespace rtk::desktop;
 using rtk::graphics::point;
 using rtk::graphics::box;
 
@@ -81,7 +62,7 @@ editfilenames::editfilenames()
 	filetypes.text("Filetypes");
 	filetypes.add(layout6);
 
-	layout1.margin(16).ygap(8);
+	layout1.margin(16).ygap(16);
 	layout1.add(filenames);
 	layout1.add(filetypes);
 	layout1.add(layout4);
@@ -107,6 +88,7 @@ editfilenames::editfilenames()
 	layout5.add(shownever);
 	layout5.add(casesensitive);
 	layout5.add(layout3);
+	layout5.add(encoding);
 
 	layout6.ygap(8);
 	layout6.add(layout2);
@@ -118,7 +100,18 @@ editfilenames::editfilenames()
 	add(layout1);
 }
 
-#include <sstream>
+void editfilenames::open(const string& host, string& exportname, sunfish& app)
+{
+	load(host, exportname);
+
+	// Open window near mouse position.
+	os::pointer_info_get blk;
+	os::Wimp_GetPointerInfo(blk);
+	blk.p -= point(64,0);
+
+	app.add(*this,blk.p);
+	symlinklevels.set_caret_position(point(),-1,symlinklevels.text().length());
+}
 
 void editfilenames::load(const string& host, string& exportname)
 {
@@ -132,6 +125,7 @@ void editfilenames::load(const string& host, string& exportname)
 	showroot.selected(mountinfo.showhidden == 0);
 	shownever.selected(mountinfo.showhidden == 2);
 	casesensitive.selected(mountinfo.casesensitive);
+	encoding.text(mountinfo.encoding);
 	ostringstream ftype;
 	ftype << hex << uppercase << mountinfo.defaultfiletype;
 	defaultfiletype.text(ftype.str());
@@ -158,6 +152,7 @@ void editfilenames::save()
 		mountinfo.showhidden = 2;
 	}
 	mountinfo.casesensitive = casesensitive.selected();
+	strcpy(mountinfo.encoding, encoding.text().c_str());
 	mountinfo.defaultfiletype = strtoul(defaultfiletype.text().c_str(), NULL, 16);
 	if (extalways.selected()) {
 		mountinfo.addext = 2;
@@ -191,3 +186,16 @@ void editfilenames::handle_event(events::mouse_click& ev)
 		}
 	}
 }
+
+void editfilenames::handle_event(events::key_pressed& ev)
+{
+	if (ev.code() == 13) {
+		// Return
+		save();
+		remove();
+	} else if (ev.code() == 27) {
+		// Escape
+		remove();
+	}
+}
+
