@@ -4,7 +4,7 @@
 ;	Module header description
 ;
 
-help-string: Sunfish 1.09 © Alex Waugh 2003
+help-string: Sunfish 1.10 © Alex Waugh 2003
 
 title-string: Sunfish
 
@@ -12,13 +12,7 @@ initialisation-code: initialise
 
 finalisation-code: finalise
 
-swi-chunk-base-number: &58bc0
-
-swi-handler-code: swi_handler
-
-swi-decoding-table: Sunfish, Mount, Dismount, ListMounts
-
 service-call-handler: service_call &40
 
-generic-veneers: imageentry_open imageentry_getbytes imageentry_putbytes imageentry_args imageentry_close imageentry_file imageentry_func fsentry_open  fsentry_file fsentry_func
+generic-veneers: imageentry_open imageentry_getbytes imageentry_putbytes imageentry_args imageentry_close imageentry_file imageentry_func
 
