@@ -116,7 +116,15 @@ os_error *ENTRYFUNC(open_file) (char *filename, int access, struct conn_info *co
 		}
 	}
 
-	if (finfo->attributes.type != NFREG) return gen_error(OPENCLOSEERRBASE + 0, "Cannot open a non-regular file");
+	if ((finfo->attributes.type != NFREG) &&
+	    !((finfo->attributes.type == NFDIR) &&
+	      (*file_info_word & 0x20000000))) {
+		/* Directories can be opened if this is an FS but not for ImageFSs */
+		return gen_error(OPENCLOSEERRBASE + 0, "Cannot open a non-regular file");
+	}
+
+	/* Clear directory bit if it is not a directory */
+	if (finfo->attributes.type != NFDIR) *file_info_word &= ~0x20000000;
 
 	handle = malloc(sizeof(struct file_handle));
 	if (handle == NULL) return gen_error(NOMEM, NOMEMMESS);
@@ -134,7 +142,7 @@ os_error *ENTRYFUNC(open_file) (char *filename, int access, struct conn_info *co
 	/* It is too difficult to determine if we will have permission to read
 	   or write the file so pretend that we can and return an error on read
 	   or write if necessary */
-	*file_info_word = 0xC0000000;
+	*file_info_word |= 0xC0000000;
 	*extent = filesize(finfo->attributes.size);
 	*fileswitchbuffersize = FAKE_BLOCKSIZE;
 	*allocatedspace = (*extent + (FAKE_BLOCKSIZE - 1)) & ~(FAKE_BLOCKSIZE - 1);
@@ -143,11 +151,12 @@ os_error *ENTRYFUNC(open_file) (char *filename, int access, struct conn_info *co
 
 os_error *ENTRYFUNC(close_file) (struct file_handle *handle, unsigned int load, unsigned int exec)
 {
+	os_error *err;
+
 #ifdef NFS3
 	if (handle->commitneeded) {
 		struct COMMIT3args args;
 		struct COMMIT3res res;
-		os_error *err;
 
 		commonfh_to_fh(args.file, handle->fhandle);
 		args.offset = 0;
@@ -160,13 +169,40 @@ os_error *ENTRYFUNC(close_file) (struct file_handle *handle, unsigned int load, 
 	}
 #endif
 
-	/* The filetype shouldn't have changed since the file was opened and
-	   the server will set the datestamp for us, therefore there is not
-	   much point in us explicitly updating the attributes.
-	   Additionally, the operation could fail if we don't have permission
-	   even though the file was successfully open for reading. */
-	load = load;
-	exec = exec;
+	/* The filetype shouldn't have changed since the file was opened.
+	   So only the datestamp needs updating. */
+	if ((load & 0xFFF00000) == 0xFFF00000) {
+#ifdef NFS3
+		struct sattrargs3 sattrargs;
+		struct sattrres3 sattrres;
+#else
+		struct sattrargs sattrargs;
+		struct sattrres sattrres;
+#endif
+		commonfh_to_fh(sattrargs.file, handle->fhandle);
+#ifdef NFS3
+		sattrargs.attributes.mode.set_it = FALSE;
+		sattrargs.attributes.uid.set_it = FALSE;
+		sattrargs.attributes.gid.set_it = FALSE;
+		sattrargs.attributes.atime.set_it = DONT_CHANGE;
+		ENTRYFUNC(loadexec_to_setmtime) (load, exec, &(sattrargs.attributes.mtime));
+		sattrargs.attributes.size.set_it = FALSE;
+		sattrargs.guard.check = FALSE;
+#else
+		sattrargs.attributes.mode = NOVALUE;
+		sattrargs.attributes.uid = NOVALUE;
+		sattrargs.attributes.gid = NOVALUE;
+		sattrargs.attributes.size = NOVALUE;
+		sattrargs.attributes.atime.seconds = NOVALUE;
+		sattrargs.attributes.atime.useconds = NOVALUE;
+		loadexec_to_timeval(load, exec, &(sattrargs.attributes.mtime.seconds), &(sattrargs.attributes.mtime.useconds), 1);
+#endif
+		err = NFSPROC(SETATTR, (&sattrargs, &sattrres, handle->conn));
+		if (err) return err;
+		/* Ignore NFS errors, as the operation could fail if we don't
+		   have permission even though the file was successfully open
+		   for reading. */
+	}
 
 	free(handle);
 

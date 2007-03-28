@@ -385,8 +385,8 @@ void loadexec_to_timeval(unsigned load, unsigned exec, unsigned *seconds, unsign
 		csecs = exec;
 		csecs |= ((uint64_t)load & 0xFF) << 32;
 		csecs -= 0x336e996a00LL; /* Difference between 1900 and 1970 */
-		*seconds = (unsigned int)((csecs / 100) & 0xFFFFFFFF);
-		*nseconds = (unsigned int)((csecs % 100) * (nfs2 ? 10000 : 10000000));
+		*seconds = ((unsigned)(csecs / 100) & 0xFFFFFFFF);
+		*nseconds = ((unsigned)(csecs % 100) * (nfs2 ? 10000 : 10000000));
 	}
 }
 
@@ -397,11 +397,11 @@ void timeval_to_loadexec(unsigned seconds, unsigned nseconds, int filetype, unsi
 
 	csecs = seconds;
 	csecs *= 100;
-	csecs += ((int64_t)nseconds / (nfs2 ? 10000LL : 10000000LL));
-	csecs += 0x336e996a00LL; /* Difference between 1900 and 1970 */
-	*load = (unsigned int)((csecs >> 32) & 0xFF);
+	csecs += ((uint64_t)nseconds / (nfs2 ? 10000ULL : 10000000ULL));
+	csecs += 0x336e996a00ULL; /* Difference between 1900 and 1970 */
+	*load = (unsigned)((csecs >> 32) & 0xFF);
 	*load |= (0xFFF00000 | ((filetype & 0xFFF) << 8));
-	*exec = (unsigned int)(csecs & 0xFFFFFFFF);
+	*exec = (unsigned)(csecs & 0xFFFFFFFFULL);
 }
 
 #define Resolver_GetHost 0x46001

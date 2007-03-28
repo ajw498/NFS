@@ -31,6 +31,7 @@
 #include <unixlib.h>
 
 #include "imageentry_common.h"
+#include "imageentry_func.h"
 
 #include "sunfish.h"
 
@@ -178,49 +179,90 @@ os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int s
 	struct objinfo *retinfo;
 	os_error *err;
 	int follow;
+	int stale = 0;
 
 	if ((retinfo = palloc(sizeof(struct objinfo), conn->pool)) == NULL) return gen_error(NOMEM, NOMEMMESS);
-	lookupargs.name.data = leafname;
-	lookupargs.name.size = *len;
-	commonfh_to_fh(lookupargs.dir, *dirhandle);
 
-	err = NFSPROC(LOOKUP, (&lookupargs, &lookupres, conn));
-	if (err) return err;
-
-	if (!simple && lookupres.status == NFSERR_NOENT) {
-		struct opaque *file;
-
-		err = lookup_leafname(dirhandle, leafname, *len, &file, conn);
-		if (err) return err;
-		if (file == NULL) {
-			*status = NFSERR_NOENT;
-			return NULL;
-		}
-
-		lookupargs.name.data = file->data;
-		lookupargs.name.size = file->size;
-		memcpy(leafname, file->data, file->size);
-		*len = file->size;
-		leafname[*len] = '\0';
+	if (leafname[0]) {
+restart:
+		lookupargs.name.data = leafname;
+		lookupargs.name.size = *len;
+		commonfh_to_fh(lookupargs.dir, *dirhandle);
 
 		err = NFSPROC(LOOKUP, (&lookupargs, &lookupres, conn));
 		if (err) return err;
-	}
+		if ((lookupres.status == NFSERR_STALE) && !stale) {
+			stale = 1;
+			ENTRYFUNC(func_newimage_mount) (conn);
+			goto restart;
+		}
 
-	if (lookupres.status != NFS_OK) {
-		*status = lookupres.status;
-		return NULL;
-	}
+		if (!simple && lookupres.status == NFSERR_NOENT) {
+			struct opaque *file;
 
-	fh_to_commonfh(retinfo->objhandle, lookupres.u.diropok.file);
+			err = lookup_leafname(dirhandle, leafname, *len, &file, conn);
+			if (err) return err;
+			if (file == NULL) {
+				*status = NFSERR_NOENT;
+				return NULL;
+			}
+
+			lookupargs.name.data = file->data;
+			lookupargs.name.size = file->size;
+			memcpy(leafname, file->data, file->size);
+			*len = file->size;
+			leafname[*len] = '\0';
+
+			err = NFSPROC(LOOKUP, (&lookupargs, &lookupres, conn));
+			if (err) return err;
+		}
+
+		if (lookupres.status != NFS_OK) {
+			*status = lookupres.status;
+			return NULL;
+		}
+
+		fh_to_commonfh(retinfo->objhandle, lookupres.u.diropok.file);
 #ifdef NFS3
-	if (lookupres.u.diropok.obj_attributes.attributes_follow == FALSE) {
-		return gen_error(NOATTRS, NOATTRSMESS);
-	}
-	retinfo->attributes = lookupres.u.diropok.obj_attributes.u.attributes;
+		if (lookupres.u.diropok.obj_attributes.attributes_follow == FALSE) {
+			return gen_error(NOATTRS, NOATTRSMESS);
+		}
+		retinfo->attributes = lookupres.u.diropok.obj_attributes.u.attributes;
 #else
-	retinfo->attributes = lookupres.u.diropok.attributes;
+		retinfo->attributes = lookupres.u.diropok.attributes;
 #endif
+	} else {
+#ifdef NFS3
+		struct GETATTR3args getattrargs;
+		struct GETATTR3res getattrres;
+#else
+		struct getattrargs getattrargs;
+		struct attrstat getattrres;
+#endif
+
+restart2:
+		commonfh_to_fh(getattrargs.fhandle, *dirhandle);
+
+		err = NFSPROC(GETATTR, (&getattrargs, &getattrres, conn));
+		if (err) return err;
+		if ((getattrres.status == NFSERR_STALE) && !stale) {
+			stale = 1;
+			ENTRYFUNC(func_newimage_mount) (conn);
+			goto restart2;
+		}
+		if (getattrres.status != NFS_OK) {
+			*status = lookupres.status;
+			return NULL;
+		}
+
+		retinfo->objhandle = *dirhandle;
+#ifdef NFS3
+		retinfo->attributes = lookupres.u.diropok.obj_attributes.u.attributes = getattrres.u.resok.obj_attributes;
+#else
+		retinfo->attributes = lookupres.u.diropok.attributes = getattrres.u.attributes;
+#endif
+		commonfh_to_fh(lookupres.u.diropok.file, *dirhandle);
+	}
 	*finfo = retinfo;
 
 	follow = followsymlinks ? conn->followsymlinks : 0;

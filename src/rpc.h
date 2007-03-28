@@ -13,8 +13,8 @@
 os_error *rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, struct conn_info *conn);
 
 enum callctl {
-	TXBLOCKING,    /* Transmit request and block until a reply is recieved */
-	RXBLOCKING,    /* Block until a reply is recieved, do not transmit anything */
+	TXBLOCKING,    /* Transmit request and block until a reply is received */
+	RXBLOCKING,    /* Block until a reply is received, do not transmit anything */
 	TXNONBLOCKING, /* Transmit request, return a reply only if one is available */
 	RXNONBLOCKING  /* Unused */
 };

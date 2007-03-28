@@ -275,15 +275,22 @@ static int rpc_create_socket(struct conn_info *conn)
 		struct sockaddr_in name;
 		int port = conn->localportmin;
 		int ret;
+		int tries = 0;
+		static int lastport = 0;
 
 		memset(&name, 0, sizeof(name));
 		name.sin_family = AF_INET;
 		name.sin_addr.s_addr = (int)htonl(INADDR_ANY);
 
+		if ((lastport >= conn->localportmin) && (lastport <= conn->localportmax)) {
+			port = lastport;
+		}
 		do {
 			name.sin_port = htons(port++);
 			ret = bind(conn->sock, (struct sockaddr *)&name, sizeof(name));
-		} while (ret != 0 && port <= conn->localportmax);
+			if (port > conn->localportmax) port = conn->localportmin;
+		} while (ret != 0 && (tries++ < 200));
+		lastport = port;
 
 		if (ret) {
 			close(conn->sock);
@@ -384,6 +391,8 @@ static int rpc_connect_socket(struct conn_info *conn)
 {
 	int ret;
 
+	conn->connected = 0;
+
 	if (conn->tcp) {
 		ret = rpc_create_socket(conn);
 		if (ret) return ret;
@@ -436,10 +445,12 @@ static int poll_tx(struct request_entry *entry)
 	}
 	ret = sendmsg(entry->conn->sock, &msg, 0);
 	if (ret == -1) {
-		if ((errno == EWOULDBLOCK) || (errno == ENOTCONN)) return 0;
+		if (errno == EWOULDBLOCK) return 0;
+		if ((errno == ENOTCONN) && (entry->conn->connected == 0)) return 0;
 		return errno;
 	}
 	if (ret > 0) {
+		entry->conn->connected = 1;
 		entry->tx.position += ret;
 	}
 
@@ -450,7 +461,7 @@ static int poll_tx(struct request_entry *entry)
 	return 0;
 }
 
-/* Search all outstanding tx buffers for a matching xid to the just recieved rx buffer */
+/* Search all outstanding tx buffers for a matching xid to the just received rx buffer */
 static void match_rx_buffer(struct buffer_list *currentrx)
 {
 	struct request_entry *entry = request_entries;
@@ -459,7 +470,7 @@ static void match_rx_buffer(struct buffer_list *currentrx)
 		if (((unsigned *)(entry->tx.buffer))[entry->conn->tcp ? 1 : 0] == ((unsigned *)(currentrx->buffer))[0]) {
 			/* xid match */
 			if (entry->rx) {
-				/* This xid has already recieved a reply, so this must be a duplicate. */
+				/* This xid has already received a reply, so this must be a duplicate. */
 				free_rx_buffer(currentrx);
 				return;
 			}
@@ -473,7 +484,7 @@ static void match_rx_buffer(struct buffer_list *currentrx)
 	free_rx_buffer(currentrx);
 }
 
-/* Recieve as much data as we can without blocking */
+/* receive as much data as we can without blocking */
 static int poll_rx(struct conn_info *conn)
 {
 	int ret;
@@ -496,7 +507,7 @@ static int poll_rx(struct conn_info *conn)
 
 	ret = read(conn->sock, currentrx->buffer + currentrx->position, len);
 	if (ret == -1) {
-		if ((errno == EWOULDBLOCK) || (errno == ENOTCONN)) {
+		if (errno == EWOULDBLOCK) {
 			if (!conn->tcp) free_rx_buffer(currentrx);
 			return 0;
 		}
@@ -694,7 +705,7 @@ os_error *rpc_do_call(int prog, enum callctl calltype, void *extradata, int extr
 		poll_connections();
 	} while ((calltype == TXBLOCKING || calltype == RXBLOCKING) && rxentry->status != DONE);
 
-	/* Return if the oldest request has not been recieved. This will only
+	/* Return if the oldest request has not been received. This will only
 	   ever be the case if we are non-blocking */
 	if (rxentry->status != DONE) return ERR_WOULDBLOCK;
 
@@ -706,7 +717,7 @@ os_error *rpc_do_call(int prog, enum callctl calltype, void *extradata, int extr
 	if (rxentry->nextpipelined) rxentry->nextpipelined->prevpipelined = NULL;
 
 	if (rxentry->error) {
-		return gen_error(RPCERRBASE + 8, "Error when sending or recieving data (%s)",xstrerror(rxentry->error));
+		return gen_error(RPCERRBASE + 8, "Error when sending or receiving data (%s)",xstrerror(rxentry->error));
 	}
 
 	/* Setup buffers and parse header */

@@ -167,10 +167,8 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 }
 
 /* Read a config file and fill in the conn structure */
-static os_error *parse_file(unsigned int fileswitchhandle, struct conn_info *conn)
+static os_error *load_file(unsigned int fileswitchhandle, struct conn_info *conn)
 {
-	char *ch;
-	char *end;
 	unsigned int size;
 	unsigned int remain;
 	os_error *err;
@@ -186,10 +184,21 @@ static os_error *parse_file(unsigned int fileswitchhandle, struct conn_info *con
 	err = _swix(OS_GBPB, _INR(0,4) | _OUT(3), 3, fileswitchhandle, conn->config, size, 0, &remain);
 	if (err) return err;
 	size -= remain;
+	conn->config[size] = '\0';
+
+	return err;
+}
+
+/* Parse the config file */
+static os_error *parse_file(struct conn_info *conn)
+{
+	char *ch;
+	char *end;
+	os_error *err;
 
 	/* Split the file into lines */
 	ch = conn->config;
-	end = ch + size;
+	end = ch + strlen(ch);
 	do {
 		char *line = ch;
 		char *endspc;
@@ -252,7 +261,7 @@ static os_error *getport(int program, int version, unsigned int *progport, struc
 	return NULL;
 }
 
-os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhandle)
+os_error *func_newimage(unsigned int fileswitchhandle, char *config, struct conn_info **myhandle)
 {
 	struct conn_info *conn;
 	os_error *err;
@@ -307,8 +316,22 @@ os_error *func_newimage(unsigned int fileswitchhandle, struct conn_info **myhand
 	conn->rxmutex = NULL;
 	conn->reference = 0;
 
-	/* Read details from file */
-	err = parse_file(fileswitchhandle, conn);
+	if (config) {
+		/* Read details from string */
+		conn->config = strdup(config);
+		if (conn->config == NULL) {
+			free_conn_info(conn);
+			return gen_error(NOMEM,NOMEMMESS);
+		}
+	} else {
+		/* Read details from file */
+		err = load_file(fileswitchhandle, conn);
+		if (err) {
+			free_conn_info(conn);
+			return err;
+		}
+	}
+	err = parse_file(conn);
 	if (err) {
 		free_conn_info(conn);
 		return err;

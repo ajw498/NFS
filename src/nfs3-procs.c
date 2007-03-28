@@ -230,7 +230,7 @@ enum accept_stat NFSPROC3_GETATTR(struct GETATTR3args *args, struct GETATTR3res 
 {
 	char *path;
 
-	NF(nfs3fh_to_path(&(args->object), &path, conn));
+	NF(nfs3fh_to_path(&(args->fhandle), &path, conn));
 	NF(get_fattr(path, -1, &(res->u.resok.obj_attributes), NULL, conn));
 
 failure:

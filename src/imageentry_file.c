@@ -242,14 +242,14 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 			if (renameres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (renameres.status);
 		}
 
-		/* Set the file size */
+		/* Set the file size and time stamp */
 		commonfh_to_fh(sattrargs.file, finfo->objhandle);
 #ifdef NFS3
 		sattrargs.attributes.mode.set_it = FALSE;
 		sattrargs.attributes.uid.set_it = FALSE;
 		sattrargs.attributes.gid.set_it = FALSE;
 		sattrargs.attributes.atime.set_it = DONT_CHANGE;
-		sattrargs.attributes.mtime.set_it = DONT_CHANGE;
+		ENTRYFUNC(loadexec_to_setmtime) (load, exec, &(sattrargs.attributes.mtime));
 		sattrargs.attributes.size.set_it = TRUE;
 		sattrargs.attributes.size.u.size = buffer_end - buffer;
 		sattrargs.guard.check = FALSE;
@@ -258,10 +258,9 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 		sattrargs.attributes.uid = NOVALUE;
 		sattrargs.attributes.gid = NOVALUE;
 		sattrargs.attributes.size = buffer_end - buffer;
-		sattrargs.attributes.mtime.seconds = NOVALUE;
-		sattrargs.attributes.mtime.useconds = NOVALUE;
 		sattrargs.attributes.atime.seconds = NOVALUE;
 		sattrargs.attributes.atime.useconds = NOVALUE;
+		loadexec_to_timeval(load, exec, &(sattrargs.attributes.mtime.seconds), &(sattrargs.attributes.mtime.useconds), 1);
 #endif
 		err = NFSPROC(SETATTR, (&sattrargs, &sattrres, conn));
 		if (err) return err;
@@ -307,11 +306,9 @@ static os_error *createfile(char *filename, unsigned int load, unsigned int exec
 	return NULL;
 }
 
-os_error *ENTRYFUNC(file_createfile) (char *filename, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, struct conn_info *conn)
+os_error *ENTRYFUNC(file_createfile) (char *filename, unsigned int load, unsigned int exec, char *buffer, char *buffer_end, char **leafname, struct conn_info *conn)
 {
-	char *leafname;
-
-	return createfile(filename, load, exec, buffer, buffer_end, conn, NULL, &leafname);
+	return createfile(filename, load, exec, buffer, buffer_end, conn, NULL, leafname);
 }
 
 os_error *ENTRYFUNC(file_createdir) (char *filename, unsigned int load, unsigned int exec, struct conn_info *conn)
@@ -370,11 +367,45 @@ os_error *ENTRYFUNC(file_savefile) (char *filename, unsigned int load, unsigned 
 {
 	os_error *err;
 	struct commonfh *fhandle;
+#ifdef NFS3
+	struct sattrargs3 sattrargs;
+	struct sattrres3 sattrres;
+#else
+	struct sattrargs sattrargs;
+	struct sattrres sattrres;
+#endif
 
 	err = createfile(filename, load, exec, buffer, buffer_end, conn, &fhandle, leafname);
 	if (err) return err;
 
-	return ENTRYFUNC(writebytes) (fhandle, buffer, buffer_end - buffer, 0, NULL, conn);
+	err = ENTRYFUNC(writebytes) (fhandle, buffer, buffer_end - buffer, 0, NULL, conn);
+	if (err) return err;
+
+	/* Set the datestamp. Although this will have already been done by
+	   createfile, writebytes will have updated it. */
+	commonfh_to_fh(sattrargs.file, *fhandle);
+#ifdef NFS3
+	sattrargs.attributes.mode.set_it = FALSE;
+	sattrargs.attributes.uid.set_it = FALSE;
+	sattrargs.attributes.gid.set_it = FALSE;
+	sattrargs.attributes.atime.set_it = DONT_CHANGE;
+	ENTRYFUNC(loadexec_to_setmtime) (load, exec, &(sattrargs.attributes.mtime));
+	sattrargs.attributes.size.set_it = FALSE;
+	sattrargs.guard.check = FALSE;
+#else
+	sattrargs.attributes.mode = NOVALUE;
+	sattrargs.attributes.uid = NOVALUE;
+	sattrargs.attributes.gid = NOVALUE;
+	sattrargs.attributes.size = NOVALUE;
+	sattrargs.attributes.atime.seconds = NOVALUE;
+	sattrargs.attributes.atime.useconds = NOVALUE;
+	loadexec_to_timeval(load, exec, &(sattrargs.attributes.mtime.seconds), &(sattrargs.attributes.mtime.useconds), 1);
+#endif
+	err = NFSPROC(SETATTR, (&sattrargs, &sattrres, conn));
+	if (err) return err;
+	if (sattrres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (sattrres.status);
+
+	return NULL;
 }
 
 /* Delete a file or directory */

@@ -47,12 +47,23 @@
 
 
 /* The format of info returned for OS_GBPB 10 */
-struct dir_entry {
-	unsigned int load;
-	unsigned int exec;
-	unsigned int len;
-	unsigned int attr;
-	unsigned int type;
+struct dir10_entry {
+	unsigned load;
+	unsigned exec;
+	unsigned len;
+	unsigned attr;
+	unsigned type;
+};
+
+/* The format of info returned for OS_GBPB 11 */
+struct dir11_entry {
+	unsigned load;
+	unsigned exec;
+	unsigned len;
+	unsigned attr;
+	unsigned type;
+	unsigned internal;
+	char time[5];
 };
 
 os_error *ENTRYFUNC(func_closeimage) (struct conn_info *conn)
@@ -136,6 +147,7 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 	os_error *err;
 	uint64_t cookie = 0;
 	int dirpos = 0;
+	int stale = 0;
 
 	bufferpos = buffer;
 	*objsread = 0;
@@ -143,6 +155,7 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 	memset(rddir.cookieverf, 0, NFS3_COOKIEVERFSIZE);
 #endif
 
+restart:
 	if (start != 0 && start == conn->laststart && strcmp(dirname, conn->lastdir) == 0) {
 		/* Used cached values */
 		commonfh_to_fh(rddir.dir, conn->lastdirhandle);
@@ -178,6 +191,12 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 		err = NFSPROC(READDIR, (&rddir, &rdres, conn));
 #endif
 		if (err) return err;
+		if ((rdres.status == NFSERR_STALE) && !stale) {
+			stale = 1;
+			ENTRYFUNC(func_newimage_mount) (conn);
+			goto restart;
+		}
+		stale = 1;
 		if (rdres.status != NFS_OK) return ENTRYFUNC(gen_nfsstatus_error) (rdres.status);
 
 		/* We may need to do a lookup on each filename, but this would
@@ -199,14 +218,16 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 				/* Ignore hidden files if so configured */
 			} else {
 				if (dirpos >= start) {
-					struct dir_entry *info_entry = NULL;
+					struct dir10_entry *info_entry = (struct dir10_entry *)bufferpos;
+					struct dir11_entry *fullinfo_entry = (struct dir11_entry *)bufferpos;
 					int filetype;
 					char *leafname;
 					unsigned len;
 
-					if (info) {
-						info_entry = (struct dir_entry *)bufferpos;
-						bufferpos += sizeof(struct dir_entry);
+					if (info == 1) {
+						bufferpos += sizeof(struct dir10_entry);
+					} else if (info == 2) {
+						bufferpos += 29; /* Would be sizeof(struct dir11_entry) (but minus the padding)*/
 					}
 
 					/* Check there is room in the output buffer. */
@@ -237,7 +258,7 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 					if (len == 0) break; /* Buffer overflowed */
 
 					bufferpos += len + 1;
-		
+
 					if (info) {
 						struct objinfo *lookupres;
 						nstat status;
@@ -289,8 +310,16 @@ os_error *ENTRYFUNC(func_readdirinfo) (int info, char *dirname, char *buffer, in
 #ifdef NFS3
 						}
 #endif
+						if (info == 2) {
+							fullinfo_entry->internal = 0;
+							fullinfo_entry->time[0] = (fullinfo_entry->exec & 0x000000FF);
+							fullinfo_entry->time[1] = (fullinfo_entry->exec & 0x0000FF00) >> 8;
+							fullinfo_entry->time[2] = (fullinfo_entry->exec & 0x00FF0000) >> 16;
+							fullinfo_entry->time[3] = (fullinfo_entry->exec & 0xFF000000) >> 24;
+							fullinfo_entry->time[4] = (fullinfo_entry->load & 0x000000FF);
+						}
 					}
-	
+
 					(*objsread)++;
 				}
 				dirpos++;
