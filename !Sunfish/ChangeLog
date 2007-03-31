@@ -1,10 +1,11 @@
 vx.xx xx-xxx-xx
+
+v1.10 28-Mar-07
 Fixed timestamp setting for OS_File 0 if the file already existed.
 Fixed inaccuracy in calculation of nanosecond part of the timestamp.
-Now retries rootfh if stale filehandle
-uses different sockets to avoid delays when reconnecting
-sets timestamp on file close
-
+The timestamp is now set when an open file is closed.
+Now refetches the root filehandle if it is stale.
+When reconnecting after a timeout, use a different socket to avoid delays.
 
 v1.09 16-Oct-06
 Fixed bug that caused the wrong attributes to be returned for a symlink that
