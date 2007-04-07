@@ -54,12 +54,22 @@ using rtk::graphics::box;
 
 sunfish::sunfish():
 	application("Sunfish newfe"),
-	ibaricon("", ""),
-	usesmallicons(false)  //FIXME
+	ibaricon("", "")
 {
 	add(ibaricon);
 	hostaliases.load();
 	getmounts();
+
+	FILE *file = fopen("<Choices$Write>.Sunfish.choices","r");
+	if (file != NULL) {
+		char buffer[256];
+		while (fgets(buffer, sizeof(buffer), file) != NULL) {
+			if (strncmp("smallicons:", buffer, sizeof("smallicons:") - 1) == 0) {
+				usesmallicons = atoi(buffer + sizeof("smallicons:") - 1);
+			}
+		}
+		fclose(file);
+	}
 }
 
 ibicon *sunfish::add_mounticon(const std::string &name, const std::string &specialfield, bool& found)
@@ -130,7 +140,12 @@ void sunfish::smallicons(bool small)
 {
 	if (small != usesmallicons) {
 		usesmallicons = small;
-		// FIXME save to choices file
+
+		FILE *file = fopen("<Choices$Write>.Sunfish.choices","w");
+		if (file != NULL) {
+			fprintf(file, "smallicons: %d\n\n", small);
+			fclose(file);
+		}
 	}
 }
 

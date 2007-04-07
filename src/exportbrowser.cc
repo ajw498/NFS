@@ -41,7 +41,23 @@ exportbrowser::exportbrowser(hostinfo host) :
 	info(host)
 {
 	title(info.host);
-	smallicons(false); //FIXME
+}
+
+void exportbrowser::open(sunfish& app)
+{
+	point pos;
+
+	if (parent_application()) {
+		// We are already open, so find the current position
+		pos = origin();
+	} else {
+		// Open window near mouse position.
+		os::pointer_info_get blk;
+		os::Wimp_GetPointerInfo(blk);
+		pos = blk.p - point(64,0);
+	}
+	app.add(*this,pos);
+	smallicons(app.smallicons());
 }
 
 void exportbrowser::refresh(int port, bool tcp, int version)

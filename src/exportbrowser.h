@@ -64,6 +64,7 @@ public:
 	exportbrowser(hostinfo host);
 	~exportbrowser();
 	void refresh(int port, bool tcp, int version);
+	void open(sunfish& app);
 	void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev);
 	void drag_ended(bool adjust, rtk::events::user_drag_box& ev);
 	void doubleclick(const std::string& item, rtk::events::mouse_click& ev);

@@ -79,18 +79,13 @@ void hostbrowser::openexportbrowser(hostinfo *info, bool tcp, int version)
 
 	if (port == 0) throw "No suitable mount service found on remote server";
 
+	sunfish& app = *static_cast<sunfish *>(parent_application());
+
 	exportbrowser *eb = new exportbrowser(*info);
-
 	eb->refresh(port, tcp, vers);
+	eb->open(app);
 
-	// Open window near mouse position.
-	os::pointer_info_get blk;
-	os::Wimp_GetPointerInfo(blk);
-	blk.p -= point(64,0);
-
-	sunfish *app = static_cast<sunfish *>(parent_application());
-	app->exportbrowsers.push_back(eb);
-	app->add(*eb, blk.p);
+	app.exportbrowsers.push_back(eb);
 }
 
 void hostbrowser::doubleclick(const std::string& item, rtk::events::mouse_click& ev)
