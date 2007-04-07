@@ -148,6 +148,7 @@ void hostbrowser::open(sunfish& app)
 		pos = dcentre;
 	}
 	app.add(*this,pos);
+	smallicons(app.smallicons());
 	broadcast();
 }
 
@@ -198,7 +199,7 @@ void hostbrowser::open_menu(const std::string& item, bool selection, rtk::events
 	menu.add(clear,3);
 	menu.add(refresh,4);
 	display.text("Display");
-	display.enabled(false);
+	display.attach_submenu(displaymenu);
 	browseitem.text(selection ? "Selection" : "Browse '"+item+"'");
 	browseitem.enabled(!selection && item.compare("") != 0);
 	browseitem.attach_submenu(transport);
@@ -207,6 +208,16 @@ void hostbrowser::open_menu(const std::string& item, bool selection, rtk::events
 	clear.text("Clear selection");
 	clear.enabled(item.compare("") != 0);
 	refresh.text("Refresh");
+
+	displaymenu.title("Display");
+	displaymenu.add(largeiconsitem, 0);
+	displaymenu.add(smalliconsitem, 1);
+
+	sunfish& app = *static_cast<sunfish *>(parent_application());
+	largeiconsitem.text("Large icons");
+	largeiconsitem.tick(!app.smallicons());
+	smalliconsitem.text("Small icons");
+	smalliconsitem.tick(app.smallicons());
 
 	transport.title("Transport");
 	transport.add(udp, 0);
@@ -246,10 +257,22 @@ void hostbrowser::open_menu(const std::string& item, bool selection, rtk::events
 
 void hostbrowser::handle_event(rtk::events::menu_selection& ev)
 {
+	sunfish& app = *static_cast<sunfish *>(parent_application());
+
 	if (ev.target() == &clear) {
 		for (int i = icons.size() - 1; i >= 0; i--) icons[i]->selected(false);
 	} else if (ev.target() == &refresh) {
 		broadcast();
+	} else if (ev.target() == &largeiconsitem) {
+		largeiconsitem.tick(true);
+		smalliconsitem.tick(false);
+		smallicons(false);
+		app.smallicons(false);
+	} else if (ev.target() == &smalliconsitem) {
+		largeiconsitem.tick(false);
+		smalliconsitem.tick(true);
+		smallicons(true);
+		app.smallicons(true);
 	} else if (ev.target() == &browseitem) {
 		openexportbrowser(menuinfo, true, 4);
 	} else if (ev.target() == &udp) {

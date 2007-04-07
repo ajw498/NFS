@@ -54,7 +54,8 @@ using rtk::graphics::box;
 
 sunfish::sunfish():
 	application("Sunfish newfe"),
-	ibaricon("", "")
+	ibaricon("", ""),
+	usesmallicons(false)  //FIXME
 {
 	add(ibaricon);
 	hostaliases.load();

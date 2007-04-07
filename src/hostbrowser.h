@@ -85,6 +85,10 @@ private:
 	rtk::desktop::menu_item clear;
 	rtk::desktop::menu_item refresh;
 
+	rtk::desktop::menu displaymenu;
+	rtk::desktop::menu_item largeiconsitem;
+	rtk::desktop::menu_item smalliconsitem;
+
 	rtk::desktop::menu transport;
 	rtk::desktop::menu_item udp;
 	rtk::desktop::menu_item tcp;

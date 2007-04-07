@@ -87,12 +87,12 @@ void filer_window::start_drag(rtk::events::mouse_click& ev, rtk::desktop::icon* 
 		} else {
 			ic->drag(ic->bbox(),5);
 		}
-		/*handle more than one*/
+		/* FIXME? handle more than one*/
 	} else if ((ic == NULL) && _allowselection) {
 		_icondrag = false;
 		rtk::graphics::point p = ev.position() + layout.origin();
 		drag(rtk::graphics::box(p,p),bbox(),6);
-		/*clip box to window, but allow pointer outside in y axis (use wimp_dragbox extra flags) */
+		/* FIXME? clip box to window, but allow pointer outside in y axis (use wimp_dragbox extra flags) */
 	}
 }
 
@@ -155,9 +155,9 @@ filer_window& filer_window::add_icon(const std::string& text, const std::string&
 {
 	rtk::desktop::icon *icon;
 	icon = new rtk::desktop::icon;
-	icon->text(text).rjustify(false).button(10).half_size(_smallicons);
-	icon->text(text).hcentre(!_smallicons).vcentre(_smallicons);
-	icon->text_and_sprite(true).validation("S"+sprite);
+	icon->text(text).text_and_sprite(true).validation("S"+sprite);
+	icon->rjustify(false).button(10).half_size(_smallicons);
+	icon->hcentre(!_smallicons).vcentre(_smallicons);
 	icon->yfit(false);
 	icon->xfit(false);
 	icon->xbaseline(_smallicons ? component::xbaseline_left : component::xbaseline_centre);
@@ -216,7 +216,7 @@ filer_window& filer_window::smallicons(bool smallicons)
 			// small no hcentre, no rjustify, vcentre
 		}
 		layout.min_height(smallicons ? 44 : 124);
-		layout.invalidate(); // FIXME should this get done automagically
+		layout.invalidate();
 	}
 	_smallicons = smallicons;
 	return *this;
