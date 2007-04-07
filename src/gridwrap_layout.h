@@ -86,6 +86,7 @@ public:
 	virtual void reformat(const point& origin,const box& pbbox);
 	virtual void unformat();
 	virtual void redraw(gcontext& context,const box& clip);
+	virtual void invalidate();
 protected:
 	virtual void remove_notify(component& c);
 private:

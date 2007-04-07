@@ -32,6 +32,12 @@ gridwrap_layout::~gridwrap_layout()
 	remove();
 }
 
+void gridwrap_layout::invalidate()
+{
+	_xcells = 0;
+	inherited::invalidate();
+}
+
 // Cache the baselines of all child components, so the size of a cell can be calculated
 void gridwrap_layout::update_baselines() const
 {
