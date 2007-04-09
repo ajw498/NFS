@@ -265,10 +265,20 @@ static os_error *getfree(char *id, unsigned *freelo, unsigned *freehi, unsigned 
 	}
 
 	err = filename_to_conn(filename, specialfield, &conn, &retfilename);
-	if (err) return err;
+	if (err) goto err;
 	err = CALLENTRY(func_free, conn, (retfilename, conn, freelo, freehi, NULL, sizelo, sizehi, usedlo, usedhi));
-	if (err) return err;
+	if (err) goto err;
 
+	return NULL;
+err:
+	syslogf(LOGNAME, LOGERROR, "Error getting free information %x, %s", err->errnum, err->errmess);
+	/* The free module doesn't like errors being returned */
+	*freelo = 0;
+	*freehi = 0;
+	*sizelo = 1;
+	*sizehi = 0;
+	*usedlo = 1;
+	*usedhi = 0;
 	return NULL;
 }
 
