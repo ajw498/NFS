@@ -41,6 +41,8 @@
 
 #include "sunfish-frontend.h"
 
+#include <stdio.h>
+#include <kernel.h>
 
 using namespace std;
 using namespace rtk;
@@ -96,7 +98,6 @@ ibicon *sunfish::add_mounticon(const std::string &name, const std::string &speci
 	return i;
 }
 
-#include <stdio.h>
 
 void sunfish::handle_event(rtk::events::menu_selection& ev)
 {
@@ -149,51 +150,21 @@ void sunfish::smallicons(bool small)
 	}
 }
 
+
 int main(void)
 {
+	int ret = _kernel_oscli("RMEnsure Sunfish " Module_VersionString " RMLoad <Sunfish$Dir>.Sunfish");
+	if (ret != -2) ret = _kernel_oscli("RMEnsure Sunfish " Module_VersionString " Error xyz");
+	if (ret == -2) {
+		os::Wimp_ReportError(1, "Sunfish " Module_VersionString " module not found", "Sunfish", 0, 0);
+		return 1;
+	}
+
 	sunfish app;
 	app.run();
 	return 0;
 }
 
-#include <swis.h>
-
-//void syslogf(char *fmt, ...)
-//{
-//	static char syslogbuf[1024];
-//	va_list ap;
-//
-//	va_start(ap, fmt);
-//	vsnprintf(syslogbuf, sizeof(syslogbuf), fmt, ap);
-//	va_end(ap);
-//
-//	/* Ignore any errors, as there's not much we can do with them */
-//	_swix(0x4c880, _INR(0,2), "newfe", syslogbuf, 5);
-//}
-
-extern "C" {
-
-void __cyg_profile_func_enter(int *a,int b)
-	__attribute__ ((no_instrument_function));
-void __cyg_profile_func_exit(int a,int b)
-	__attribute__ ((no_instrument_function));
-
-void __cyg_profile_func_enter(int *a,int b)
-{
-  a--;
-  if ((*a & 0xffffff00) == 0xff000000)
-    {
-      char *name;
-      name = ((char *)(a)) - (*a & 0xff);
-_swix(0x4c880, _INR(0,2), "newfei", name, 5);
-    }
-}
-
-void __cyg_profile_func_exit(int a,int b)
-	{ _swix(0x4c880, _INR(0,2), "newfei", "exit", 5);
-	}
-
-}
 
 #include <swis.h>
 #include "rtk/os/wimp.h"
