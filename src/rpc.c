@@ -814,14 +814,19 @@ os_error *rpc_do_call(int prog, enum callctl calltype, void *extradata, int extr
 	/* Check that the RPC completed successfully */
 	if (reply_header.body.mtype != REPLY) return gen_error(RPCERRBASE + 10, "Unexpected response (not an RPC reply)");
 	if (reply_header.body.u.rbody.stat != MSG_ACCEPTED) {
-		if (reply_header.body.u.rbody.u.rreply.stat == AUTH_ERROR) {
-			return gen_error(RPCERRBASE + 11, "RPC message rejected (Authentication error)");
-		} else {
-			return gen_error(RPCERRBASE + 12, "RPC message rejected (%d)", reply_header.body.u.rbody.u.rreply.stat);
+		switch (reply_header.body.u.rbody.u.rreply.stat) {
+			case RPC_MISMATCH: return gen_error(RPCERRBASE + 11, "RPC message rejected (RPC version mismatch)");
+			case AUTH_ERROR:   return gen_error(RPCERRBASE + 11, "RPC message rejected (Authentication error)");
+			default:           return gen_error(RPCERRBASE + 12, "RPC message rejected (%d)", reply_header.body.u.rbody.u.rreply.stat);
 		}
 	}
-	if (reply_header.body.u.rbody.u.areply.reply_data.stat != SUCCESS) {
-		return gen_error(RPCERRBASE + 13, "RPC failed (%d)", reply_header.body.u.rbody.u.areply.reply_data.stat);
+	switch (reply_header.body.u.rbody.u.areply.reply_data.stat) {
+		case SUCCESS: break;
+		case PROG_UNAVAIL:  return gen_error(RPCERRBASE + 13, "RPC failed (Remote program unavailable");
+		case PROG_MISMATCH: return gen_error(RPCERRBASE + 13, "RPC failed (Remote program mismatch");
+		case PROC_UNAVAIL:  return gen_error(RPCERRBASE + 13, "RPC failed (Remote procedure unavailable");
+		case GARBAGE_ARGS:  return gen_error(RPCERRBASE + 13, "RPC failed (Remote program cannot decode request");
+		default:            return gen_error(RPCERRBASE + 13, "RPC failed (%d)", reply_header.body.u.rbody.u.areply.reply_data.stat);
 	}
 
 	return NULL;
