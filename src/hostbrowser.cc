@@ -97,6 +97,7 @@ hostbrowser::hostbrowser() :
 	searchwin(*this)
 {
 	title("NFS servers");
+	allowdrag(false);
 }
 
 void hostbrowser::broadcast()
