@@ -9,6 +9,8 @@
 using std::min;
 using std::max;
 
+const int minwidth = 300;
+
 #define FILERWIN
 
 gridwrap_layout::gridwrap_layout(size_type cells):
@@ -35,6 +37,7 @@ gridwrap_layout::~gridwrap_layout()
 void gridwrap_layout::invalidate()
 {
 	_xcells = 0;
+	_baselines_valid=false;
 	inherited::invalidate();
 }
 
@@ -67,6 +70,9 @@ box gridwrap_layout::min_bbox() const
 	int xsize = _cells * (_xbs.offset(xbaseline_left,xbaseline_right,_minwidth) + _xgap) - _xgap;
 	int ysize = _ybs.offset(ybaseline_bottom,ybaseline_top,_minheight);
 
+	// Give a minimum width
+	if (xsize < minwidth) xsize = minwidth;
+
 	// Construct minimum bounding box, with respect to top left-hand
 	// corner of layout.
 	box abbox(0,-ysize,xsize,0);
@@ -90,6 +96,34 @@ box gridwrap_layout::min_wrap_bbox(const box& wbox) const
 	box bbox(wbox);
 	reflow(bbox,true,xcells,ycells);
 	return bbox;
+}
+
+box gridwrap_layout::ideal_bbox() const
+{
+	if (!size_valid()) resize();
+
+	if (!_baselines_valid) update_baselines();
+
+	// Calculate size when arranged as a single row
+	int xcells = _cells;
+	if (xcells > 4) xcells = 4;
+	int ycells = (_cells + (xcells - 1)) / xcells;
+
+	int xsize = xcells * (_xbs.offset(xbaseline_left,xbaseline_right,_minwidth) + _xgap) - _xgap;
+	int ysize = ycells * (_ybs.offset(ybaseline_bottom,ybaseline_top,_minheight) + _ygap) - _ygap;
+
+	// Give a minimum width
+	if (xsize < minwidth) xsize = minwidth;
+
+	// Construct minimum bounding box, with respect to top left-hand
+	// corner of layout.
+	box abbox(0,-ysize,xsize,0);
+	abbox+=_margin;
+
+	// Translate to external origin and return.
+	abbox-=external_origin(abbox,xbaseline_left,ybaseline_top);
+
+	return abbox;
 }
 
 component* gridwrap_layout::find(const point& p) const
@@ -181,6 +215,8 @@ void gridwrap_layout::reflow(box& bbox, bool shrinkx, size_type& xcells, size_ty
 	// Restrict the maximum x size to be enough to hold all cells, plus
 	// 1 pixel (to allow detection of when the window is full width)
 	int xsize = _margin.xsize() + _cells * (_xbs.offset(xbaseline_left,xbaseline_right,_minwidth) + _xgap) - _xgap + 2;
+	// Give a minimum width
+	if ((xsize < minwidth) && (ycells < 2)) xsize = minwidth;
 	if (bbox.xsize() > xsize) bbox.xmax(bbox.xmin()+xsize);
 #endif
 

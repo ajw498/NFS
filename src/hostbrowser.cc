@@ -97,7 +97,6 @@ hostbrowser::hostbrowser() :
 	searchwin(*this)
 {
 	title("NFS servers");
-	min_win_size(point(300,0));
 }
 
 void hostbrowser::broadcast()

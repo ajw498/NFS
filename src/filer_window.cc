@@ -167,6 +167,17 @@ filer_window& filer_window::add_icon(const std::string& text, const std::string&
 
 	icons[index] = icon;
 	layout.add(*icon, index);
+
+	// Expand window to fit new icon. Ideally, this would only happen if
+	// the window is already open at maximum extent, but that is quite
+	// hard to determine in all situations.
+	box ibbox = layout.ideal_bbox();
+	box obbox;
+	obbox.xmax(ibbox.xsize());
+	obbox.ymin(-ibbox.ysize());
+
+	basic_window::reformat(origin(), obbox);
+
 	return *this;
 }
 

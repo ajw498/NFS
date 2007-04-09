@@ -80,6 +80,7 @@ public:
 
 	virtual box min_bbox() const;
 	virtual box min_wrap_bbox(const box& wbox) const;
+	box ideal_bbox() const;
 	virtual component* find(const point& p) const;
 	virtual box bbox() const;
 	virtual void resize() const;
