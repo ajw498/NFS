@@ -41,6 +41,8 @@
 
 #include "sunfish-frontend.h"
 
+#include <algorithm>
+
 #include <stdio.h>
 #include <kernel.h>
 
@@ -55,7 +57,7 @@ using rtk::graphics::box;
 
 
 sunfish::sunfish():
-	application("Sunfish newfe"),
+	application("Sunfish newfe"), //FIXME
 	ibaricon("", "")
 {
 	add(ibaricon);
@@ -153,6 +155,8 @@ void sunfish::smallicons(bool small)
 
 int main(void)
 {
+	// Check correct module version is loaded. Do this here rather than
+	// the !Run file to avoid hardcoding the version number
 	int ret = _kernel_oscli("RMEnsure Sunfish " Module_VersionString " RMLoad <Sunfish$Dir>.Sunfish");
 	if (ret != -2) ret = _kernel_oscli("RMEnsure Sunfish " Module_VersionString " Error xyz");
 	if (ret == -2) {
@@ -219,13 +223,22 @@ void sunfish::getmounts()
 			/* FIXME mountdetails.tcp = usetcp;
 			mountdetails.nfs3 = nfsversion == 3;*/
 
+			ibicon *icon = 0;
 			try {
-				ibicon *icon = add_mounticon(discname, specialfield, found);
+				icon = add_mounticon(discname, specialfield, found);
 				if (!found) icon->mount(mountdetails.stringsave().c_str());
 			}
 			catch (...) {
-				/* Ignore errors */
-				//FIXME syslog them?
+				if (icon) {
+					delete icon;
+					for (vector<ibicon*>::iterator i = ibaricons.begin(); i != ibaricons.end(); ++i) {
+						if (*i == icon) {
+							ibaricons.erase(i);
+							break;
+						}
+					}
+				}
+				syslogf(LOGNAME, LOGERROR, "Unable to mount %s %s", specialfield, discname);
 			}
 		}
 
