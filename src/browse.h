@@ -45,6 +45,7 @@ struct exportinfo {
 };
 
 enum broadcast_type {
+	IDLE,
 	BROADCAST,
 	LISTEN,
 	CLOSE,

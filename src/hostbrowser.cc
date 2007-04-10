@@ -94,6 +94,7 @@ void hostbrowser::doubleclick(const std::string& item, rtk::events::mouse_click&
 }
 
 hostbrowser::hostbrowser() :
+	broadcasttype(IDLE),
 	searchwin(*this)
 {
 	title("NFS servers");
@@ -132,19 +133,22 @@ void hostbrowser::open(sunfish& app)
 {
 	point pos;
 
-	if (parent_application()) {
-		// We are already open, so find the current position
-		pos = origin();
-	} else {
-		// Find centre of desktop.
-		box dbbox(app.bbox());
-		point dcentre((dbbox.xmin()+dbbox.xmax())/2, (dbbox.ymin()+dbbox.ymax())/2);
+	if (broadcasttype == IDLE) {
+		if (parent_application()) {
+			// We are already open, so find the current position
+			pos = origin();
+		} else {
+			// Find centre of desktop.
+			box dbbox(app.bbox());
+			point dcentre((dbbox.xmin()+dbbox.xmax())/2, (dbbox.ymin()+dbbox.ymax())/2);
 
-		pos = dcentre;
+			pos = dcentre;
+		}
+
+		app.add(*this,pos);
+		smallicons(app.smallicons());
+		broadcast();
 	}
-	app.add(*this,pos);
-	smallicons(app.smallicons());
-	broadcast();
 }
 
 void hostbrowser::search(string host)
@@ -159,6 +163,7 @@ void hostbrowser::handle_event(rtk::events::null_reason& ev)
 
 	if ((clock() > broadcasttime + 100) && (broadcasttype == LISTEN)) {
 		parent_application()->deregister_null(*this);
+		broadcasttype = IDLE;
 		err = browse_gethost(NULL, CLOSE, NULL);
 		if (err) throw err;
 	} else {
