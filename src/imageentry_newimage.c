@@ -266,6 +266,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, char *config, struct conn
 	struct conn_info *conn;
 	os_error *err;
 	static char machinename[MAXHOSTNAMELEN] = "";
+	int maxbuf;
 
 	/* Allocate the conn structure which hold all information about the mount.
 	   The image filing system internal handle is a pointer to this struct */
@@ -342,8 +343,9 @@ os_error *func_newimage(unsigned int fileswitchhandle, char *config, struct conn
 		syslogf(LOGNAME, LOGENTRY, "Logging enabled for new connection %s %s %s", Module_Title, Module_VersionString, Module_Date);
 	}
 
-	if (conn->maxdatabuffer == 0) {
-		conn->maxdatabuffer =  conn->tcp ? MAXDATABUFFER_TCP_DEFAULT : MAXDATABUFFER_UDP_DEFAULT;
+	maxbuf = conn->tcp ? MAXDATABUFFER_TCP_DEFAULT : MAXDATABUFFER_UDP_DEFAULT;
+	if ((conn->maxdatabuffer == 0) || (conn->maxdatabuffer > maxbuf)) {
+		conn->maxdatabuffer = maxbuf;
 	}
 
 	if (conn->machinename == NULL) {
