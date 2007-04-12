@@ -210,6 +210,7 @@ static os_error *parse_file(struct conn_info *conn)
 		endspc = ch - 2;
 		while (endspc > line && isspace(*endspc)) endspc--;
 		if (isspace(*endspc)) *endspc = '\0';
+		syslogf("Fiish",3,"line: %s",line);
 		err = parse_line(line, conn);
 	} while (ch < end && err == NULL);
 
@@ -375,7 +376,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, char *config, struct conn
 	}
 
 	if (conn->mount_port == 0) {
-		err = getport(MOUNT_RPC_PROGRAM, MOUNT_RPC_VERSION, &(conn->mount_port), conn);
+		err = getport(MOUNT_RPC_PROGRAM, conn->nfs3 ? 3 : 1, &(conn->mount_port), conn);
 		if (err) {
 			rpc_close_connection(conn);
 			free_conn_info(conn);
@@ -384,7 +385,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, char *config, struct conn
 	}
 
 	if (conn->nfs_port == 0) {
-		err = getport(NFS_RPC_PROGRAM, NFS_RPC_VERSION, &(conn->nfs_port), conn);
+		err = getport(NFS_RPC_PROGRAM, conn->nfs3 ? 3 : 2, &(conn->nfs_port), conn);
 		if (err) {
 			rpc_close_connection(conn);
 			free_conn_info(conn);
