@@ -81,6 +81,7 @@ struct server_conn {
 	int replysent;
 	int suppressreply;
 	int nfs4;
+	struct server_conn *next;
 };
 
 int conn_init(void);

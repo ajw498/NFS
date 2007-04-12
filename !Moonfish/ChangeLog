@@ -1,3 +1,6 @@
+v1.06 xx-xxx-07
+Removed limit on number of concurrent connections.
+
 v1.05 16-Oct-06
 Files with a UnixEx filetype now get execute permissions set.
 Fixed a bug when reducing the size of a file straight after writing to it may get ignored.
