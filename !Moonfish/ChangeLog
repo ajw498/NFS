@@ -1,5 +1,6 @@
 v1.06 xx-xxx-07
 Removed limit on number of concurrent connections.
+Fixed bug which could result in incorrect file sizes if setattr request done shortly after writing without setting the filesize.
 
 v1.05 16-Oct-06
 Files with a UnixEx filetype now get execute permissions set.
