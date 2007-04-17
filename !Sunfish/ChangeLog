@@ -1,6 +1,7 @@
 vx.xx xx-xxx-xx
 Fixed finding of mountd and nfsd port numbers from portmapper when NFS2 not
 supported.
+Fixed encoding that sometimes added garbage to the end of filenames.
 
 v1.10 28-Mar-07
 Fixed timestamp setting for OS_File 0 if the file already existed.

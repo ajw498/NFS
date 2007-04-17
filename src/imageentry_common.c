@@ -418,6 +418,7 @@ os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, stru
 			encleaflen = sizeof(buffer2) - encleaflen;
 			if ((segmentname = palloc(encleaflen + sizeof(",xyz"), conn->pool)) == NULL) return gen_error(NOMEM, NOMEMMESS);
 			memcpy(segmentname, buffer2, encleaflen);
+			segmentname[encleaflen] = '\0';
 			segmentlen = encleaflen;
 		}
 
