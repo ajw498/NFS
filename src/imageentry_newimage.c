@@ -210,7 +210,6 @@ static os_error *parse_file(struct conn_info *conn)
 		endspc = ch - 2;
 		while (endspc > line && isspace(*endspc)) endspc--;
 		if (isspace(*endspc)) *endspc = '\0';
-		syslogf("Fiish",3,"line: %s",line);
 		err = parse_line(line, conn);
 	} while (ch < end && err == NULL);
 
