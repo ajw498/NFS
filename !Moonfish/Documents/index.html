@@ -20,7 +20,8 @@
 <li><a href="#license">License</a><br>
 <li><a href="#introduction">Introduction</a><br>
 <li><a href="#setup">Installing</a><br>
-<li><a href="#options">Options</a><br>
+<li><a href="#options">Export Options</a><br>
+<li><a href="#choices">Global Choices</a><br>
 <li><a href="#performance">Improving Performance</a><br>
 <li><a href="#reportingbugs">Reporting Bugs</a><br>
 <li><a href="#knownbugs">Known Issues</a><br>
@@ -85,7 +86,7 @@ If you want the module loaded when the machine is booted (so that the exports ar
 <p>
 
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
-<h2><font color="#ffffff"><a name="options">Options</a></font></h2>
+<h2><font color="#ffffff"><a name="options">Export Options</a></font></h2>
 </td></tr></table>
 <p>
 In the exports window, there is a list of directories to export (initially this will be blank). You can select a directory from the list and edit or delete it using the respective buttons to the right. To add a new directory to the list, click on the Add button and fill in the details in the edit export window.
@@ -140,7 +141,7 @@ Controls adding of a ,xyz filetype extension. When set to never, no ,xyz extensi
 <p>
 
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
-<h2><font color="#ffffff"><a name="options">Options</a></font></h2>
+<h2><font color="#ffffff"><a name="choices">Global Choices</a></font></h2>
 </td></tr></table>
 <h4>UDP</h4>
 Enable connections over the UDP transport. This is what has been traditionally used for NFSv2 and NFSv3 connections.
@@ -166,6 +167,9 @@ Enables the NFSv4 protocol, listening on port 2049. The portmapper and mount pro
 <p>
 <h4>Autoload module at boot</h4>
 When set, this option creates a file in !Boot.Choices.Boot.Tasks (or equivalent) to load the Moonfish module when the machine is booted. This option will be unavailable unless you are running Moonfish as a configure plugin.
+<p>
+<h4>Ignore extensions of resource forks</h4>
+When set, the filetype of files with a filename beginning with "._" (as typically used to hold MacOS resource forks) is set to data, rather than being based on the filename extension. Filenames with an explicit ,xyz extention will still get the filetype specified.
 <p>
 
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
@@ -200,8 +204,6 @@ For NFS2 and NFS3, filehandles are supposed to be persistant, so if the server i
 Hard links, symbolic links, devices and other non regular files are not supported, as they don't map to RISC OS functionality.
 <p>
 File permissions behave slightly differently from Unix systems. For example if the client copies a file that has only user read permission onto the export then it may create the file with user read permission, then write to the file. On some systems this write is allowed, but with RISC OS the write is faulted because the file does not have user write permissions.  
-<p>
-Currently up to 5 simultaneous requests are supported. When using UDP, the requests from different client machines can be interleaved and so there is no limit on the number of simultaneous clients than can connect (although there will of course be a practical limit arising from the speed of the server and network bandwidth). However, if using TCP then the connection is retained between requests, and so only 5 clients may be connected at once, and if more try to connect then they will be ignored until one of the connections is closed or times out. Please let me know if this issue is a real problem, and I may try to improve it.
 <p>
 The code is currently optimised for performance of the file transfers, at the expense of slowing the desktop down when large transfers are taking place. If there is demand I may add an option to try an keep the desktop more responsive, although this would of course reduce the speed of file transfers.
 <p>

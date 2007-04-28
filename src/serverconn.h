@@ -54,6 +54,7 @@ struct choices {
 	iconv_t fromutf8;
 	iconv_t toenc;
 	iconv_t fromenc;
+	int macforks;
 };
 
 extern struct choices choices;
@@ -81,6 +82,7 @@ struct server_conn {
 	int replysent;
 	int suppressreply;
 	int nfs4;
+	struct server_conn *next;
 };
 
 int conn_init(void);

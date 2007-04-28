@@ -59,11 +59,10 @@
 #include "clientid.h"
 
 
-#define MAXCONNS 5
 #define CONNTIMEOUT (5*60*CLOCKS_PER_SEC)
 
 
-static struct server_conn conns[MAXCONNS];
+static struct server_conn *conns = NULL;
 
 static int udpsock = -1;
 static int tcpsock = -1;
@@ -87,9 +86,93 @@ struct choices choices = {
 	.fromutf8 = (iconv_t)-1,
 	.toenc = (iconv_t)-1,
 	.fromenc = (iconv_t)-1,
+	.macforks = 0,
 };
 
 static int now;
+
+static struct server_conn *new_conn(void)
+{
+	struct server_conn *conn = conns;
+
+	/* Search for idle connections to reuse */
+	while (conn) {
+		if (conn->state == IDLE) return conn;
+		conn = conn->next;
+	}
+
+	/* None found, so allocate a new one */
+	UU(conn = malloc(sizeof(struct server_conn)));
+	conn->state = IDLE;
+	conn->exports = exports;
+	conn->request = NULL;
+	conn->reply = NULL;
+	conn->pool = NULL;
+
+	/* Allocate buffers, adding an extra 4 for the record marker */
+	if ((conn->request = malloc(MFBUFFERSIZE + 4)) == NULL) goto err;
+	if ((conn->reply = malloc(MFBUFFERSIZE + 4)) == NULL) goto err;
+	if ((conn->pool = pinit(NULL)) == NULL) goto err;
+	conn->gpool = gpool;
+
+	conn->next = conns;
+	conns = conn;
+	return conn;
+
+err:
+	if (conn->request) free(conn->request);
+	if (conn->reply) free(conn->reply);
+	if (conn->pool) pfree(conn->pool);
+	return NULL;
+}
+
+static void free_conn(struct server_conn *conn)
+{
+	free(conn->request);
+	free(conn->reply);
+	pfree(conn->pool);
+	free(conn);
+}
+
+static void release_conn(struct server_conn *freeconn, int leaveidle)
+{
+	struct server_conn *conn = conns;
+	struct server_conn **prevconn = &conns;
+	struct server_conn **prev = NULL;
+	int numidle = 0;
+
+	if (freeconn->tcp) {
+		close(freeconn->socket);
+	}
+
+	/* Search for idle connections to reuse */
+	while (conn) {
+		if (conn->state == IDLE) numidle++;
+		if (conn == freeconn) prev = prevconn;
+		prevconn = &(conn->next);
+		conn = conn->next;
+	}
+
+	if (numidle >= leaveidle) {
+		/* Remove from list and free */
+		*prev = freeconn->next;
+		free_conn(freeconn);
+	} else {
+		/* Leave in list to be reused later */
+		pclear(freeconn->pool);
+		freeconn->state = IDLE;
+	}
+}
+
+static void close_conn(struct server_conn *freeconn)
+{
+	release_conn(freeconn, 2);
+}
+
+static void close_all_conns(void)
+{
+	while (conns) release_conn(conns, 0);
+}
 
 static int conn_create_socket(int port, int tcp)
 {
@@ -145,19 +228,9 @@ static int conn_create_socket(int port, int tcp)
 	return sock;
 }
 
-static void close_conn(struct server_conn *conn)
-{
-	conn->state = IDLE;
-	pclear(conn->pool);
-	if (conn->tcp) {
-		close(conn->socket);
-	}
-}
-
 /* Returns non-zero when data was read */
 static int udp_read(int sock)
 {
-	int i;
 	int activity = 0;
 	int active = 0;
 
@@ -165,27 +238,28 @@ static int udp_read(int sock)
 
 	do {
 
-		for (i = 0; i < MAXCONNS; i++) {
-			if (conns[i].state == IDLE) break;
+		struct server_conn *conn = new_conn();
+		if (conn == NULL) {
+			syslogf(LOGNAME, LOG_MEM, OUTOFMEM);
+			return activity;
 		}
-		if (i == MAXCONNS) return activity;
 
-		conns[i].hostaddrlen = sizeof(struct sockaddr);
-		conns[i].requestlen = recvfrom(sock, conns[i].request, MFBUFFERSIZE, 0, (struct sockaddr *)&(conns[i].hostaddr), &(conns[i].hostaddrlen));
+		conn->hostaddrlen = sizeof(struct sockaddr);
+		conn->requestlen = recvfrom(sock, conn->request, MFBUFFERSIZE, 0, (struct sockaddr *)&(conn->hostaddr), &(conn->hostaddrlen));
 
 		active = 0;
-		if (conns[i].requestlen > 0) {
-			conns[i].state = DECODE;
-			conns[i].socket = sock;
-			conns[i].tcp = 0;
-			conns[i].time = now;
-			conns[i].suppressreply = 0;
-			conns[i].host = conns[i].hostaddr.sin_addr.s_addr;
+		if (conn->requestlen > 0) {
+			conn->state = DECODE;
+			conn->socket = sock;
+			conn->tcp = 0;
+			conn->time = now;
+			conn->suppressreply = 0;
+			conn->host = conn->hostaddr.sin_addr.s_addr;
 			activity |= 1;
 			active = 1;
-		} else if (conns[i].requestlen == -1 && errno != EWOULDBLOCK) {
+		} else if (conn->requestlen == -1 && errno != EWOULDBLOCK) {
 			syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",xstrerror(errno));
-			close_conn(&(conns[i]));
+			close_conn(conn);
 			return activity;
 		}
 	} while (active);
@@ -213,27 +287,24 @@ static void udp_write(struct server_conn *conn)
 /* Returns non-zero when data was read */
 static int tcp_accept(int sock)
 {
-	int i;
-
 	if (sock == -1) return 0;
 
-	/* Find a free connection entry */
-	for (i = 0; i < MAXCONNS; i++) {
-		if (conns[i].state == IDLE) break;
+	struct server_conn *conn = new_conn();
+	if (conn == NULL) {
+		syslogf(LOGNAME, LOG_MEM, OUTOFMEM);
+		return 0;
 	}
-	/* If there are no free entries then don't accept any new connections */
-	if (i == MAXCONNS) return 0;
 
-	conns[i].hostaddrlen = sizeof(struct sockaddr);
-	conns[i].socket = accept(sock, (struct sockaddr *)&(conns[i].hostaddr), &(conns[i].hostaddrlen));
-	if (conns[i].socket != -1) {
-		conns[i].state = READLEN;
-		conns[i].tcp = 1;
-		conns[i].time = now;
-		conns[i].requestlen = 0;
-		conns[i].requestread = 0;
-		conns[i].suppressreply = 0;
-		conns[i].host = conns[i].hostaddr.sin_addr.s_addr;
+	conn->hostaddrlen = sizeof(struct sockaddr);
+	conn->socket = accept(sock, (struct sockaddr *)&(conn->hostaddr), &(conn->hostaddrlen));
+	if (conn->socket != -1) {
+		conn->state = READLEN;
+		conn->tcp = 1;
+		conn->time = now;
+		conn->requestlen = 0;
+		conn->requestread = 0;
+		conn->suppressreply = 0;
+		conn->host = conn->hostaddr.sin_addr.s_addr;
 		return 1;
 	} else if (errno != EWOULDBLOCK) {
 		syslogf(LOGNAME, LOG_ERROR, "Error calling accept on socket (%s)",xstrerror(errno));
@@ -323,15 +394,16 @@ static int tcp_write(struct server_conn *conn)
 
 int conn_validsocket(int sock)
 {
-	int i;
+	struct server_conn *conn = conns;
 
 	if (sock == udpsock || sock == tcpsock) return 1;
 	if (sock == nfsudpsock || sock == nfstcpsock) return 1;
 
-	for (i = 0; i < MAXCONNS; i++) {
-		if (conns[i].tcp && (conns[i].state != IDLE)) {
-			if (conns[i].socket == sock) return 1;
+	while (conn) {
+		if ((conn->state != IDLE) && conn->tcp) {
+			if (conn->socket == sock) return 1;
 		}
+		conn = conn->next;
 	}
 
 	return 0;
@@ -340,19 +412,20 @@ int conn_validsocket(int sock)
 /* Called from the internet event handler on a broken socket event */
 int conn_brokensocket(int sock)
 {
-	int i;
+	struct server_conn *conn = conns;
 
-	for (i = 0; i < MAXCONNS; i++) {
-		if (conns[i].tcp && (conns[i].state != IDLE)) {
-			if (conns[i].socket == sock) {
+	while (conn) {
+		if ((conn->state != IDLE) && conn->tcp) {
+			if (conn->socket == sock) {
 				/* We can't do much from within the event
 				   handler, so just set the timeout so that
 				   the normal cleanup code will get rid of
 				   the connection next time it is called */
-				conns[i].time -= CONNTIMEOUT + 1;
+				conn->time -= CONNTIMEOUT + 1;
 				return 1;
 			}
 		}
+		conn = conn->next;
 	}
 	return 0;
 }
@@ -362,9 +435,9 @@ int conn_brokensocket(int sock)
    is happening. */
 int conn_poll(void)
 {
-	int i;
 	now = clock();
 	int activity = 0;
+	struct server_conn *conn = conns;
 
 	/* Accept any new connections */
 	activity |= udp_read(udpsock);
@@ -373,43 +446,54 @@ int conn_poll(void)
 	activity |= tcp_accept(nfstcpsock);
 
 	/* Read any data waiting to be read */
-	for (i = 0; i < MAXCONNS; i++) {
-		if (conns[i].tcp && (conns[i].state == READ || conns[i].state == READLEN)) {
-			activity |= tcp_read(&(conns[i]));
+	while (conn) {
+		struct server_conn *next = conn->next;
+		if ((conn->state == READ || conn->state == READLEN) && conn->tcp) {
+			activity |= tcp_read(conn);
 		}
+		conn = next;
 	}
 
 	/* Decode any requests that have been fully received */
-	for (i = 0; i < MAXCONNS; i++) {
-		if (conns[i].state == DECODE) {
-			conns[i].export = NULL;
-			request_decode(&(conns[i]));
-			if (conns[i].suppressreply) {
-				close_conn(&conns[i]);
+	conn = conns;
+	while (conn) {
+		struct server_conn *next = conn->next;
+		if (conn->state == DECODE) {
+			conn->export = NULL;
+			request_decode(conn);
+			if (conn->suppressreply) {
+				close_conn(conn);
 			} else {
-				conns[i].replysent = 0;
-				conns[i].state = WRITE;
+				conn->replysent = 0;
+				conn->state = WRITE;
 			}
 		}
+		conn = next;
 	}
 
 	/* Write any data waiting to be sent */
-	for (i = 0; i < MAXCONNS; i++) {
-		if (conns[i].state == WRITE) {
+	conn = conns;
+	while (conn) {
+		struct server_conn *next = conn->next;
+		if (conn->state == WRITE) {
 			activity |= 2;
-			if (conns[i].tcp) {
-				activity |= tcp_write(&(conns[i]));
+			if (conn->tcp) {
+				activity |= tcp_write(conn);
 			} else {
-				udp_write(&(conns[i]));
+				udp_write(conn);
 			}
 		}
+		conn = next;
 	}
 
 	/* Reap any connections that time out */
-	for (i = 0; i < MAXCONNS; i++) {
-		if (conns[i].state != IDLE && (now - conns[i].time) > CONNTIMEOUT) {
-			close_conn(&(conns[i]));
+	conn = conns;
+	while (conn) {
+		struct server_conn *next = conn->next;
+		if (conn->state != IDLE && (now - conn->time) > CONNTIMEOUT) {
+			close_conn(conn);
 		}
+		conn = next;
 	}
 
 	/* Reap any open filehandles that haven't been accessed recently */
@@ -467,6 +551,8 @@ static enum bool read_choices(struct pool *pool)
 			choices.udp = atoi(val);
 		} else if (CHECK("TCP")) {
 			choices.tcp = atoi(val);
+		} else if (CHECK("Macforks")) {
+			choices.macforks = atoi(val);
 		}
 	}
 	fclose(file);
@@ -493,23 +579,12 @@ static enum bool read_choices(struct pool *pool)
 
 int conn_init(void)
 {
-	int i;
 	char *local;
 
 	UR(gpool = pinit(NULL));
 
 	/* Don't quit if the exports file can't be read */
 	exports = parse_exports_file(gpool);
-
-	for (i = 0; i < MAXCONNS; i++) {
-		conns[i].state = IDLE;
-		conns[i].exports = exports;
-		/* Allocate buffers, adding an extra 4 for the record marker */
-		UR(conns[i].request = palloc(MFBUFFERSIZE + 4, gpool));
-		UR(conns[i].reply = palloc(MFBUFFERSIZE + 4, gpool));
-		UR(conns[i].pool = pinit(gpool));
-		conns[i].gpool = gpool;
-	}
 
 	filecache_init();
 
@@ -578,17 +653,11 @@ error:
 
 void conn_close(void)
 {
-	int i;
-
 	filecache_savegrace();
 	clientid_reap(1);
 	filecache_reap(1);
 
-	for (i = 0; i < MAXCONNS; i++) {
-		if (conns[i].state != IDLE) {
-			close_conn(&(conns[i]));
-		}
-	}
+	close_all_conns();
 
 	if (udpsock != -1) close(udpsock);
 	if (tcpsock != -1) close(tcpsock);

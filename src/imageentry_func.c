@@ -254,7 +254,7 @@ restart:
 
 					/* Copy leafname into output buffer, translating some
 					   chars and stripping any ,xyz */
-					len = filename_riscosify(leafname, len, bufferpos, buffer + buflen - bufferpos, &filetype, conn->defaultfiletype, conn->xyzext);
+					len = filename_riscosify(leafname, len, bufferpos, buffer + buflen - bufferpos, &filetype, conn->defaultfiletype, conn->xyzext, 0);
 					if (len == 0) break; /* Buffer overflowed */
 
 					bufferpos += len + 1;
@@ -454,7 +454,7 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 		renameargs.to.name.size = leafnamelen;
 	} else {
 		/* Add ,xyz on if necessary to preserve filetype */
-		renameargs.to.name.data = addfiletypeext(leafname, leafnamelen, 0, filetype, &(renameargs.to.name.size), conn->defaultfiletype, conn->xyzext, conn->unixexfiletype, conn->pool);
+		renameargs.to.name.data = addfiletypeext(leafname, leafnamelen, 0, filetype, &(renameargs.to.name.size), conn->defaultfiletype, conn->xyzext, conn->unixexfiletype, 0, conn->pool);
 	}
 
 	err = NFSPROC(RENAME, (&renameargs, &renameres, conn));

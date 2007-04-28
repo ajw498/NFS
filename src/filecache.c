@@ -603,9 +603,9 @@ nstat filecache_setattr(char *path, struct stateid *stateid, unsigned int load, 
 	if (index != -1) {
 		cachedfiles[index].load = load;
 		cachedfiles[index].exec = exec;
-		cachedfiles[index].filesize = size;
 		cachedfiles[index].attr = attr;
 		if (setsize) {
+			cachedfiles[index].filesize = size;
 			OR(_swix(OS_Args, _INR(0,2), 3, cachedfiles[index].handle, size));
 			/* We must reduce the size of the cached data if it is
 			   bigger than the filesize, otherwise when it is
@@ -620,7 +620,7 @@ nstat filecache_setattr(char *path, struct stateid *stateid, unsigned int load, 
 	if (file) {
 		file->load = load;
 		file->exec = exec;
-		file->filesize = size;
+		if (setsize) file->filesize = size;
 		file->attr = attr;
 	}
 

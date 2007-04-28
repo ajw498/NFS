@@ -1,3 +1,8 @@
+v1.06 28-Apr-07
+Removed limit on number of concurrent connections.
+Fixed bug which could result in incorrect file sizes if setattr request done shortly after writing without setting the filesize.
+Added option to set filetype of MacOS resource forks, ignoring the filename extension.
+
 v1.05 16-Oct-06
 Files with a UnixEx filetype now get execute permissions set.
 Fixed a bug when reducing the size of a file straight after writing to it may get ignored.
