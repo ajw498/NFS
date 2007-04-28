@@ -111,7 +111,7 @@ static struct server_conn *new_conn(void)
 	/* Allocate buffers, adding an extra 4 for the record marker */
 	if ((conn->request = malloc(MFBUFFERSIZE + 4)) == NULL) goto err;
 	if ((conn->reply = malloc(MFBUFFERSIZE + 4)) == NULL) goto err;
-	if ((conn->pool = pinit(gpool)) == NULL) goto err;
+	if ((conn->pool = pinit(NULL)) == NULL) goto err;
 	conn->gpool = gpool;
 
 	conn->next = conns;
