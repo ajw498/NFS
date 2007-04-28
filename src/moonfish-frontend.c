@@ -109,6 +109,7 @@
 #define gadget_choices_NFS4         0x1F
 #define gadget_choices_ENCODING     0x24
 #define gadget_choices_AUTOLOAD     0x22
+#define gadget_choices_MACFORKS     0x25
 
 #define UNUSED(x) ((void)x)
 
@@ -166,8 +167,9 @@ static struct choices {
 	osbool nfs3;
 	osbool nfs4;
 	osbool autoload;
+	osbool macforks;
 	char encoding[STRMAX];
-} choices = {TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, ""};
+} choices = {TRUE, TRUE, TRUE, TRUE, TRUE, TRUE, FALSE, FALSE, ""};
 
 #define MAX_EXPORTS 127
 
@@ -333,6 +335,8 @@ static void parse_choices_file(void)
 			choices.udp = atoi(val);
 		} else if (CHECK("TCP")) {
 			choices.tcp = atoi(val);
+		} else if (CHECK("Macforks")) {
+			choices.macforks = atoi(val);
 		}
 	}
 	fclose(file);
@@ -364,6 +368,7 @@ static void write_choices_file(void)
 	fprintf(file, "Portmapper: %d\n", choices.portmapper);
 	fprintf(file, "UDP: %d\n", choices.udp);
 	fprintf(file, "TCP: %d\n", choices.tcp);
+	fprintf(file, "Macforks: %d\n", choices.macforks);
 
 	fclose(file);
 
@@ -468,6 +473,7 @@ static osbool choices_show(bits event_code, toolbox_action *event, toolbox_block
 	E(xoptionbutton_set_state(0, choicesid, gadget_choices_NFS3, choices.nfs3));
 	E(xoptionbutton_set_state(0, choicesid, gadget_choices_NFS4, choices.nfs4));
 	E(xoptionbutton_set_state(0, choicesid, gadget_choices_PORTMAPPER, choices.portmapper));
+	E(xoptionbutton_set_state(0, choicesid, gadget_choices_MACFORKS, choices.macforks));
 
 	E(xstringset_set_selected_string(0, choicesid, gadget_choices_ENCODING, choices.encoding));
 
@@ -558,6 +564,7 @@ static osbool choices_set(bits event_code, toolbox_action *event, toolbox_block 
 	E(xoptionbutton_get_state(0, choicesid, gadget_choices_NFS3, &choices.nfs3));
 	E(xoptionbutton_get_state(0, choicesid, gadget_choices_NFS4, &choices.nfs4));
 	E(xoptionbutton_get_state(0, choicesid, gadget_choices_PORTMAPPER, &choices.portmapper));
+	E(xoptionbutton_get_state(0, choicesid, gadget_choices_MACFORKS, &choices.macforks));
 
 	E(xstringset_get_selected_string(0, choicesid, gadget_choices_ENCODING, choices.encoding, STRMAX, NULL));
 
@@ -1056,8 +1063,8 @@ int main(int argc, char *argv[])
 	int i;
 
 	E(xtoolbox_initialise(0, 310, (wimp_message_list*)wimp_messages,
-							(toolbox_action_list*)toolbox_events,
-							"<Moonfish$Dir>", &messages, &id_block, 0, 0, 0));
+	                      (toolbox_action_list*)toolbox_events,
+	                      "<Moonfish$Dir>", &messages, &id_block, 0, 0, 0));
 	event_initialise(&id_block);
 	event_set_mask(1+256);
 

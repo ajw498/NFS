@@ -20,7 +20,8 @@
 <li><a href="#license">License</a><br>
 <li><a href="#introduction">Introduction</a><br>
 <li><a href="#setup">Installing</a><br>
-<li><a href="#options">Options</a><br>
+<li><a href="#options">Export Options</a><br>
+<li><a href="#choices">Global Choices</a><br>
 <li><a href="#performance">Improving Performance</a><br>
 <li><a href="#reportingbugs">Reporting Bugs</a><br>
 <li><a href="#knownbugs">Known Issues</a><br>
@@ -85,7 +86,7 @@ If you want the module loaded when the machine is booted (so that the exports ar
 <p>
 
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
-<h2><font color="#ffffff"><a name="options">Options</a></font></h2>
+<h2><font color="#ffffff"><a name="options">Export Options</a></font></h2>
 </td></tr></table>
 <p>
 In the exports window, there is a list of directories to export (initially this will be blank). You can select a directory from the list and edit or delete it using the respective buttons to the right. To add a new directory to the list, click on the Add button and fill in the details in the edit export window.
@@ -140,7 +141,7 @@ Controls adding of a ,xyz filetype extension. When set to never, no ,xyz extensi
 <p>
 
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
-<h2><font color="#ffffff"><a name="options">Options</a></font></h2>
+<h2><font color="#ffffff"><a name="choices">Global Choices</a></font></h2>
 </td></tr></table>
 <h4>UDP</h4>
 Enable connections over the UDP transport. This is what has been traditionally used for NFSv2 and NFSv3 connections.
@@ -166,6 +167,9 @@ Enables the NFSv4 protocol, listening on port 2049. The portmapper and mount pro
 <p>
 <h4>Autoload module at boot</h4>
 When set, this option creates a file in !Boot.Choices.Boot.Tasks (or equivalent) to load the Moonfish module when the machine is booted. This option will be unavailable unless you are running Moonfish as a configure plugin.
+<p>
+<h4>Ignore extensions of resource forks</h4>
+When set, the filetype of files with a filename beginning with "._" (as typically used to hold MacOS resource forks) is set to data, rather than being based on the filename extension. Filenames with an explicit ,xyz extention will still get the filetype specified.
 <p>
 
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>

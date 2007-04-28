@@ -198,7 +198,7 @@ char *filetype_to_mimetype(int filetype, struct pool *pool)
 	return buffer;
 }
 
-int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetyperet, int defaultfiletype, int xyzext)
+int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetyperet, int defaultfiletype, int xyzext, int macforks)
 {
 	int i;
 	int j;
@@ -263,7 +263,9 @@ int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *f
 		if (xyzext != NEVER) {
 			if (*filetyperet == -1) {
 				/* No ,xyz found */
-				if (dotext) {
+				if (macforks && (strncmp(name, "._", 2) == 0)) {
+					*filetyperet = MACFORKS_FILETYPE;
+				} else if (dotext) {
 					*filetyperet = ext_to_filetype(dotext, defaultfiletype);
 				} else {
 					/* No ,xyz and no extension, so use default */
@@ -307,7 +309,7 @@ unsigned int attr_to_mode(unsigned int attr, unsigned int oldmode, struct conn_i
 }
 
 
-char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, int defaultfiletype, int xyzext, int unixexfiletype, struct pool *pool)
+char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, int defaultfiletype, int xyzext, int unixexfiletype, int macforks, struct pool *pool)
 {
 	char *newleafname;
 
@@ -327,6 +329,8 @@ char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfile
 			/* Always add ,xyz */
 			extneeded = 1;
 		} else if (unixexfiletype && (newfiletype == UNIXEX_FILETYPE)) {
+			extneeded = 0;
+		} else if (macforks && (newfiletype == MACFORKS_FILETYPE) && (strncmp(leafname, "._", 2) == 0)) {
 			extneeded = 0;
 		} else {
 			/* Only add an extension if needed */

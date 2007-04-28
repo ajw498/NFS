@@ -54,6 +54,7 @@ struct choices {
 	iconv_t fromutf8;
 	iconv_t toenc;
 	iconv_t fromenc;
+	int macforks;
 };
 
 extern struct choices choices;

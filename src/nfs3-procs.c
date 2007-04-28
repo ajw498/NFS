@@ -74,7 +74,7 @@ static nstat diropargs_to_path(struct diropargs3 *where, char **path, int *filet
 		leaflen = sizeof(buffer2) - encleaflen;
 	}
 
-	leaflen = filename_riscosify(leaf, leaflen, buffer, sizeof(buffer), filetype, conn->export->defaultfiletype, conn->export->xyzext);
+	leaflen = filename_riscosify(leaf, leaflen, buffer, sizeof(buffer), filetype, conn->export->defaultfiletype, conn->export->xyzext, choices.macforks);
 
 	len = strlen(dirpath);
 	UR(*path = palloc(len + leaflen + 2, conn->pool));
@@ -600,7 +600,7 @@ enum accept_stat NFSPROC3_READDIR(struct readdirargs3 *args, struct readdirres3 
 			UF(leaf = filename_unixify(leaf, strlen(leaf), &leaflen, conn->pool));
 			type = ((unsigned int *)buffer)[4];
 			if (type == 1 || (type == 3 && conn->export->imagefs == 0)) {
-				UF(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, 1, conn->pool));
+				UF(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, 1, choices.macforks, conn->pool));
 			}
 
 			if (choices.toenc != (iconv_t)-1) {
@@ -703,7 +703,7 @@ enum accept_stat NFSPROC3_READDIRPLUS(struct readdirplusargs3 *args, struct read
 			memcpy(pathbuffer + pathlen + 1, leaf, leaflen + 1);
 			UF(leaf = filename_unixify(leaf, leaflen, &leaflen, conn->pool));
 			if (type == OBJ_FILE || (type == OBJ_IMAGE && conn->export->imagefs == 0)) {
-				UF(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, 1, conn->pool));
+				UF(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, 1, choices.macforks, conn->pool));
 			}
 
 			if (choices.toenc != (iconv_t)-1) {

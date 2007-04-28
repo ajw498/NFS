@@ -86,6 +86,7 @@ struct choices choices = {
 	.fromutf8 = (iconv_t)-1,
 	.toenc = (iconv_t)-1,
 	.fromenc = (iconv_t)-1,
+	.macforks = 0,
 };
 
 static int now;
@@ -550,6 +551,8 @@ static enum bool read_choices(struct pool *pool)
 			choices.udp = atoi(val);
 		} else if (CHECK("TCP")) {
 			choices.tcp = atoi(val);
+		} else if (CHECK("Macforks")) {
+			choices.macforks = atoi(val);
 		}
 	}
 	fclose(file);

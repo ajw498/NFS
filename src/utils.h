@@ -155,6 +155,9 @@
 /* The filetype returned for files with the executable bit set */
 #define UNIXEX_FILETYPE 0xFE6
 
+/* The filetype used for Mac resource forks */
+#define MACFORKS_FILETYPE 0xFFD
+
 /* Size of the fifo to use for pipelining. Must be at least 2, to allow
    READDIR to double buffer. Greater than 2 has negligible increase in
    performance. */
@@ -262,7 +265,7 @@ void log_error(os_error *err);
 
 
 /* Convert unix leafname into RISC OS format */
-int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetype, int defaultfiletype, int xyzext);
+int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetype, int defaultfiletype, int xyzext, int macforks);
 
 /* Convert a RISC OS leafname into unix format */
 char *filename_unixify(char *name, unsigned int len, unsigned int *newlen, struct pool *pool);
@@ -283,7 +286,7 @@ unsigned int mode_to_attr(unsigned int mode);
 unsigned int attr_to_mode(unsigned int attr, unsigned int oldmode, struct conn_info *conn);
 
 /* Add ,xyz onto the leafname if necessary */
-char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, int defaultfiletype, int xyzext, int unixexfiletype, struct pool *pool);
+char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, int defaultfiletype, int xyzext, int unixexfiletype, int macforks, struct pool *pool);
 
 /* Drop to user mode to trigger any pending callbacks */
 void trigger_callback(void);
