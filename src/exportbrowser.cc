@@ -166,6 +166,7 @@ void exportbrowser::drag_ended(bool adjust, rtk::events::user_drag_box& ev)
 	icon *src = static_cast<icon *>(ev.target());
 
 	if (application* app = parent_application()) {
+		saveop.load(info.host, src->text(), usetcp, nfsversion);
 		app->add(saveop);
 		events::save_to_app ev(saveop, src->text()); // FIXME sanitise leafname
 		ev.post();
@@ -189,11 +190,19 @@ void exportsave::get_block(const void** data,size_type* count)
 		if (data) *data=0;
 		if (count) *count=0;
 	} else {
-//		mount.load();
 		string str = mount.stringsave();
 		if (data) *data = str.data();
 		if (count) *count = str.size();
 		done = true;
 	}
+}
+
+void exportsave::load(const std::string& host, const std::string& exportname, bool tcp, int version)
+{
+	mount.load(mount.genfilename(host, exportname));
+	mount.server = host;
+	mount.exportname = exportname;
+	mount.nfs3 = version == 3;
+	mount.tcp = tcp;
 }
 
