@@ -40,12 +40,17 @@
 
 class ibicon:
 	public rtk::desktop::ibar_icon,
-	public rtk::events::menu_selection::handler
+	public rtk::events::menu_selection::handler,
+	public rtk::events::datasave::handler,
+	public rtk::events::dataload::handler
 {
 public:
 	ibicon(const std::string& icontext, const std::string& special);
 	void handle_event(rtk::events::menu_selection& ev);
 	void handle_event(rtk::events::mouse_click& ev);
+	void handle_event(rtk::events::datasave& ev);
+	void handle_event(rtk::events::dataload& ev);
+	std::string filename();
 	void opendir();
 	void closedir();
 	void mount(const char *config);

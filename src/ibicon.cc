@@ -37,6 +37,7 @@
 #include "rtk/events/close_window.h"
 #include "rtk/events/null_reason.h"
 #include "rtk/os/wimp.h"
+#include "rtk/swi/wimp.h"
 
 
 #include "sunfish-frontend.h"
@@ -85,31 +86,34 @@ ibicon::ibicon(const std::string& icontext, const std::string& special):
 	position(-5).priority(0x10000000);
 }
 
-void ibicon::opendir()
+string ibicon::filename()
 {
-	string cmd = "Filer_OpenDir Sunfish";
+	string name = "Sunfish";
 
 	if (specialfield.length() > 0) {
-		cmd += "#";
-		cmd += specialfield;
+		name += "#";
+		name += specialfield;
 	}
-	cmd += "::";
-	cmd += text();
-	cmd += ".$";
+	name += "::";
+	name += text();
+	name += ".$";
+
+	return name;
+}
+
+void ibicon::opendir()
+{
+	string cmd = "Filer_OpenDir ";
+
+	cmd += filename();
 	os::Wimp_StartTask(cmd.c_str(), 0);
 }
 
 void ibicon::closedir()
 {
-	string cmd = "Filer_CloseDir Sunfish";
+	string cmd = "Filer_CloseDir ";
 
-	if (specialfield.length() > 0) {
-		cmd += "#";
-		cmd += specialfield;
-	}
-	cmd += "::";
-	cmd += text();
-	cmd += ".$";
+	cmd += filename();
 	os::Wimp_StartTask(cmd.c_str(), 0);
 }
 
@@ -150,6 +154,65 @@ void ibicon::handle_event(rtk::events::mouse_click& ev)
 		} else {
 			app.browserwin.open(app);
 		}
+	}
+}
+
+void ibicon::handle_event(rtk::events::datasave& ev)
+{
+	if (text() == "") return;
+
+	string pathname = filename();
+
+	pathname += '.';
+
+	const char *defaultpath = getenv("Sunfish$DefaultPath");
+
+	if (defaultpath) {
+		pathname += defaultpath;
+		pathname += '.';
+	}
+
+	pathname += ev.leafname();
+
+	ev.reply(pathname, true);
+}
+
+void ibicon::handle_event(rtk::events::dataload& ev)
+{
+	if (text() == "") return;
+
+	if (ev.wimpblock().word[3] == 0) {
+		// Your ref is 0, so an original message not a reply
+		string pathname = filename();
+
+		const char *defaultpath = getenv("Sunfish$DefaultPath");
+
+		if (defaultpath) {
+			pathname += '.';
+			pathname += defaultpath;
+		}
+
+		os::wimp_block block;
+		int size = 24 + pathname.length();
+		size &= ~3;
+		ev.prepare_reply(block, swi::Message_FilerDeviceDir, size);
+		snprintf(block.byte + 20, sizeof(block) - 20, "%s", pathname.c_str());
+		os::Wimp_SendMessage(swi::User_Message, block, ev.thandle(), 0, 0);
+
+		string cmd = "Filer_OpenDir ";
+
+		cmd += pathname;
+		os::Wimp_StartTask(cmd.c_str(), 0);
+	} else {
+		string cmd = "Filer_OpenDir ";
+
+		cmd += ev.pathname();
+
+		cmd.erase(cmd.rfind("."));
+
+		os::Wimp_StartTask(cmd.c_str(), 0);
+
+		ev.reply();
 	}
 }
 
