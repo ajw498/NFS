@@ -122,8 +122,8 @@ void editfilenames::load(const string& host, string& exportname)
 	mountinfo.load(filename);
 
 	showalways.selected(mountinfo.showhidden == 1);
-	showroot.selected(mountinfo.showhidden == 0);
-	shownever.selected(mountinfo.showhidden == 2);
+	showroot.selected(mountinfo.showhidden == 2);
+	shownever.selected(mountinfo.showhidden == 0);
 	casesensitive.selected(mountinfo.casesensitive);
 	encoding.text(mountinfo.encoding);
 	ostringstream ftype;
@@ -147,9 +147,9 @@ void editfilenames::save()
 	if (showalways.selected()) {
 		mountinfo.showhidden = 1;
 	} else if (showroot.selected()) {
-		mountinfo.showhidden = 0;
-	} else if (shownever.selected()) {
 		mountinfo.showhidden = 2;
+	} else if (shownever.selected()) {
+		mountinfo.showhidden = 0;
 	}
 	mountinfo.casesensitive = casesensitive.selected();
 	mountinfo.encoding = encoding.text();
