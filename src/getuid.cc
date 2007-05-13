@@ -181,7 +181,7 @@ void getuid::create_mount(mountchoices& mountdetails, sunfish& app)
 	}
 
 	bool found;
-	ibicon *icon = app.add_mounticon(hostalias, sf, found);
+	ibicon *icon = app.add_mounticon(hostalias, sf, mountdetails.tcp, mountdetails.nfs3 ? 3 : 2, found);
 	icon->mount(mountdetails.stringsave().c_str());
 	icon->opendir();
 }

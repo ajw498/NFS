@@ -58,7 +58,7 @@ using rtk::graphics::box;
 
 sunfish::sunfish():
 	application("Sunfish newfe"), //FIXME
-	ibaricon("", "")
+	ibaricon("", "", false, 2)
 {
 	add(ibaricon);
 	hostaliases.load();
@@ -76,7 +76,7 @@ sunfish::sunfish():
 	}
 }
 
-ibicon *sunfish::add_mounticon(const std::string &name, const std::string &specialfield, bool& found)
+ibicon *sunfish::add_mounticon(const std::string &name, const std::string &specialfield, bool usetcp, int nfsversion, bool& found)
 {
 	for (unsigned i = 0; i < ibaricons.size(); i++) {
 		if ((ibaricons[i]->text() == name) && (ibaricons[i]->specialfield == specialfield)) {
@@ -85,7 +85,7 @@ ibicon *sunfish::add_mounticon(const std::string &name, const std::string &speci
 		}
 	}
 
-	ibicon *i = new ibicon(name, specialfield);
+	ibicon *i = new ibicon(name, specialfield, usetcp, nfsversion);
 	found = false;
 	if (ibaricons.size() > 0) {
 		if (ibaricons[ibaricons.size() - 1]->layout_valid()) {
@@ -114,7 +114,7 @@ void sunfish::handle_event(rtk::events::menu_selection& ev)
 			FILE *file = fopen("<Choices$Write>.Sunfish.savemounts","w");
 			if (file == NULL) throw "Cannot open file";
 			for (vector<ibicon*>::iterator j = ibaricons.begin(); j != ibaricons.end(); j++) {
-				fprintf(file, "%s\n%s\n", (*j)->text().c_str(), (*j)->specialfield.c_str());
+				fprintf(file, "%s\n%s\n%d\n%d\n", (*j)->text().c_str(), (*j)->specialfield.c_str(), (*j)->tcp, (*j)->nfsversion);
 			}
 			fclose(file);
 			break;
@@ -176,35 +176,28 @@ int main(void)
 
 void sunfish::getmounts()
 {
-	_kernel_oserror *err;
 	bool found;
-	int start = 0;
-	do {
-		const char *discname;
-		const char *specialfield;
-
-		err = _swix(Sunfish_ListMounts, _IN(0) | _OUTR(0,2), start, &start, &discname, &specialfield);
-		/* Ignore errors */
-		if (err) break;
-
-		if (discname) add_mounticon(discname, specialfield ? specialfield : "", found);
-	} while (start);
 
 	FILE *file = fopen("Choices:Sunfish.savemounts","r");
 	if (file) {
 		char discname[256];
 		char specialfield[256];
+		char buf[256];
 		while (1) {
-			if (fgets(discname, 256, file) == NULL) break;
+			if (fgets(discname, sizeof(discname), file) == NULL) break;
 			discname[255] = '\0';
 			char *end = discname;
 			while (*end && *end != '\n') end++;
 			if (*end == '\n') *end = '\0';
-			if (fgets(specialfield, 256, file) == NULL) break;
+			if (fgets(specialfield, sizeof(specialfield), file) == NULL) break;
 			specialfield[255] = '\0';
 			end = specialfield;
 			while (*end && *end != '\n') end++;
 			if (*end == '\n') *end = '\0';
+			if (fgets(buf, sizeof(buf), file) == NULL) break;
+			bool usetcp = atoi(buf);
+			if (fgets(buf, sizeof(buf), file) == NULL) break;
+			int nfsversion = atoi(buf);
 
 			string hostname;
 			string exportname;
@@ -220,12 +213,12 @@ void sunfish::getmounts()
 			mountdetails.load(filename);
 			mountdetails.server = hostname;
 			mountdetails.exportname = exportname;
-			/* FIXME mountdetails.tcp = usetcp;
-			mountdetails.nfs3 = nfsversion == 3;*/
+			mountdetails.tcp = usetcp;
+			mountdetails.nfs3 = nfsversion == 3;
 
 			ibicon *icon = 0;
 			try {
-				icon = add_mounticon(discname, specialfield, found);
+				icon = add_mounticon(discname, specialfield, usetcp, nfsversion, found);
 				if (!found) icon->mount(mountdetails.stringsave().c_str());
 			}
 			catch (...) {
@@ -244,4 +237,18 @@ void sunfish::getmounts()
 
 		fclose(file);
 	}
+
+	_kernel_oserror *err;
+	int start = 0;
+
+	do {
+		const char *discname;
+		const char *specialfield;
+
+		err = _swix(Sunfish_ListMounts, _IN(0) | _OUTR(0,2), start, &start, &discname, &specialfield);
+		/* Ignore errors */
+		if (err) break;
+
+		if (discname) add_mounticon(discname, specialfield ? specialfield : "", false, 2, found);
+	} while (start);
 }

@@ -45,7 +45,7 @@ class ibicon:
 	public rtk::events::dataload::handler
 {
 public:
-	ibicon(const std::string& icontext, const std::string& special);
+	ibicon(const std::string& icontext, const std::string& special, bool usetcp, int version);
 	void handle_event(rtk::events::menu_selection& ev);
 	void handle_event(rtk::events::mouse_click& ev);
 	void handle_event(rtk::events::datasave& ev);
@@ -58,6 +58,8 @@ public:
 	rtk::desktop::menu_item ibdismount;
 	rtk::desktop::menu_item ibsave;
 	std::string specialfield;
+	bool tcp;
+	int nfsversion;
 private:
 	rtk::desktop::menu ibmenu;
 	rtk::desktop::menu_item ibinfo;

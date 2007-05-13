@@ -59,7 +59,7 @@ public:
 	sunfish();
 	void handle_event(rtk::events::menu_selection& ev);
 	void handle_event(rtk::events::close_window& ev);
-	ibicon *add_mounticon(const std::string &name, const std::string &specialfield, bool& found);
+	ibicon *add_mounticon(const std::string &name, const std::string &specialfield, bool usetcp, int nfsversion, bool& found);
 	void getmounts();
 	getuid ggetuid;
 	hostbrowser browserwin;

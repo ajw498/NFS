@@ -50,8 +50,10 @@ using rtk::graphics::point;
 using rtk::graphics::box;
 
 
-ibicon::ibicon(const std::string& icontext, const std::string& special):
-	specialfield(special)
+ibicon::ibicon(const std::string& icontext, const std::string& special, bool usetcp, int version):
+	specialfield(special),
+	tcp(usetcp),
+	nfsversion(version)
 {
 	proginfo.add("Name", "Sunfish");
 	proginfo.add("Purpose", "Mount NFS servers");
