@@ -51,7 +51,7 @@ class editconnection:
 	public events::key_pressed::handler
 {
 public:
-	editconnection();
+	editconnection(int maxbuf);
 	void open(const string& host, string& exportname, sunfish& app);
 	void handle_event(events::mouse_click& ev);
 	void handle_event(events::key_pressed& ev);

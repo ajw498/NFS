@@ -37,8 +37,12 @@ using rtk::graphics::point;
 using rtk::graphics::box;
 
 
-exportbrowser::exportbrowser(hostinfo host) :
-	info(host)
+exportbrowser::exportbrowser(hostinfo host, int port, bool tcp, int version) :
+	info(host),
+	usetcp(tcp),
+	nfsversion(version),
+	useport(port),
+	connectionwin(((version >= 3) && tcp) ? 32768 : 8192)
 {
 	title(info.host);
 }
@@ -60,18 +64,14 @@ void exportbrowser::open(sunfish& app)
 	smallicons(app.smallicons());
 }
 
-void exportbrowser::refresh(int port, bool tcp, int version)
+void exportbrowser::refresh()
 {
 	char *err;
 	struct exportinfo *res;
 
-	usetcp = tcp;
-	nfsversion = version;
-	useport = port;
-
 	remove_all_icons();
 
-	err = browse_getexports(info.host, port, version == 3, tcp, &res);
+	err = browse_getexports(info.host, useport, nfsversion == 3, usetcp, &res);
 	if (err) throw err;
 	while (res) {
 		add_icon(res->exportname, "file_1b6");
@@ -139,7 +139,7 @@ void exportbrowser::handle_event(rtk::events::menu_selection& ev)
 	if (ev.target() == &clear) {
 		for (int i = icons.size() - 1; i >= 0; i--) icons[i]->selected(false);
 	} else if (ev.target() == &refreshwin) {
-		refresh(useport, usetcp, nfsversion);
+		refresh();
 	} else if (ev.target() == &namemount) {
 		namewin.open(info.host, menuitem, app);
 	} else if (ev.target() == &filenames) {

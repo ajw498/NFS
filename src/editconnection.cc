@@ -27,8 +27,8 @@
 
 #include <sstream>
 
-editconnection::editconnection() :
-	maxdata(1024, 8192, 1024)
+editconnection::editconnection(int maxbuf) :
+	maxdata(1024, maxbuf, 1024)
 {
 	title("Connection choices");
 	close_icon(false);
@@ -81,6 +81,7 @@ void editconnection::load(const string& host, string& exportname)
 	mountinfo.load(filename);
 
 	maxdata.value(mountinfo.maxdatabuffer ? mountinfo.maxdatabuffer : 4096);
+	maxdata.snap();
 	pipelining.selected(mountinfo.pipelining);
 	ostringstream time;
 	time<<mountinfo.timeout;

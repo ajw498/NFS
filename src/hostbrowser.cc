@@ -81,8 +81,8 @@ void hostbrowser::openexportbrowser(hostinfo *info, bool tcp, int version)
 
 	sunfish& app = *static_cast<sunfish *>(parent_application());
 
-	exportbrowser *eb = new exportbrowser(*info);
-	eb->refresh(port, tcp, vers);
+	exportbrowser *eb = new exportbrowser(*info, port, tcp, vers);
+	eb->refresh();
 	eb->open(app);
 
 	app.exportbrowsers.push_back(eb);
