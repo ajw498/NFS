@@ -41,7 +41,22 @@ editfilenames::editfilenames()
 	showroot.text("Show hidden files except in root of mount").esg(1);
 	shownever.text("Never show hidden files").esg(1);
 	casesensitive.text("Case sensitive");
-//	encoding.labeltext("Encoding");
+	encoding.label("Encoding");
+	encoding.menutitle("Encoding");
+	encoding.add("No conversion");
+	encoding.add("UTF-8");
+	encoding.add("ISO-8859-1");
+	encoding.add("ISO-8859-2");
+	encoding.add("ISO-8859-3");
+	encoding.add("ISO-8859-4");
+	encoding.add("ISO-8859-5");
+	encoding.add("ISO-8859-6");
+	encoding.add("ISO-8859-7");
+	encoding.add("ISO-8859-8");
+	encoding.add("ISO-IR-182");
+	encoding.add("CP866");
+	encoding.value("                    ");
+	encoding.writable(true);
 	defaultfiletypelabel.text("Default filetype");
 	defaultfiletype.min_size(point(96,0));
 	defaultfiletype.validation(defaultfiletype.validation()+";A0-9A-Fa-f");
@@ -125,7 +140,7 @@ void editfilenames::load(const string& host, string& exportname)
 	showroot.selected(mountinfo.showhidden == 2);
 	shownever.selected(mountinfo.showhidden == 0);
 	casesensitive.selected(mountinfo.casesensitive);
-	encoding.text(mountinfo.encoding);
+	encoding.value(mountinfo.encoding);
 	ostringstream ftype;
 	ftype << hex << uppercase << mountinfo.defaultfiletype;
 	defaultfiletype.text(ftype.str());
@@ -152,7 +167,7 @@ void editfilenames::save()
 		mountinfo.showhidden = 0;
 	}
 	mountinfo.casesensitive = casesensitive.selected();
-	mountinfo.encoding = encoding.text();
+	mountinfo.encoding = encoding.value();
 	mountinfo.defaultfiletype = strtoul(defaultfiletype.text().c_str(), NULL, 16);
 	if (extalways.selected()) {
 		mountinfo.addext = 2;

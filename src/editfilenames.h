@@ -31,6 +31,7 @@
 #include "rtk/desktop/radio_button.h"
 #include "rtk/desktop/option_button.h"
 #include "rtk/desktop/labelled_box.h"
+#include "rtk/desktop/string_set.h"
 #include "rtk/desktop/grid_layout.h"
 #include "rtk/desktop/row_layout.h"
 #include "rtk/desktop/column_layout.h"
@@ -67,7 +68,7 @@ private:
 	radio_button showroot;
 	radio_button shownever;
 	option_button casesensitive;
-	writable_field encoding; // FIXME stringset
+	string_set<string> encoding;
 	icon defaultfiletypelabel;
 	writable_field defaultfiletype;
 	radio_button extalways;
