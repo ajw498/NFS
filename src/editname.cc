@@ -56,8 +56,16 @@ void editname::open(const string& host, const string& exportname, sunfish& app)
 	// Open window near mouse position.
 	os::pointer_info_get blk;
 	os::Wimp_GetPointerInfo(blk);
+	if (blk.p.x() + min_bbox().xsize() + 4 > app.bbox().xmax()) {
+		blk.p.x(app.bbox().xmax() - (min_bbox().xsize() + 4));
+	} else {
+		blk.p -= point(64,0);
+	}
+	if (blk.p.y() - min_bbox().ysize() < 0) {
+		blk.p.y(min_bbox().ysize());
+	}
 
-	app.add(*this, blk.p - point(64,0));
+	app.add(*this, blk.p);
 
 	name.set_caret_position(point(),-1,name.text().length());
 }

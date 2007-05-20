@@ -98,7 +98,14 @@ void editconnection::open(const string& host, string& exportname, sunfish& app)
 	// Open window near mouse position.
 	os::pointer_info_get blk;
 	os::Wimp_GetPointerInfo(blk);
-	blk.p -= point(64,0);
+	if (blk.p.x() + min_bbox().xsize() + 4 > app.bbox().xmax()) {
+		blk.p.x(app.bbox().xmax() - (min_bbox().xsize() + 4));
+	} else {
+		blk.p -= point(64,0);
+	}
+	if (blk.p.y() - min_bbox().ysize() < 0) {
+		blk.p.y(min_bbox().ysize());
+	}
 
 	app.add(*this,blk.p);
 
