@@ -106,9 +106,8 @@ void hostbrowser::broadcast()
 	broadcasttime = clock();
 	broadcasttype = BROADCAST;
 
-	if (rtk::desktop::application* app=parent_application()) {
-		app->register_null(*this);
-	}
+	rtk::desktop::application& app=*parent_application();
+	app.register_null(*this);
 
 	remove_all_icons();
 	hostinfos.erase(hostinfos.begin(),hostinfos.end());
@@ -118,10 +117,9 @@ void hostbrowser::broadcast()
 		char *err = browse_gethost(&info, HOST, i->c_str());
 		if (err) {
 			extrahosts.erase(i);
-			throw err;
-		}
-
-		if (info.valid) {
+			os::Wimp_ReportError(0, err, app.name().c_str(), 0, 0);
+			break; // i is no longer valid
+		} else if (info.valid) {
 			hostinfos[info.host] = info;
 			add_icon(info.host, "fileserver");
 		}
