@@ -672,7 +672,7 @@ static void poll_connections(void)
 			entry->error = 0;
 			/* Fallthrough */
 		case TX:
-			if (t > entry->lastactivity + entry->conn->timeout * CLOCKS_PER_SEC) {
+			if (t > entry->lastactivity + entry->conn->timeout) {
 				ret = ETIMEDOUT;
 			} else {
 				ret = poll_tx(entry);
@@ -693,7 +693,7 @@ static void poll_connections(void)
 			entry->status = RX;
 			/* Fallthrough */
 		case RX:
-			if (t > entry->lastactivity + entry->conn->timeout * CLOCKS_PER_SEC) {
+			if (t > entry->lastactivity + entry->conn->timeout) {
 				ret = ETIMEDOUT;
 			} else {
 				ret = poll_rx(entry->conn);

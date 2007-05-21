@@ -34,6 +34,7 @@
 #include "rtk/desktop/row_layout.h"
 #include "rtk/desktop/column_layout.h"
 #include "rtk/desktop/number_range.h"
+#include "rtk/desktop/min_size.h"
 #include "rtk/events/mouse_click.h"
 #include "rtk/events/key_pressed.h"
 #include "button_row_layout.h"
@@ -63,15 +64,12 @@ private:
 	number_range<int> maxdata;
 	option_button pipelining;
 	icon timeoutlabel;
-	writable_field timeout;
-	icon timeoutunits;
-	icon retrieslabel;
-	writable_field retries;
+	number_range<int> timeout;
+	min_size timeoutsize;
 	option_button logging;
 	action_button cancel;
 	default_button savebutton;
 	column_layout layout1;
-	grid_layout layout2;
 	button_row_layout layout3;
 };
 

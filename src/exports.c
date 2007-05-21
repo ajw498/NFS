@@ -124,7 +124,7 @@ static struct export *parse_line(char *line, struct pool *pool)
 		export->mask = 0;
 	} else {
 		struct hostent *hp;
-		ER(gethostbyname_timeout(host, 5, &hp));
+		ER(gethostbyname_timeout(host, 500, &hp));
 		memcpy(&(export->host), hp->h_addr, hp->h_length);
 	}
 

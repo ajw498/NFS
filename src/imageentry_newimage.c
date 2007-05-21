@@ -283,8 +283,8 @@ os_error *func_newimage(unsigned int fileswitchhandle, char *config, struct conn
 	conn->tcp = 0;
 	conn->server = "";
 	conn->export = "";
-	conn->timeout = 3;
-	conn->retries = 2;
+	conn->timeout = 0;
+	conn->retries = -1;
 	conn->hidden = 1;
 	conn->umask = 022;
 	conn->unumask = 0;
@@ -346,6 +346,12 @@ os_error *func_newimage(unsigned int fileswitchhandle, char *config, struct conn
 	maxbuf = conn->tcp ? MAXDATABUFFER_TCP_DEFAULT : MAXDATABUFFER_UDP_DEFAULT;
 	if ((conn->maxdatabuffer == 0) || (conn->maxdatabuffer > maxbuf)) {
 		conn->maxdatabuffer = maxbuf;
+	}
+
+	conn->timeout *= 100;
+	if (conn->retries < 0) {
+		conn->retries = (int)(conn->timeout / (conn->tcp ? 200 : 50));
+		conn->timeout /= conn->retries;
 	}
 
 	if (conn->machinename == NULL) {

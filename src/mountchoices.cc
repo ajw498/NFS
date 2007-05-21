@@ -60,8 +60,7 @@ mountchoices::mountchoices(void) :
 	mountport(0),
 	maxdatabuffer(0),
 	pipelining(false),
-	timeout(3),
-	retries(2),
+	timeout(6),
 	logging(false),
 	localportmin(0),
 	localportmax(0),
@@ -135,7 +134,6 @@ string mountchoices::stringsave()
 	str << "\nMaxDataBuffer: " << maxdatabuffer;
 	str << "\nPipelining: " << pipelining;
 	str << "\nTimeout: " << timeout;
-	str << "\nRetries: " << retries;
 	str << "\nLogging: " << logging;
 
 	return str.str();
@@ -160,8 +158,6 @@ void mountchoices::load(const string& filename)
 {
 	FILE *file;
 	char buffer[STRMAX];
-
-//	snprintf(leafname, STRMAX, "%s", mountname);
 
 	file = fopen(filename.c_str(), "r");
 	if (file == NULL) return;
@@ -230,8 +226,6 @@ void mountchoices::load(const string& filename)
 			showhidden = (int)strtol(val, NULL, 10);
 		} else if (CHECK("Timeout")) {
 			timeout = (int)strtol(val, NULL, 10);
-		} else if (CHECK("Retries")) {
-			retries = (int)strtol(val, NULL, 10);
 		} else if (CHECK("DefaultFiletype")) {
 			defaultfiletype = 0xFFF & (int)strtol(val, NULL, 16);
 		} else if (CHECK("AddExt")) {

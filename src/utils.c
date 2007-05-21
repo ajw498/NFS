@@ -446,7 +446,7 @@ os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct hosten
 		err = _swix(OS_ReadMonotonicTime, _OUT(0), &endtime);
 		if (err) return err;
 
-	} while (endtime - starttime < timeout * 100);
+	} while (endtime - starttime < timeout);
 
 	if (errnum == 0) return NULL; /* Host found */
 

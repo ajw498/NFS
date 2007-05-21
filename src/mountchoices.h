@@ -45,7 +45,6 @@ public:
 	int maxdatabuffer;
 	bool pipelining;
 	int timeout;
-	int retries;
 	bool logging;
 	string server;
 	string exportname;

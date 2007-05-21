@@ -45,7 +45,7 @@ static os_error *browse_initconn(struct conn_info *conn, const char *host, int t
 	conn->nfs_port = 0;
 	conn->pcnfsd_port = 0;
 	conn->tcp = tcp;
-	conn->timeout = 2;
+	conn->timeout = 200;
 	conn->retries = 1;
 	conn->username = NULL;
 	conn->password = NULL;
