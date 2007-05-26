@@ -70,7 +70,7 @@ public:
 	void search(std::string host);
 	void open(sunfish& app);
 private:
-	void openexportbrowser(hostinfo *info, bool tcp, int version);
+	void openexportbrowser(hostinfo *info, bool udp, bool tcp, int version);
 	hostinfo *menuinfo;
 	time_t broadcasttime;
 	enum broadcast_type broadcasttype;

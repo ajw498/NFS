@@ -54,34 +54,36 @@ using namespace std;
 using namespace rtk::graphics;
 
 
-void hostbrowser::openexportbrowser(hostinfo *info, bool tcp, int version)
+void hostbrowser::openexportbrowser(hostinfo *info, bool udp, bool tcp, int version)
 {
 	int port = 0;
 	int vers = 0;
+	bool usetcp = false;
 
-	if (tcp  && (version >= 3) && (port == 0)) {
-		port = info->mount3tcpport;
-		vers = 3;
-	}
-	if (tcp  && (version >= 2) && (port == 0)) {
-		port = info->mount1tcpport;
-		vers = 2;
-	}
-	if (tcp  && (port == 0)) tcp = false;
-	if (!tcp && (version >= 3) && (port == 0)) {
+	if (udp && (version >= 3) && (port == 0)) {
 		port = info->mount3udpport;
 		vers = 3;
 	}
-	if (!tcp && (version >= 2) && (port == 0)) {
+	if (tcp && (version >= 3) && (port == 0)) {
+		port = info->mount3tcpport;
+		vers = 3;
+		usetcp = true;
+	}
+	if (udp && (version >= 2) && (port == 0)) {
 		port = info->mount1udpport;
 		vers = 2;
+	}
+	if (tcp && (version >= 2) && (port == 0)) {
+		port = info->mount1tcpport;
+		vers = 2;
+		usetcp = true;
 	}
 
 	if (port == 0) throw "No suitable mount service found on remote server";
 
 	sunfish& app = *static_cast<sunfish *>(parent_application());
 
-	exportbrowser *eb = new exportbrowser(*info, port, tcp, vers);
+	exportbrowser *eb = new exportbrowser(*info, port, usetcp, vers);
 	eb->refresh();
 	eb->open(app);
 
@@ -90,7 +92,7 @@ void hostbrowser::openexportbrowser(hostinfo *info, bool tcp, int version)
 
 void hostbrowser::doubleclick(const std::string& item, rtk::events::mouse_click& ev)
 {
-	openexportbrowser(&(hostinfos[item]), true, 4);
+	openexportbrowser(&(hostinfos[item]), true, true, 4);
 }
 
 hostbrowser::hostbrowser() :
@@ -230,7 +232,7 @@ void hostbrowser::open_menu(const std::string& item, bool selection, rtk::events
 	udpprotocol.title("Protocol");
 	udpprotocol.add(udpnfs2, 0);
 	udpprotocol.add(udpnfs3, 1);
-	udpprotocol.add(udpnfs4, 2);
+//	udpprotocol.add(udpnfs4, 2);
 	udpnfs2.text("NFSv2");
 	udpnfs2.enabled(menuinfo->mount1udpport);
 	udpnfs3.text("NFSv3");
@@ -241,7 +243,7 @@ void hostbrowser::open_menu(const std::string& item, bool selection, rtk::events
 	tcpprotocol.title("Protocol");
 	tcpprotocol.add(tcpnfs2, 0);
 	tcpprotocol.add(tcpnfs3, 1);
-	tcpprotocol.add(tcpnfs4, 2);
+//	tcpprotocol.add(tcpnfs4, 2);
 	tcpnfs2.text("NFSv2");
 	tcpnfs2.enabled(menuinfo->mount1tcpport);
 	tcpnfs3.text("NFSv3");
@@ -272,23 +274,23 @@ void hostbrowser::handle_event(rtk::events::menu_selection& ev)
 		smallicons(true);
 		app.smallicons(true);
 	} else if (ev.target() == &browseitem) {
-		openexportbrowser(menuinfo, true, 4);
+		openexportbrowser(menuinfo, true, true, 4);
 	} else if (ev.target() == &udp) {
-		openexportbrowser(menuinfo, false, 4);
+		openexportbrowser(menuinfo, true, false, 4);
 	} else if (ev.target() == &tcp) {
-		openexportbrowser(menuinfo, true, 4);
+		openexportbrowser(menuinfo, false, true, 4);
 	} else if (ev.target() == &udpnfs2) {
-		openexportbrowser(menuinfo, false, 2);
+		openexportbrowser(menuinfo, true, false, 2);
 	} else if (ev.target() == &udpnfs3) {
-		openexportbrowser(menuinfo, false, 3);
+		openexportbrowser(menuinfo, true, false, 3);
 	} else if (ev.target() == &udpnfs4) {
-		openexportbrowser(menuinfo, false, 4);
+		openexportbrowser(menuinfo, true, false, 4);
 	} else if (ev.target() == &tcpnfs2) {
-		openexportbrowser(menuinfo, true, 2);
+		openexportbrowser(menuinfo, false, true, 2);
 	} else if (ev.target() == &tcpnfs3) {
-		openexportbrowser(menuinfo, true, 3);
+		openexportbrowser(menuinfo, false, true, 3);
 	} else if (ev.target() == &tcpnfs4) {
-		openexportbrowser(menuinfo, true, 4);
+		openexportbrowser(menuinfo, false, true, 4);
 	}
 }
 
