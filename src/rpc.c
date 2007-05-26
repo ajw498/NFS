@@ -331,7 +331,7 @@ os_error *rpc_init_connection(struct conn_info *conn)
 	memset(&(conn->sockaddr), 0, sizeof(conn->sockaddr));
 
 	if (conn->server) {
-		err = gethostbyname_timeout(conn->server, conn->timeout, &hp);
+		err = gethostbyname_timeout(conn->server, conn->timeout * conn->retries, &hp);
 		if (err) return err;
 
 		memcpy(&(conn->sockaddr.sin_addr), hp->h_addr, hp->h_length);

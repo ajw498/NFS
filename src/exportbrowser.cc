@@ -28,6 +28,7 @@
 #include "sunfish.h"
 #include "sunfishdefs.h"
 #include "sunfish-frontend.h"
+#include "utils.h"
 
 
 using namespace std;
@@ -163,19 +164,35 @@ void exportbrowser::handle_event(rtk::events::menu_selection& ev)
 
 void exportbrowser::drag_ended(bool adjust, rtk::events::user_drag_box& ev)
 {
-	icon *src = static_cast<icon *>(ev.target());
+	icon *srcicon = static_cast<icon *>(ev.target());
 
 	if (application* app = parent_application()) {
-		saveop.load(info.host, src->text(), usetcp, nfsversion);
+		saveop.load(info.host, srcicon->text(), usetcp, nfsversion);
 		app->add(saveop);
-		events::save_to_app ev(saveop, src->text()); // FIXME sanitise leafname
-		ev.post();
+		char buf[256];
+		int len = srcicon->text().length();
+		char src[len];
+		for (int i = 0; i < len; i++) {
+			if (srcicon->text()[i] == '/') {
+				src[i] = '.';
+			} else {
+				src[i] = srcicon->text()[i];
+			}
+		}
+		len = filename_riscosify(src, len, buf, sizeof(buf), NULL, 0xFFF, NEVER, 0);
+		if (len) {
+			// Change dots back to slashes, as we want to fit the
+			// whole pathname as the leafname
+			for (int i = 0; i < len; i++) {
+				if (buf[i] == '.') buf[i] = '/';
+			}
+			events::save_to_app ev(saveop, buf);
+			ev.post();
+		}
 	}
-	//FIXME clear selection
-	// handle selection drag
 
-	// This method should be a save_to_app handler
-
+	// Deselect all icons
+	for (int i = icons.size() - 1; i >= 0; i--) icons[i]->selected(false);
 }
 
 exportsave::exportsave()

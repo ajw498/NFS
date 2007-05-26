@@ -137,7 +137,7 @@ os_error *ENTRYFUNC(file_writecatinfo) (char *filename, unsigned int load, unsig
 	commonfh_to_fh(sattrargs.file, finfo->objhandle);
 #ifdef NFS3
 	sattrargs.attributes.mode.set_it = TRUE;
-	sattrargs.attributes.mode.u.mode = attr_to_mode(attr, finfo->attributes.mode, conn);
+	sattrargs.attributes.mode.u.mode = attr_to_mode(attr, finfo->attributes.mode, conn->umask, conn->unumask);
 	sattrargs.attributes.uid.set_it = FALSE;
 	sattrargs.attributes.gid.set_it = FALSE;
 	sattrargs.attributes.atime.set_it = DONT_CHANGE;
@@ -145,7 +145,7 @@ os_error *ENTRYFUNC(file_writecatinfo) (char *filename, unsigned int load, unsig
 	sattrargs.attributes.size.set_it = FALSE;
 	sattrargs.guard.check = FALSE;
 #else
-	sattrargs.attributes.mode = attr_to_mode(attr, finfo->attributes.mode, conn);
+	sattrargs.attributes.mode = attr_to_mode(attr, finfo->attributes.mode, conn->umask, conn->unumask);
 	sattrargs.attributes.uid = NOVALUE;
 	sattrargs.attributes.gid = NOVALUE;
 	sattrargs.attributes.size = NOVALUE;

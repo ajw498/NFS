@@ -8,7 +8,7 @@
 #define RPC_H
 
 #include "utils.h"
-
+#include "clientconn.h"
 
 os_error *rpc_prepare_call(unsigned int prog, unsigned int vers, unsigned int proc, struct conn_info *conn);
 

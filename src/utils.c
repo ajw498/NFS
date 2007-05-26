@@ -114,7 +114,7 @@ nstat nfserr_removenfs4(nstat errnum)
 
 static int localutf8 = 0;
 
-char *filename_unixify(char *name, unsigned int len, unsigned int *newlen, struct pool *pool)
+char *filename_unixify(const char *name, unsigned int len, unsigned int *newlen, struct pool *pool)
 {
 	char *namebuffer;
 	int i;
@@ -198,7 +198,7 @@ char *filetype_to_mimetype(int filetype, struct pool *pool)
 	return buffer;
 }
 
-int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetyperet, int defaultfiletype, int xyzext, int macforks)
+int filename_riscosify(const char *name, int namelen, char *buffer, int buflen, int *filetyperet, int defaultfiletype, int xyzext, int macforks)
 {
 	int i;
 	int j;
@@ -293,18 +293,18 @@ unsigned int mode_to_attr(unsigned int mode)
 }
 
 /* Convert RISC OS attributes to a unix mode */
-unsigned int attr_to_mode(unsigned int attr, unsigned int oldmode, struct conn_info *conn)
+unsigned attr_to_mode(unsigned attr, unsigned oldmode, unsigned umask, unsigned unumask)
 {
 	unsigned int newmode;
 	newmode = oldmode & ~0666; /* Preserve existing type and execute bits */
-	newmode |= conn->unumask;
+	newmode |= unumask;
 	newmode |= (attr & 0x01) << 8; /* Owner read */
 	newmode |= (attr & 0x02) << 6; /* Owner write */
 	newmode |= (attr & 0x10) << 1; /* Group read */
 	newmode |= (attr & 0x20) >> 1; /* Group write */
 	newmode |= (attr & 0x10) >> 2; /* Others read */
 	newmode |= (attr & 0x20) >> 4; /* Others write */
-	newmode &= ~(conn->umask);
+	newmode &= ~umask;
 	return newmode;
 }
 

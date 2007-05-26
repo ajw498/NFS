@@ -20,6 +20,7 @@
 #endif
 
 #include "utils.h"
+#include "clientconn.h"
 
 
 #ifdef NFS3

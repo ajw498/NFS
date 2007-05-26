@@ -87,7 +87,6 @@ void filer_window::start_drag(rtk::events::mouse_click& ev, rtk::desktop::icon* 
 		} else {
 			ic->drag(ic->bbox(),5);
 		}
-		/* FIXME? handle more than one*/
 	} else if ((ic == NULL) && _allowselection) {
 		_icondrag = false;
 		rtk::graphics::point p = ev.position() + layout.origin();

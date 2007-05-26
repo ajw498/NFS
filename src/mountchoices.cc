@@ -53,7 +53,7 @@ mountchoices::mountchoices(void) :
 	unixex(false),
 	defaultfiletype(0xFFF),
 	addext(1),
-	unumask(0), // FIXME?
+	unumask(0600),
 	portmapperport(0),
 	nfsport(0),
 	pcnfsdport(0),

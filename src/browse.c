@@ -73,7 +73,7 @@ static os_error *browse_initconn(struct conn_info *conn, const char *host, int t
 	conn->rxmutex = NULL;
 	conn->reference = 0;
 	conn->server = (char*)host;
-	conn->export = "";
+	conn->exportname = "";
 
 	return rpc_init_connection(conn);
 }

@@ -7,6 +7,9 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <kernel.h>
 #include <sys/types.h>
@@ -163,92 +166,11 @@
    performance. */
 #define FIFOSIZE 2
 
-struct commonfh {
-	char handle[MAXFHSIZE];
-	int size;
-};
-
-/* All information associated with an open file */
-struct file_handle {
-	struct conn_info *conn;
-	struct commonfh fhandle;
-	unsigned int extent;
-	unsigned int load;
-	unsigned int exec;
-	int dir;
-	int commitneeded;
-	char verf[8];
-};
-
 #ifndef NSTAT
 #define NSTAT
 typedef int nstat;
 #endif
 
-
-/* An tx or rx buffer. */
-struct buffer_list {
-	int len;
-	int readlen;
-	int lastsegment;
-	int position;
-	char buffer[SFBUFFERSIZE];
-	struct buffer_list *next;
-};
-
-/* All infomation associated with a connection */
-struct conn_info {
-	char *server;
-	unsigned int portmapper_port;
-	unsigned int mount_port;
-	unsigned int nfs_port;
-	unsigned int pcnfsd_port;
-	char *export;
-	struct commonfh rootfh;
-	char *config;
-	struct sockaddr_in sockaddr;
-	int sock;
-	int connected;
-	long timeout;
-	int retries;
-	int hidden;
-	unsigned int umask;
-	unsigned int unumask;
-	unsigned int numgids;
-	unsigned int uid;
-	unsigned int gid;
-	unsigned int gids[MAX_GIDS];
-	char *username;
-	char *password;
-	int logging;
-	char *auth;
-	int authsize;
-	char *machinename;
-	int defaultfiletype;
-	int xyzext;
-	int localportmin;
-	int localportmax;
-	int maxdatabuffer;
-	int followsymlinks;
-	int pipelining;
-	int casesensitive;
-	int unixexfiletype;
-	char lastdir[MAX_PATHNAME];
-	uint64_t lastcookie;
-	char lastcookieverf[NFS3_COOKIEVERFSIZE];
-	int laststart;
-	struct commonfh lastdirhandle;
-	int tcp;
-	int nfs3;
-	iconv_t toenc;
-	iconv_t fromenc;
-	struct pool *pool;
-	int txmutex;
-	struct buffer_list *rxmutex;
-	int reference;
-};
-
-extern int enablelog;
 
 typedef _kernel_oserror os_error;
 
@@ -265,10 +187,10 @@ void log_error(os_error *err);
 
 
 /* Convert unix leafname into RISC OS format */
-int filename_riscosify(char *name, int namelen, char *buffer, int buflen, int *filetype, int defaultfiletype, int xyzext, int macforks);
+int filename_riscosify(const char *name, int namelen, char *buffer, int buflen, int *filetype, int defaultfiletype, int xyzext, int macforks);
 
 /* Convert a RISC OS leafname into unix format */
-char *filename_unixify(char *name, unsigned int len, unsigned int *newlen, struct pool *pool);
+char *filename_unixify(const char *name, unsigned int len, unsigned int *newlen, struct pool *pool);
 
 /* Get the local alphabet encoding */
 char *encoding_getlocal(void);
@@ -283,7 +205,7 @@ char *filetype_to_mimetype(int filetype, struct pool *pool);
 unsigned int mode_to_attr(unsigned int mode);
 
 /* Convert RISC OS attributes to a unix mode */
-unsigned int attr_to_mode(unsigned int attr, unsigned int oldmode, struct conn_info *conn);
+unsigned attr_to_mode(unsigned attr, unsigned oldmode, unsigned umask, unsigned unumask);
 
 /* Add ,xyz onto the leafname if necessary */
 char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, int defaultfiletype, int xyzext, int unixexfiletype, int macforks, struct pool *pool);
@@ -597,6 +519,10 @@ os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct hosten
 
 #ifndef NFSERR_CB_PATH_DOWN
 #define NFSERR_CB_PATH_DOWN 10048
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif

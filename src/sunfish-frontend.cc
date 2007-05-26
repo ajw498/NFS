@@ -57,7 +57,7 @@ using rtk::graphics::box;
 
 
 sunfish::sunfish():
-	application("Sunfish newfe"), //FIXME
+	application("Sunfish"),
 	ibaricon("", "", false, 2)
 {
 	add(ibaricon);

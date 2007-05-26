@@ -103,7 +103,7 @@ static os_error *parse_line(char *line, struct conn_info *conn)
 	} else if (CHECK("Transport")) {
 		conn->tcp = strcasecmp(val, "tcp") == 0;
 	} else if (CHECK("Export")) {
-		conn->export = val;
+		conn->exportname = val;
 	} else if (CHECK("Encoding")) {
 		if (strcmp(val, localencoding) != 0) {
 			conn->toenc = iconv_open(val, localencoding);
@@ -282,12 +282,12 @@ os_error *func_newimage(unsigned int fileswitchhandle, char *config, struct conn
 	conn->pcnfsd_port = 0;
 	conn->tcp = 0;
 	conn->server = "";
-	conn->export = "";
-	conn->timeout = 0;
+	conn->exportname = "";
+	conn->timeout = 6;
 	conn->retries = -1;
 	conn->hidden = 1;
 	conn->umask = 022;
-	conn->unumask = 0;
+	conn->unumask = 0600;
 	conn->username = NULL;
 	conn->password = "";
 	conn->uid = 0;

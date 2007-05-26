@@ -299,11 +299,11 @@ restart2:
 		memcpy(link, linkres.u.resok.data.data, segmentmaxlen);
 		segment = link;
 		if (segmentmaxlen > 0 && segment[0] == '/') {
-			int exportlen = strlen(conn->export);
+			int exportlen = strlen(conn->exportname);
 
 			/* An absolute link. We can only handle these if they are under
 			   the exported directory */
-			if (segmentmaxlen > exportlen && strncmp(segment, conn->export, exportlen) == 0) {
+			if (segmentmaxlen > exportlen && strncmp(segment, conn->exportname, exportlen) == 0) {
 				segment += exportlen;
 				segmentmaxlen -= exportlen;
 				while (segmentmaxlen > 0 && *segment == '/') {

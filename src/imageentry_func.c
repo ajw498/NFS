@@ -75,8 +75,8 @@ os_error *ENTRYFUNC(func_closeimage) (struct conn_info *conn)
 #endif
 	os_error *err;
 
-	dir.dirpath.size = strlen(conn->export);
-	dir.dirpath.data = conn->export;
+	dir.dirpath.size = strlen(conn->exportname);
+	dir.dirpath.data = conn->exportname;
 	err = MNTPROC(UMNT, (&dir, conn));
 	if (err && err != ERR_WOULDBLOCK && enablelog) log_error(err);
 
@@ -106,8 +106,8 @@ os_error *ENTRYFUNC(func_newimage_mount) (struct conn_info *conn)
 	os_error *err;
 
 	/* Get a filehandle for the root directory */
-	dir.dirpath.size = strlen(conn->export);
-	dir.dirpath.data = conn->export;
+	dir.dirpath.size = strlen(conn->exportname);
+	dir.dirpath.data = conn->exportname;
 	err = MNTPROC(MNT, (&dir, &mountres, conn));
 	if (err) return err;
 	if (mountres.status != 0) {
