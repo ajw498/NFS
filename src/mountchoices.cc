@@ -113,16 +113,16 @@ string mountchoices::stringsave()
 		gid = (int)strtol(gids.c_str(), &othergids, 10);
 		str << "\ngid: " << gid;
 		str << "\ngids: " << othergids;
-		str << "\numask: " << oct << setw(3) << setfill('0') << umask;
+		str << "\numask: " << oct << setw(3) << setfill('0') << umask << dec;
 	}
 	str << "\nTransport: " << (tcp ? "TCP" : "UDP");
 	str << "\nShowHidden: " << showhidden;
 	str << "\nFollowSymlinks: " << followsymlinks;
 	str << "\nCaseSensitive: " << casesensitive;
 	str << "\nUnixEx: " << unixex;
-	str << "\nDefaultFiletype: " << hex << uppercase << setw(3) << setfill('0') << defaultfiletype;
+	str << "\nDefaultFiletype: " << hex << uppercase << setw(3) << setfill('0') << defaultfiletype << dec;
 	str << "\nAddExt: " << addext;
-	str << "\nunumask: " << oct << setw(3) << setfill('0') << unumask;
+	str << "\nunumask: " << oct << setw(3) << setfill('0') << unumask << dec;
 	if (portmapperport) str << "\nPortmapperPort: " << portmapperport;
 	if (nfsport) str << "\nNFSPort: " << nfsport;
 	if (pcnfsdport) str << "\nPCNFSDPort: " << pcnfsdport;
