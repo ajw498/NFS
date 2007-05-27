@@ -60,23 +60,23 @@ void hostbrowser::openexportbrowser(hostinfo *info, bool udp, bool tcp, int vers
 	int vers = 0;
 	bool usetcp = false;
 
-	if (udp && (version >= 3) && (port == 0)) {
-		port = info->mount3udpport;
-		vers = 3;
-	}
 	if (tcp && (version >= 3) && (port == 0)) {
 		port = info->mount3tcpport;
 		vers = 3;
 		usetcp = true;
 	}
-	if (udp && (version >= 2) && (port == 0)) {
-		port = info->mount1udpport;
-		vers = 2;
+	if (udp && (version >= 3) && (port == 0)) {
+		port = info->mount3udpport;
+		vers = 3;
 	}
 	if (tcp && (version >= 2) && (port == 0)) {
 		port = info->mount1tcpport;
 		vers = 2;
 		usetcp = true;
+	}
+	if (udp && (version >= 2) && (port == 0)) {
+		port = info->mount1udpport;
+		vers = 2;
 	}
 
 	if (port == 0) throw "No suitable mount service found on remote server";

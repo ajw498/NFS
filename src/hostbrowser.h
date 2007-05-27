@@ -1,7 +1,7 @@
 /*
 	$Id$
 
-	Frontend for browsing and creating mounts
+	Frontend for browsing hosts
 
 
 	Copyright (C) 2006 Alex Waugh
@@ -65,7 +65,6 @@ public:
 	void handle_event(rtk::events::null_reason& ev);
 	void handle_event(rtk::events::menu_selection& ev);
 	void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev);
-//	void drag_ended(bool adjust, rtk::events::user_drag_box& ev) {}
 	void doubleclick(const std::string& item, rtk::events::mouse_click& ev);
 	void search(std::string host);
 	void open(sunfish& app);
