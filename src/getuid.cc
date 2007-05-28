@@ -184,6 +184,25 @@ void getuid::create_mount(mountchoices& mountdetails, sunfish& app)
 
 	if (hostalias == "") {
 		hostalias = mountdetails.exportname;
+		// Remove illegal characters for discnames
+		int len = hostalias.length();
+		for (int i = 0; i < len; i++) {
+			switch (hostalias[i]) {
+				case '.':
+				case ':':
+				case '*':
+				case ' ':
+				case '#':
+				case '$':
+				case '&':
+				case '@':
+				case '^':
+				case '%':
+				case '\\':
+				hostalias[i] = '?';
+				break;
+			}
+		}
 		sf = mountdetails.server;
 	}
 
