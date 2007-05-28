@@ -166,7 +166,7 @@ static os_error *lookup_leafname(struct commonfh *dhandle, char *leafname, int l
 
 /* Convert a leafname into nfs handle and attributes.
    May follow symlinks if needed.
-   Returns a pointer to objinfo data, and updates the leafname in place. */
+   Returns a pointer to objinfo data, and updates the leafname in place (but only if simple is not set). */
 os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int simple, int followsymlinks, struct commonfh *dirhandle, struct objinfo **finfo, nstat *status, struct conn_info *conn)
 {
 #ifdef NFS3

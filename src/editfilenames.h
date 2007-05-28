@@ -76,13 +76,10 @@ private:
 	radio_button extnever;
 	option_button unixex;
 	option_button followsymlinks;
-	writable_field symlinklevels;
-	icon symlinklabel;
 	action_button cancel;
 	default_button savebutton;
 	column_layout layout1;
 	row_layout layout2;
-	row_layout layout3;
 	button_row_layout layout4;
 	column_layout layout5;
 	column_layout layout6;

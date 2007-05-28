@@ -65,11 +65,7 @@ editfilenames::editfilenames()
 	extneeded.text("Add ,xyz extensions only when needed").esg(2);
 	extnever.text("Never add ,xyz extensions").esg(2);
 	unixex.text("Set filetype to UnixEx for executable files");
-	followsymlinks.text("Follow symlinks");
-	symlinklevels.min_size(point(64,0));
-	symlinklevels.validation(symlinklevels.validation()+";A0-9");
-	symlinklevels.text("",2);
-	symlinklabel.text("levels");
+	followsymlinks.text("Follow symbolic links");
 	cancel.text("Cancel");
 	savebutton.text("Save");
 	filenames.text("Filenames");
@@ -87,12 +83,6 @@ editfilenames::editfilenames()
 	layout2.add(defaultfiletypelabel);
 	layout2.add(defaultfiletype);
 
-	layout3.xgap(8).xfit(false);
-	layout3.xbaseline(xbaseline_left);
-	layout3.add(followsymlinks);
-	layout3.add(symlinklevels);
-	layout3.add(symlinklabel);
-
 	layout4.xgap(16);
 	layout4.add(cancel);
 	layout4.add(savebutton);
@@ -102,7 +92,7 @@ editfilenames::editfilenames()
 	layout5.add(showroot);
 	layout5.add(shownever);
 	layout5.add(casesensitive);
-	layout5.add(layout3);
+	layout5.add(followsymlinks);
 	layout5.add(encoding);
 
 	layout6.ygap(8);
@@ -132,7 +122,7 @@ void editfilenames::open(const string& host, string& exportname, sunfish& app)
 	}
 
 	app.add(*this,blk.p);
-	symlinklevels.set_caret_position(point(),-1,symlinklevels.text().length());
+	defaultfiletype.set_caret_position(point(),-1,defaultfiletype.text().length());
 }
 
 void editfilenames::load(const string& host, string& exportname)
@@ -156,9 +146,6 @@ void editfilenames::load(const string& host, string& exportname)
 	extnever.selected(mountinfo.addext == 0);
 	unixex.selected(mountinfo.unixex);
 	followsymlinks.selected(mountinfo.followsymlinks > 0);
-	ostringstream sym;
-	sym << mountinfo.followsymlinks;
-	symlinklevels.text(sym.str());
 }
 
 void editfilenames::save()
@@ -185,7 +172,7 @@ void editfilenames::save()
 	}
 	mountinfo.unixex = unixex.selected();
 	if (followsymlinks.selected()) {
-		mountinfo.followsymlinks = atoi(symlinklevels.text().c_str());
+		mountinfo.followsymlinks = 5;
 	} else {
 		mountinfo.followsymlinks = 0;
 	}
