@@ -34,8 +34,8 @@ editconnection::editconnection(int maxbuf) :
 	title("Connection choices");
 	close_icon(false);
 
-	maxdata.label("Max data buffer size");
-	maxdata.units("KB");
+	maxdata.label("Data buffer size");
+	maxdata.units("bytes");
 	pipelining.text("Pipeline requests to increase speed");
 	timeout.label("Timeout");
 	timeout.units("seconds");
