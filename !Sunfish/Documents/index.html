@@ -13,7 +13,7 @@
 A 30-60mm long fish with a very compressed, deep body, a thin pointed pectoral fin and round tail fin. Habitat: swamps, ponds and river pools.
 <p>
 <b>Sunfish</b><br>
-An NFS client, implemented as an image filing system. Habitat: RISC OS.
+An NFS client, implemented as a filing system. Habitat: RISC OS.
 
 
 <p>
@@ -21,17 +21,28 @@ An NFS client, implemented as an image filing system. Habitat: RISC OS.
 <h2><font color="#ffffff">Contents</font></h2>
 </td></tr></table>
 <ul>
+<li><a href="#introduction">Introduction</a><br>
 <li><a href="#license">License</a><br>
 <li><a href="#requirements">Requirements</a><br>
-<li><a href="#servers">Servers</a><br>
-<li><a href="#setup">Setting up a Mount</a><br>
-<li><a href="#options">Options</a><br>
+<li><a href="#basic">Basic operation</a><br>
+<li><a href="#detail">Using the frontend</a><br>
+<li><a href="#image">Use as an image filing system</a><br>
+<li><a href="#options">Image filing system options</a><br>
 <li><a href="#performance">Improving Performance</a><br>
 <li><a href="#reportingbugs">Reporting Bugs</a><br>
 <li><a href="#knownbugs">Known Issues</a><br>
 <li><a href="#recompiling">Recompiling</a><br>
 </ul>
 
+
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="introduction">Introduction</a></font></h2>
+</td></tr></table>
+<p>
+Sunfish is a filing system (and an image filing system) for RISC OS that allows you to access NFS servers on other platforms. The frontend allows you to browse the local network for any suitable servers, and then provides a means of mounting any directory that the server exports.
+<p>
+Sunfish provides a range of options for connecting to the server, and controlling things like mapping of filetypes and translation of filenames. However in most cases the default settings should work satisfactorily, and so you should not need to change anything unless you have a specific need.
+<p>
 
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="license">License</a></font></h2>
@@ -87,58 +98,169 @@ Sunfish also includes some code (memcpy.s) taken from UnixLib.
 <h2><font color="#ffffff"><a name="requirements">Requirements</a></font></h2>
 </td></tr></table>
 <p>
-Sunfish requires a working network connection and an NFS server to connect to. The server should be running version 2 or version 3 of the NFS protocol, version 1 or 3 of the Mount protocol, version 2 of the portmapper protocol, and optionally version 2 of the pcnfsd protocol. It has currently only been tested with the Linux kernel server present in Debian Woody, but it should work with other servers. Both UDP and TCP connections are supported.
+Sunfish requires a working network connection and an NFS server to connect to. The server should be running version 2 or version 3 of the NFS protocol, version 1 or 3 of the Mount protocol, version 2 of the portmapper protocol, and optionally version 2 of the pcnfsd protocol. Both UDP and TCP connections are supported.
 <p>
-Sunfish requires the Iconv module to be installed. This can be downloaded from <a href="http://netsurf.sourceforge.net/iconv/">here</a>.
+Sunfish requires the Iconv module to be installed. This can be downloaded from <a href="http://www.netsurf-browser.org/iconv/">here</a>.
 <p>
 Sunfish should run on any version of RISC OS from 3.11 onwards. It has been reported to work on RISC OS 3.7, RISC OS 4 (including under Virtual RPC), Select, and RISC OS 5. It is 26/32bit neutral.
-<p>
-
-The rest of this document assumes your server is correctly setup. You may wish to refer to <a href="linuxnfs.html">Allan Curtis' notes</a> on setting up a Linux NFS server, or the <a href="http://www.drobe.co.uk/riscos/artifact1172.html">Drobe article</a> on setting up the TrueGrid server for use with Sunfish.
-<p>
-Any updates will be available from <a href="http://www.alexwaugh.com/">http://www.alexwaugh.com/</a>
-
-<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
-<h2><font color="#ffffff"><a name="servers">Servers</a></font></h2>
-</td></tr></table>
 <p>
 Sunfish has been reported to work with the following servers:
 <table border=1><tr>
 <tr><td>Server</td><td>Notes</td></tr>
+<tr><td>Moonfish on RISC OS</td><td>No known issues</td></tr>
 <tr><td>Linux 2.4 kernel server</td><td>No known issues</td></tr>
 <tr><td>Linux 2.6 kernel server</td><td>No known issues</td></tr>
-<tr><td>Solaris 7/8 server</td><td>No known issues</td></tr>
-<tr><td>TrueGrid NFS server on Windows</td><td>Question marks in filenames (and possibly other characters) can cause "No such device" errors.</td></tr>
+<tr><td>Solaris 8 server</td><td>No known issues</td></tr>
+<tr><td>TrueGrid NFS server on Windows XP</td><td>Question marks in filenames (and possibly other characters) can cause "No such device" errors.</td></tr>
 <tr><td>Netware 6.5SP1a.</td><td>No known issues</td></tr>
 <tr><td>Allegro NFSd on Windows</td><td>Version 1.1.4 has a bug in that can cause file not found errors when copying files onto the server. Allegedly fixed in later versions.</td></tr>
+<tr><td>Microsoft Services for Unix 3.5 on Windows XP</td><td></td></tr>
 </table>
 <p>
+You may also have to ensure that the connection is not blocked by a firewall. The default configuration on some RedHat systems is known to block NFS traffic.
+<p>
+
+The rest of this document assumes your server is correctly setup. You may wish to refer to <a href="linuxnfs.html">Allan Curtis' notes</a> on setting up a Linux NFS server, or the <a href="http://www.drobe.co.uk/riscos/artifact1172.html">Drobe article</a> on setting up the TrueGrid server for use with Sunfish (although be aware that this refers to an older version of the Sunfish frontend).
+<p>
+
+Any updates will be available from <a href="http://www.alexwaugh.com/">http://www.alexwaugh.com/</a>
+
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
-<h2><font color="#ffffff"><a name="setup">Setting up a mount</a></font></h2>
+<h2><font color="#ffffff"><a name="basic">Basic operation</a></font></h2>
 </td></tr></table>
 <p>
-Sunfish is implemented as an image filing system. You can either write a mount file by hand, or use the frontend to create one.
+Double click on !Sunfish to load the frontend. An icon will appear at the left hard side of the iconbar. Click on the icon to open the server browser window. This is similar in behaviour to a standard filer window, and it shows all the servers that can be found on the local network. If the server is on a different subnet then it won't be found, so click menu over the window and follow the "Search for host" entry. Enter the hostname or IP address of the server. If the server is found, it will appear in the server browser window.
 <p>
-To use the frontend, run !Sunfish which will put an icon on the lefthand side of the iconbar. Select <code>New mount...</code> from the menu then fill in appropriate values for all the options. The options correspond with those described below, and the default values in the filenames, connection and ports sub-windows should not need altering for most simple connections. The mount leafname option is used to give a name to refer to the mount file. When you click on <code>Create</code> then a mount file with the specified options will be created, and a new icon will be added to the iconbar for that mount.
+Doubleclicking on the server's icon in the server browser window will open the export browser window, which shows all the directories that are exported by the server. Doubleclick on an export to mount it, which will open the identification window.
 <p>
-To manually write a mount file, use your favorite<!-- <message type="subliminal">StrongED</message> --> text editor to create a file with the appropriate options as described below. Save this, then set it's filetype to Sunfish (&1b6). Then double click on the mount file you have just created and the server will be mounted and you can navigate the filesystem as normal.
+The NFS protocol requires that all accesses specify a user identification number (UID) and group identification number (GID) to identify who is performing the access, and which files they are allowed to access.
+<p>
+On Unix like servers, you can normally find the UID and GID of a particular user by looking in the /etc/passwd file. On some servers which don't have a concept of multiple users (for example the Moonfish server running on RISC OS) then the value of the UID and GID does not matter, and the fields can be left blank in order to use the default UID and GID.
+<p>
+If the server is running pcnfsd (which is fairly unlikely) then you will be asked for a username and password instead which pcnfsd will translate to a UID and GID.
+<p>
+Clicking Set will use the specified UID and GID for this session, and next time you try to mount the export you will be asked again. Clicking Save will save the values, and next time you mount the export the saved values will be used automatically. Once either Set or Save have been clicked, the iconbar icon will change to identify the export, and a filer window will open showing the contents of the exported directory. You can then use this filer window as you would a local disc.
+
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="detail">Using the frontend</a></font></h2>
+</td></tr></table>
+<p>
+<h3>Iconbar icons</h3>
+<p>
+When first loaded, and there are no directories mounted, the iconbar icon will be the Sunfish icon with no text underneath. Clicking the Select mouse button on the icon will open the server browser window. Once a directory has been mounted, the icon will change to the Sunfish directory icon, with text underneath showing the name of the mount. If more than one directory is mounted there there will be a separate icon for each directory. Clicking Select will open a filer window showing the contents of the mounted directory. All other behaviour is the same between the mounted and unmounted icons, although some menu entries may be unavailable in the latter case.
+<p>
+Clicking the Adjust mouse button on an iconbar icon will open the server browser window. The server browser window may also be opened by selecting the <code>Browse...</code> entry from the iconbar icon.
+<p>
+The <code>Save mounts</code> entry on the iconbar menu will save a list of the directories that are currently mounted. When you next load Sunfish, this list will be read and any directory in it will automatically be mounted.
+<p>
+The <code>Dismount</code> entry on the iconbar menu will dismount the directory so that its contents can no longer be accessed, and its icon will be removed from the iconbar.
+<p>
+The <code>Free...</code> entry on the iconbar menu will show the amount of free and used space for the disc containing that directory. The meaning of the numbers returned may vary on different types of server, but typically they will be the free and used space of the entire disc or partition, even if the exported directory only takes up a small portion of the disc.
+<p>
+The <code>Quit</code> entry on the iconbar menu will quit the frontend. However the module will remain active so all the mounted directories and image files currently in use will continue to work. 
+<p>
+<hr>
+<h3>Server browser window</h3>
+<p>
+The server browser shows all the servers that have been found. A server will be found if it has a portmapper service running, so it is possible for servers to be listed even if they don't have an NFS server running (in this case you would get an error when you doubleclick on the server's icon).
+<p>
+Servers are found by sending out a broadcast request on the local subnet, therefore any servers that are not on the local subnet will not be found. If the server you wish to use is not on the local subnet then you must click menu over the window, follow the <code>Search for host</code> entry and enter the hostname or IP address of the server. If the server responds then an icon for it will be added to the server browser window.
+<p>
+Doubleclicking on a server icon will open the export browser window which shows the directories that the server is exporting. Sunfish supports the NFS 2 and NFS 3 protocols, both over TCP or UDP transports. At this point it will pick the best protocol and transport that the server supports (it prefers NFS 3 over NFS 2, and TCP over UDP). If you want to choose manually, then click menu over the server icon, and follow the <code>Browse</code> entry which allows you to select from any of the options that the server supports.
+<p>
+<hr>
+<h3>Export browser window</h3>
+<p>
+The export browser shows all the directories that the server is exporting. Doubleclicking on a directory will mount it using the default options. To change the options, click menu over the directory, follow the <code>Edit</code> entry and select one of the four option categories to change.
+<p>
+You can also drag a directory from the export browser window to a normal filer window to create an <a href="#image">image filing system mount file</a>.
+<p>
+<hr>
+<h3>Name export window</h3>
+<p>
+By default, mounts will be named based on the IP address and export name. For example <code>Sunfish#172.16.0.1::/home/alex.$</code>. The name mount window allows you to specify a different name to use as the discname for the mount, which can make the path shorter or more meaningful. For example specifying the discname as <code>alex</code> would result in a pathname of <code>Sunfish::alex.$</code>.
+<p>
+Note that the choices only take effect when you next mount the export.
+<p>
+<hr>
+<h3>Filename and filetype choices window</h3>
+<p>
+<h4>Filenames</h4>
+<p>
+Filenames on different systems have different restrictions on what characters can be allowed in a filename, and how characters are encoded, therefore Sunfish can perform a number of transformations of filenames.
+<p>
+When converting filenames to RISC OS, and characters that are illegal in RISC OS filenames are changed into escape sequences of <code>?xx</code> where xx is the hexadecimal value of the character. Spaces are mapped onto hard spaces, dots map to slashes and vice versa, and other characters are unchanged. The opposite transformation is performed when converting in the other direction.
+<p>
+If the <code>Escape illegal Windows characters</code> option is set then when converting filenames from RISC OS, any characters that are illegal in filenames under Windows will chaged into escape sequences of <code>#xx</code> where xx is the hexadecimal value of the character. This matches the method that LanMan98 uses.
+<p>
+The character encoding of the filename is not specified in the NFS 2 and NFS 3 specifications, therefore by default Sunfish does not change the encoding of the filename. However if the server is using a different encoding from the client then the <code>Encoding</code> option can be used to specificy what encoding the server uses.
+<p>
+The local encoding is determined from the <code>*alphabet</code> setting, and if the two encodings are different then filenames are converted between the two. Common encodings are <code>ISO-8859-1</code> (for Latin1) and <code>UTF-8</code>.
+<p>
+On Unix systems, filenames that begin with a dot are conventionally treated as hidden files. If the <code>Always show hidden files</code> option is selected then these files will appear in filer windows. If the <code>Never show hidden files</code> option is set then these files will not appear in filer windows and directory listings. Note that while you can read and write hidden files explicitly if you know their name, they won't show up in directory lists, and if you copy a directory any hidden files inside will not get copied.
+If the <code>Show hidden files except in root of mount</code> option is selected then all files beginning with a . in the root directory of the mount will be hidden, but those in other directories will still be shown.
+<p>
+Unix like systems support symbolic or soft links. If the <code>Follow symbolic links</code> option is set the Sunfish will follow the link, and reading or writing to the link will actually read or write the file pointed to by the link. If the link points to a file that doesn't exist, or if the option is not set, then the link will be shown as a file that you cannot read or write. Deleting a link will only delete the link itself and not the target of the link.
+<p>
+Note that symlinks can only be followed if they point to a file within the mount directory or its children.
+<p>
+If the <code>Case sensitive</code> option is set, filenames will be treated as case sensitive, and if the filename doesn't match exactly then you will get a file not found error. If the option is not set, then if an exact match for the filename isn't found then a case insensitive match will be tried as well.
+<p>
+If case sensitivity is off, and you have two (or more) files in the same directory that differ only in case then trying to access one of them may result in the wrong file being altered. Therefore is it recommended not to have filenames that differ only in case.
+<p>
+
+<h4>Filetypes</h4>
+<p>
+Other systems do not have a concept of filetypes in the same way as RISC OS does, and they often use file extensions to determine type type of the file. In common with other RISC OS network filesystems, Sunfish uses a combination of MimeMap and ,xyz extensions (where the filetype is represented as a hexadecimal number following a comma).
+<p>
+If the <code>Always add ,xyz extensions</code> option is set then an ,xyz extension will always be added to a file when it is saved. Files with an ,xyz extension will get the specified filetype, those without will be looked up in MimeMap to find a suitable filetype, and if that fails then they will get the default filetype.
+<p>
+If the <code>Never add ,xyz extensions</code> option is set then an ,xyz extension will never be added to a file when it is saved, and all files will have the default filetype.
+<p>
+If the <code>Add ,xyz extensions only when needed</code> option is set then when saving a file, MimeMap will be looked up. If the filename has a dot extension which matches the filetype, then Sunfish will not add any ,xyz extension. If the filename doesn't have a dot extension, and the filetype matches the default filetype then no ,xyz will be added. Otherwise a ,xyz extension will be added. This is generally the best option to use, as it ensures cross platform files that have dot extensions get the correct filetype on RISC OS, whilst avoiding the need for a ,xyz extension.
+<p>
+The default filetype is normally text (&amp;FFF) and it is not recommended to change this.
+<p>
+If the <code>Set filetype to UnixEx for executable files</code> option is set then if the file has Unix executable permission (for any of user, group or others), then it will be given a filetype of UnixEx (&amp;FE6) overriding its normal filetype. If you create a new file with the UnixEx filetype or change an existing file's filetype to UnixEx, then the user execute bit will be set, and the group and others execute bits will be set if the corresponding read bit is set.
+<p>
+<hr>
+<h3>Connection choices window</h3>
+<p>
+When reading or writing large files, the file is broken up into smaller chunks to transfer across the network. The size of the chunks has an effect on performance, and in general the bigger the better. However the some network cards (In particular, the Castle 100BaseT podule) cannot handle packets larger than 4096 bytes when using UDP.
+<p>
+The size is set in the <code>Max data buffer size</code> field. The maximum value is 8192 bytes for NFS2 or UDP connections, or 32768 for NFS3 with TCP, and it is recommeded that you set it to this if your network card can handle it (You will probably get timeout errors when reading a large file if it is too big).
+<p>
+Normally, only one chunk of the file is sent at a time, the next chunk is sent only when the first has been recieved. However if the <code>Pipeline requests to increase speed</code> option is set then the second chunk will be sent before the first has been recieved, which will often give an increase in speed on faster machines. Unfortunatly in some situations, particularly on slower machines, this option can decrease preformance significantly. Therefore it is worth trying this option, but turn it off again if it does not improve the speed.
+<p>
+If the server does not respond to a request, then Sunfish will periodically resend the request until it either recieves a response, or until a time limit has been reached when it will return an error (Connection timed out). The <code>Timeout</code> field can be used to alter the delay before the connection times out.
+<p>
+If the <code>Log debug information to syslog</code> option is set then all operations will be reported to syslog. This should only be enabled for debugging, as it significantly slows things down. Note that if one connection specifies logging, then activity on all connections will be logged while that connection is mounted.
+<p>
+<hr>
+<h3><a name="id">ID and permissions choices window</a></h3>
+<p>
+The UID and GID are normally set from the <a href="#basic">identification window</a> when the export is first mounted. However if they subsequently need to be changed then they can from this window. Up to 16 GIDs can be entered if needed, separated by spaces.
+<p>
+RISC OS file access attributes are based on public or private access for reads or writes. NFS uses the Unix convention of having read, write and executable permissions for the user, the group, and others. Sunfish must therefore convert between the two representations. The RISC OS private attributes map to Unix user permissions, and the public attributes map to the group and others permissions (if a public attribute is set then both the corresponding group and others permission bit will be set). RISC OS does not normally enforce the access permissions, so it is possible for files to not have private read or write permission, yet for programs to access them as normal. However if such a file is transferred to Unix, then the lack of permissions suddenly become a problem, so Sunfish provides the <code>unumask</code> option which is specified in octal like Unix file permissions traditionally are, and is logically ORed with the Unix mode bits to allow particular bits to be forced to be set. Finally, the mode bits are then logically ANDed with the inverse of the <code>umask</code> option (also in octal) which allows you to force specific bits clear (in the same way as the traditional umask on Unix).
+<p>
+The combination of the umask and unumask allow you to control exactly which bits of the unix permissions are set, cleared, or depend on the RISC OS access attributes. The default values are 0600 for the unumask and 022 for the umask, which ensures that all files created have user read and write permissions, will have group and others read permission if the public read attribute is set, and will never have group or others write permission.
+<p>
+
+
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="image">Use as an image filing system</a></font></h2>
+</td></tr></table>
+<p>
+In addition to providing a normal filing system, Sunfish also provides an image filing system. This allows you to save a mount file anywhere on disc, and access it as if it were just another directory on the disc. It also allows access to the mounts without having to load the frontend.
+<p>
+Mount files can be created from the frontend by opening the export browser window, setting any option you want for the mount, then dragging the export icon from the export browser window to a filer window. Alternately, a mount file can be manually created by using your favorite<!-- <message type="subliminal">StrongED</message> --> text editor to create a file with the appropriate options as described below. Save this, then set its filetype to Sunfish (&1b6). Then double click on the mount file you have just created and the server will be mounted and you can navigate the filesystem as normal.
 <p>
 Due to the way image filing systems work, you may not be able to edit the mount file once it has been mounted and while Sunfish is still running. There are two solutions - either set the filetype of the mount file to Text, edit it, then set it back to Sunfish, or *RMKill Sunfish before editing the file.
 <p>
-You may also have to ensure that the connection is not blocked by a firewall. The default configuration on some RedHat systems is known to block NFS traffic.
 
 <h3>Example mount files</h3>
 <p>
-This is a very simple mount file. It will use pcnfsd to map the username and password onto a uid and gid.
-<pre>
-Protocol: NFS2
-Server: mint.cp15.org
-Export: /home/ajw498
-Username: ajw498
-Password: fiddlesticks
-</pre>
-<p>
-The same as above, but specifying the uid and gid explicitly. pcnfsd is not required in this case, and there is no need for the password to be stored in the file either.
+This is a very simple mount file, but is sufficient to get a working mount. The fields allowed are described below, and most of them correspond directly with the options present on the frontend. However a few of the more obscure options are not available in the frontend.
 <pre>
 Protocol: NFS2
 Server: mint.cp15.org
@@ -166,17 +288,13 @@ MaxDataBuffer: 32768
 Pipelining: 1
 </pre>
 
-<h3>Filenames</h3>
-Filenames on a unix machine may contain characters that are illegal in RISC OS filenames. In order to allow access to such files, any illegal characters are changed into escape sequences of <code>?xx</code> where xx is the hexadecimal value of the character. Spaces are mapped onto hard spaces, dots map to slashes and vice versa, and other characters are unchanged.
-<p>
-Unlike most other RISC OS filing systems, filenames may be case sensitive (depending on the casesensitive option). However, it is not recommended to use filenames that differ only in their case, as some programs or RISC OS may not distinguish between them correctly.
 <p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
-<h2><font color="#ffffff"><a name="options">Options</a></font></h2>
+<h2><font color="#ffffff"><a name="options">Image filing system options</a></font></h2>
 </td></tr></table>
 <p>
 Any line beginning with a # is treated as a comment. 
-
+<hr>
 <h3>Mandatory options</h3>
 These options must appear in the file for a working connection to be established. Either a uid and gid must be specified <em>or</em> a username and password.
 <p>
@@ -184,7 +302,7 @@ These options must appear in the file for a working connection to be established
 Specifies the protocol to use. This should be either NFS2 or NFS3.
 <p>
 <h4>Server</h4>
-The domain name or ip address of the NFS server.
+The host name or ip address of the NFS server.
 <p>
 <h4>Export</h4>
 The name of the exported directory to mount. This should match one of the entries in /etc/exports or equivalent on the server.
@@ -201,6 +319,7 @@ The username to connect as. If specified, then pcnfsd will be used to map the us
 <h4>Password</h4>
 The password to give to pcnfsd with the username. This password has to be stored in the file in plain text, so if that is a concern then you should specify the uid/gid instead.
 <p>
+<hr>
 <h3>Optional options</h3>
 These options can be specified if needed, but if they are not then default values will be used. For most connections, the defaults will be sufficient.
 <p>
@@ -208,7 +327,7 @@ These options can be specified if needed, but if they are not then default value
 The type of connection to use as transport. Can be either tcp or udp. If omitted, it defaults to udp. Note that older servers tend not to support tcp connections.
 <p>
 <h4>MachineName</h4>
-The name of the machine the client is running on. Some servers may use it to allow or deny access. If omitted, it defaults to the value of <code>&lt;Inet$Hostname&gt;</code> which should be sufficient in most cases.
+The name of the machine the client is running on. Some servers may use it to allow or deny access, although most will ignore it. If omitted, it defaults to the value of <code>&lt;Inet$Hostname&gt;</code> which should be sufficient in most cases.
 <p>
 <h4>MaxDataBuffer</h4>
 The maximum number of bytes to use for the data buffer of a read or write request. A bigger buffer will generally be faster than a smaller one, but some network cards (In particular, the Castle 100BaseT podule) cannot handle larger packets when using UDP. The maximum value is 8192 bytes for NFS2 or UDP connections, or 32768 for NFS3 with TCP, and it is recommeded that you set it to this if your network card can handle it (You will probably get timeout errors when reading a large file if it is too big). If omitted, it defaults to 4096 bytes for UDP connections and 8192 for TCP connections.
@@ -239,12 +358,10 @@ A list of additional group ids that the user is part of. There can be up to 16 g
 If set to 1 then all operations will be reported to syslog. This should only be enabled for debugging, as it significantly slows things down. Note: if one connection specifies logging, then activity on all connections will be logged while that connection is mounted.
 <p>
 <h4>umask</h4>
-The umask to use, specified in octal. All operations that modify a files attributes will have the Unix mode bits modified according to the umask. If not specified, it defaults to 022. If pcnfsd is used then the umask returned by that will override this setting.
+The umask to use, as described in <a href="#id">ID and permissions choices</a>, specified in octal. If not specified, it defaults to 022. If pcnfsd is used then the umask returned by that will override this setting.
 <p>
 <h4>unumask</h4>
-RISC OS does not have any concept like a umask - the default attributes of a file are decided by the application that creates the file. Usually the default chosen is private read/write set and public read/write clear. The unumask allows you to force particular unix mode bits to be set, and is specified in octal in the same format as the umask. If not specified, it defaults to 0.
-<p>
-The RISC OS attributes are first converted to unix mode bits, with the private attributes mapping to user permissions, and the public attributes mapping to the group and others permissions (if a public attribute is set then both the corresponding group and others permission bit will be set). This value is then ORed with the unumask, and then ANDed with the inverse of the umask to give the final unix mode bits.
+The unumask to use, as described in <a href="#id">ID and permissions choices</a>, specified in octal. If not specified, it defaults to 0600.
 <p>
 <h4>ShowHidden</h4>
 If set to 1, all files will be shown, if set to 0 then all files beginning with a . will be hidden from filer views. If set to 2 then all files beginning with a . in the root directory of the mount will be hidden, but those in other directories will still be shown. If not specified, then it defaults to 1.
@@ -252,7 +369,7 @@ If set to 1, all files will be shown, if set to 0 then all files beginning with 
 Note that while you can read and write hidden files explicitly if you know their name, they won't show up in directory lists, and if you copy a directory any hidden files inside will not get copied.
 <p>
 <h4>FollowSymLinks</h4>
-The number of levels of symlinks to follow. If set to zero or a sequence of symlinks greater than the number is encountered then the link will be shown as a text file that you cannot read or write. If not specified, then it defaults to 5. Symlinks can only be followed if they point to a file within the mount directory or its children.
+The number of levels of symlinks to follow. If set to zero or a sequence of symlinks greater than the number is encountered then the link will be shown as a file that you cannot read or write. If not specified, then it defaults to 5. Symlinks can only be followed if they point to a file within the mount directory or its children.
 <p>
 <h4>CaseSensitive</h4>
 If set to 1, filenames will be treated as case sensitive, and if the filename doesn't match exactly then you will get a file not found error. If set to 0, then if an exact match for the filename isn't found then a case insensitive match will be tried as well. If not specified, then it defaults to 0.
@@ -260,10 +377,10 @@ If set to 1, filenames will be treated as case sensitive, and if the filename do
 If case sensitivity is off, and you have two (or more) files in the same directory that differ only in case then trying to access one of them may result in the wrong file being altered.
 <p>
 <h4>Timeout</h4>
-The time in seconds to wait for a reply from the server before retrying or giving up. Defaults to 3 seconds.
+The time in seconds to wait for a reply from the server before retrying or giving up. Defaults to 6 seconds.
 <p>
 <h4>Retries</h4>
-The number of times to resend a request if no reply is received. Defaults to 2 retries. If TCP is being used as the transport then this setting is ignored because TCP will do any necessary retries itself.
+The number of times to resend a request if no reply is received. If not specified, the number of retries will be determined automatically from the transport type and the timeout value.
 <p>
 <h4>DefaultFiletype</h4>
 The hexadecimal filetype to give a file if it doesn't have an ,xyz extension or a . extension that matches a mimemap entry. If not specified then it defaults to FFF.
@@ -324,7 +441,7 @@ The following table shows the maximum speeds I have obtained with various settin
 <h2><font color="#ffffff"><a name="reportingbugs">Reporting Bugs</a></font></h2>
 </td></tr></table>
 <p>
-If you discover a bug, please report it to <a href="mailto:alex@alexwaugh.com">me</a>, or better still fix it yourself and send me a patch. When reporting a bug, first load <a href="http://www.compton.nu/syslog.html">SysLog</a>, then set the logging option in your mount file before doing the operation that triggers the bug. A log file should be generated in !SysLog.Logs.Sunfish. If you have access to a machine that can run a packet sniffer such as ethereal then it would be very useful to use that to save a dump of the network traffic along with the syslog file. Also, please provide a description of the problem and exactly what operation you were doing to trigger the bug, and details of what OS and NFS version the server is running would be helpful, and the version of the Sunfish module and RISC OS version.
+If you discover a bug, please report it to <a href="mailto:alex@alexwaugh.com">me</a>, or better still fix it yourself and send me a patch. When reporting a bug, first load <a href="http://www.compton.nu/syslog.html">SysLog</a>, then enable the logging option for the mount before doing the operation that triggers the bug. A log file should be generated in !SysLog.Logs.Sunfish. If you have access to a machine that can run a packet sniffer such as ethereal or wireshark then it would be very useful to use that to save a dump of the network traffic along with the syslog file. Also, please provide a description of the problem and exactly what operation you were doing to trigger the bug, and details of what OS and NFS version the server is running would be helpful, and the version of the Sunfish module and RISC OS version.
 <p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="knownbugs">Known Issues</a></font></h2>
@@ -338,11 +455,11 @@ Devices and other non regular files are not supported, as they don't map to RISC
 <p>
 If ShowHidden == 0 and you try to delete a directory that contains hidden files then it will fail with a directory not empty error.
 <p>
-Writing to mounts in Sunfish: doesn't work on Select 3i3, this appears to be a select bug and doesn't occur on 3i4
-<p>
-If an NFS3 server returns a jukebox error, Sunfish should retry the operation a short while later. It doesn't, and reports the error to the user. If you manually retry then things should work. 
+If an NFS3 server returns a jukebox error, Sunfish should retry the operation a short while later. It doesn't, and reports the error to the user. If you manually retry then things should work.
 <p>
 Files greater than 2GB in size are reported as having a size of exactly 2GB. The data in the first 2GB of the file can be read and written to normally, but the rest of the file cannot be accessed.
+<p>
+The toggle size icon on server and export browser windows behaves differently from what might be expected.
 <p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="recompiling">Recompiling</a></font></h2>
@@ -350,12 +467,14 @@ Files greater than 2GB in size are reported as having a size of exactly 2GB. The
 <p>
 Full source code is provided. To recompile the module, you will need at least either GCC 3.4.4 release 3 or Norcroft v5.53, cmhg or CMunge, TCPIPLibs, Perl, and GNU Make. Earlier 26bit versions of Norcroft will not work because the code makes use of 64bit integers and some C99 functions.
 <p>
+To recompile the frontend, you will additionally need g++ 3.4.4 release 3 or later, and the RTK library. You will have to get the RTK source from svn, and compile it yourself targetting the shared C library rather than UnixLib.
+<p>
 The makefile in the src directory has several targets:
 <ul>
-<li><code>make</code> - build with Norcroft without optimisation.
-<li><code>make release</code> - build with Norcroft with full optimisation.
-<li><code>make gcc</code> - build with GCC without optimisation.
-<li><code>make gcc release</code> - build with GCC with full optimisation.
+<li><code>make</code> - build module with Norcroft, and frontend with g++, without optimisation.
+<li><code>make release</code> - build module with Norcroft, and frontend with g++, with full optimisation.
+<li><code>make gcc</code> - build with GCC and g++ without optimisation.
+<li><code>make gcc release</code> - build with GCC and g++ with full optimisation.
 </ul>
 <p>
 
