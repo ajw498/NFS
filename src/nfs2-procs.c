@@ -191,7 +191,7 @@ static nstat diropargs_to_path(struct diropargs *where, char **path, int *filety
 		leaflen = sizeof(buffer2) - encleaflen;
 	}
 
-	leaflen = filename_riscosify(leaf, leaflen, buffer, sizeof(buffer), filetype, conn->export->defaultfiletype, conn->export->xyzext, choices.macforks);
+	leaflen = filename_riscosify(leaf, leaflen, buffer, sizeof(buffer), filetype, conn->export->defaultfiletype, conn->export->xyzext, choices.macforks, 0);
 
 	len = strlen(dirpath);
 	UR(*path = palloc(len + leaflen + 2, conn->pool));
@@ -260,7 +260,7 @@ enum accept_stat NFSPROC_READDIR(struct readdirargs *args, struct readdirres *re
 			UE(entry = palloc(sizeof(struct entry), conn->pool));
 
 			entry->fileid = calc_fileid(path, leaf);
-			UE(leaf = filename_unixify(leaf, strlen(leaf), &leaflen, conn->pool));
+			UE(leaf = filename_unixify(leaf, strlen(leaf), &leaflen, 0, conn->pool));
 			type = ((unsigned int *)buffer)[4];
 			if (type == 1 || (type == 3 && conn->export->imagefs == 0)) {
 				UE(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, 1, choices.macforks, conn->pool));

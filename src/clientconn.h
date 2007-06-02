@@ -83,6 +83,7 @@ struct conn_info {
 	int pipelining;
 	int casesensitive;
 	int unixexfiletype;
+	int escapewin;
 	char lastdir[MAX_PATHNAME];
 	uint64_t lastcookie;
 	char lastcookieverf[NFS3_COOKIEVERFSIZE];

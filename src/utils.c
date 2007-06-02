@@ -114,7 +114,7 @@ nstat nfserr_removenfs4(nstat errnum)
 
 static int localutf8 = 0;
 
-char *filename_unixify(const char *name, unsigned int len, unsigned int *newlen, struct pool *pool)
+char *filename_unixify(const char *name, unsigned int len, unsigned int *newlen, int escapewin, struct pool *pool)
 {
 	char *namebuffer;
 	int i;
@@ -146,10 +146,28 @@ char *filename_unixify(const char *name, unsigned int len, unsigned int *newlen,
 					i++;
 					namebuffer[j] = (name[i] > '9' ? name[i] - 'A' + 10 : name[i] - '0') << 4;
 					i++;
-					namebuffer[j++] |= name[i] > '9' ? name[i] - 'A' + 10 : name[i] - '0';
+					namebuffer[j] |= name[i] > '9' ? name[i] - 'A' + 10 : name[i] - '0';
+					switch (namebuffer[j]) {
+					case '?':
+						namebuffer[j] = '#';
+						break;
+					case '<':
+						namebuffer[j] = '$';
+						break;
+					case '>':
+						namebuffer[j] = '^';
+						break;
+					}
+					j++;
 				} else {
-					namebuffer[j++] = name[i];
+					namebuffer[j++] = escapewin ? '#' : name[i];
 				}
+				break;
+			case '>':
+				namebuffer[j++] = escapewin ? '^' : name[i];
+				break;
+			case '<':
+				namebuffer[j++] = escapewin ? '$' : name[i];
 				break;
 			default:
 				namebuffer[j++] = name[i];
@@ -198,7 +216,7 @@ char *filetype_to_mimetype(int filetype, struct pool *pool)
 	return buffer;
 }
 
-int filename_riscosify(const char *name, int namelen, char *buffer, int buflen, int *filetyperet, int defaultfiletype, int xyzext, int macforks)
+int filename_riscosify(const char *name, int namelen, char *buffer, int buflen, int *filetyperet, int defaultfiletype, int xyzext, int macforks, int escapewin)
 {
 	int i;
 	int j;
@@ -231,14 +249,25 @@ int filename_riscosify(const char *name, int namelen, char *buffer, int buflen, 
 			}
 		} else if (name[i] == '!') {
 			buffer[j++] = name[i];
+		} else if ((name[i] == '?') || (escapewin && (name[i] == '#'))) {
+			if (((namelen - i) >= 2) && isxdigit(name[i+1]) && isxdigit(name[i+2])) {
+				buffer[j++] = '?';
+				buffer[j++] = '3';
+				buffer[j++] = 'F';
+			} else {
+				buffer[j++] = '?';
+			}
+		} else if (escapewin && (name[i] == '$')) {
+			buffer[j++] = '<';
+		} else if (escapewin && (name[i] == '^')) {
+			buffer[j++] = '>';
 		} else if (name[i] < '\''
-				|| name[i] == '/'
-				|| name[i] == ':'
-				|| name[i] == '?'
-				|| name[i] == '@'
-				|| name[i] == '\\'
-				|| name[i] == 127
-				|| ((name[i] == 160) && (localutf8 == 0))) {
+		           || name[i] == '/'
+		           || name[i] == ':'
+		           || name[i] == '@'
+		           || name[i] == '\\'
+		           || name[i] == 127
+		           || ((name[i] == 160) && (localutf8 == 0))) {
 			int val;
 
 			/* Turn illegal chars into ?XX escape sequences */

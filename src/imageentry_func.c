@@ -254,7 +254,7 @@ restart:
 
 					/* Copy leafname into output buffer, translating some
 					   chars and stripping any ,xyz */
-					len = filename_riscosify(leafname, len, bufferpos, buffer + buflen - bufferpos, &filetype, conn->defaultfiletype, conn->xyzext, 0);
+					len = filename_riscosify(leafname, len, bufferpos, buffer + buflen - bufferpos, &filetype, conn->defaultfiletype, conn->xyzext, 0, conn->escapewin);
 					if (len == 0) break; /* Buffer overflowed */
 
 					bufferpos += len + 1;
@@ -417,7 +417,7 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 		/* Both files are in the same directory */
 		renameargs.to.dir = renameargs.from.dir;
 		leafname = newfilename + dirnamelen;
-		leafname = filename_unixify(leafname, strlen(leafname), &leafnamelen, conn->pool);
+		leafname = filename_unixify(leafname, strlen(leafname), &leafnamelen, conn->escapewin, conn->pool);
 
 		if (conn->toenc != (iconv_t)-1) {
 			char *encleaf;

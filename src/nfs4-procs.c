@@ -210,7 +210,7 @@ static nstat lookup_filename(char *base, component4 *leafname, char **res, int *
 		leaflen = utf8leaflen;
 	}
 
-	leaflen = filename_riscosify(leaf, leaflen, buffer2, sizeof(buffer2), filetype, conn->export->defaultfiletype, conn->export->xyzext, choices.macforks);
+	leaflen = filename_riscosify(leaf, leaflen, buffer2, sizeof(buffer2), filetype, conn->export->defaultfiletype, conn->export->xyzext, choices.macforks, 0);
 
 	if (base == NULL) {
 		/* base should only ever be NULL when called from LOOKUP, so
@@ -1054,7 +1054,7 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 				if (pathlen + 2 + leaflen > MAX_PATHNAME) N4(NFSERR_NAMETOOLONG);
 				memcpy(pathbuffer + pathlen + 1, leaf, leaflen + 1);
 			}
-			U4(leaf = filename_unixify(leaf, leaflen, &leaflen, conn->pool));
+			U4(leaf = filename_unixify(leaf, leaflen, &leaflen, 0, conn->pool));
 			if (type == OBJ_FILE || (type == OBJ_IMAGE && conn->export->imagefs == 0)) {
 				U4(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, 1, choices.macforks, conn->pool));
 			}

@@ -65,6 +65,7 @@ editfilenames::editfilenames()
 	extneeded.text("Add ,xyz extensions only when needed").esg(2);
 	extnever.text("Never add ,xyz extensions").esg(2);
 	unixex.text("Set filetype to UnixEx for executable files");
+	escapewin.text("Translate characters that are illegal on Windows");
 	followsymlinks.text("Follow symbolic links");
 	cancel.text("Cancel");
 	savebutton.text("Save");
@@ -92,6 +93,7 @@ editfilenames::editfilenames()
 	layout5.add(showroot);
 	layout5.add(shownever);
 	layout5.add(casesensitive);
+	layout5.add(escapewin);
 	layout5.add(followsymlinks);
 	layout5.add(encoding);
 
@@ -145,6 +147,7 @@ void editfilenames::load(const string& host, string& exportname)
 	extneeded.selected(mountinfo.addext == 1);
 	extnever.selected(mountinfo.addext == 0);
 	unixex.selected(mountinfo.unixex);
+	escapewin.selected(mountinfo.escapewin);
 	followsymlinks.selected(mountinfo.followsymlinks > 0);
 }
 
@@ -171,6 +174,7 @@ void editfilenames::save()
 		mountinfo.addext = 0;
 	}
 	mountinfo.unixex = unixex.selected();
+	mountinfo.escapewin = escapewin.selected();
 	if (followsymlinks.selected()) {
 		mountinfo.followsymlinks = 5;
 	} else {

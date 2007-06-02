@@ -61,6 +61,7 @@ public:
 	bool tcp;
 	bool nfs3;
 	string encoding;
+	bool escapewin;
 
 	mountchoices();
 	void save(const string& filename);

@@ -76,6 +76,7 @@ private:
 	radio_button extnever;
 	option_button unixex;
 	option_button followsymlinks;
+	option_button escapewin;
 	action_button cancel;
 	default_button savebutton;
 	column_layout layout1;

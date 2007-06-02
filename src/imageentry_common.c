@@ -401,7 +401,7 @@ os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, stru
 		/* Find end of dirname segment */
 		while (*end && *end != '.') end++;
 
-		segmentname = filename_unixify(start, end - start, &segmentlen, conn->pool);
+		segmentname = filename_unixify(start, end - start, &segmentlen, conn->escapewin, conn->pool);
 
 		if (conn->toenc != (iconv_t)-1) {
 			char *encleaf;

@@ -70,7 +70,8 @@ mountchoices::mountchoices(void) :
 	usepcnfsd(false),
 	tcp(false),
 	nfs3(false),
-	encoding("No conversion")
+	encoding("No conversion"),
+	escapewin(false)
 {
 }
 
@@ -120,6 +121,7 @@ string mountchoices::stringsave()
 	str << "\nFollowSymlinks: " << followsymlinks;
 	str << "\nCaseSensitive: " << casesensitive;
 	str << "\nUnixEx: " << unixex;
+	str << "\nTranslateWin: " << escapewin;
 	str << "\nDefaultFiletype: " << hex << uppercase << setw(3) << setfill('0') << defaultfiletype << dec;
 	str << "\nAddExt: " << addext;
 	str << "\nunumask: " << oct << setw(3) << setfill('0') << unumask << dec;
@@ -250,6 +252,8 @@ void mountchoices::load(const string& filename)
 			casesensitive = (int)strtol(val, NULL, 10);
 		} else if (CHECK("UnixEx")) {
 			unixex = (int)strtol(val, NULL, 10);
+		} else if (CHECK("TranslateWin")) {
+			escapewin = (int)strtol(val, NULL, 10);
 		}
 	}
 	fclose(file);

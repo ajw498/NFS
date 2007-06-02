@@ -179,7 +179,7 @@ void exportbrowser::drag_ended(bool adjust, rtk::events::user_drag_box& ev)
 				src[i] = srcicon->text()[i];
 			}
 		}
-		len = filename_riscosify(src, len, buf, sizeof(buf), NULL, 0xFFF, NEVER, 0);
+		len = filename_riscosify(src, len, buf, sizeof(buf), NULL, 0xFFF, NEVER, 0, 0);
 		if (len) {
 			// Change dots back to slashes, as we want to fit the
 			// whole pathname as the leafname

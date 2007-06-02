@@ -74,7 +74,7 @@ static nstat diropargs_to_path(struct diropargs3 *where, char **path, int *filet
 		leaflen = sizeof(buffer2) - encleaflen;
 	}
 
-	leaflen = filename_riscosify(leaf, leaflen, buffer, sizeof(buffer), filetype, conn->export->defaultfiletype, conn->export->xyzext, choices.macforks);
+	leaflen = filename_riscosify(leaf, leaflen, buffer, sizeof(buffer), filetype, conn->export->defaultfiletype, conn->export->xyzext, choices.macforks, 0);
 
 	len = strlen(dirpath);
 	UR(*path = palloc(len + leaflen + 2, conn->pool));
@@ -597,7 +597,7 @@ enum accept_stat NFSPROC3_READDIR(struct readdirargs3 *args, struct readdirres3 
 			UF(entry = palloc(sizeof(struct entry3), conn->pool));
 
 			entry->fileid = calc_fileid(path, leaf);
-			UF(leaf = filename_unixify(leaf, strlen(leaf), &leaflen, conn->pool));
+			UF(leaf = filename_unixify(leaf, strlen(leaf), &leaflen, 0, conn->pool));
 			type = ((unsigned int *)buffer)[4];
 			if (type == 1 || (type == 3 && conn->export->imagefs == 0)) {
 				UF(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, 1, choices.macforks, conn->pool));
@@ -701,7 +701,7 @@ enum accept_stat NFSPROC3_READDIRPLUS(struct readdirplusargs3 *args, struct read
 			leaflen = strlen(leaf);
 			if (pathlen + 2 + leaflen > MAX_PATHNAME) NF(NFSERR_NAMETOOLONG);
 			memcpy(pathbuffer + pathlen + 1, leaf, leaflen + 1);
-			UF(leaf = filename_unixify(leaf, leaflen, &leaflen, conn->pool));
+			UF(leaf = filename_unixify(leaf, leaflen, &leaflen, 0, conn->pool));
 			if (type == OBJ_FILE || (type == OBJ_IMAGE && conn->export->imagefs == 0)) {
 				UF(leaf = addfiletypeext(leaf, leaflen, 0, filetype, &leaflen, conn->export->defaultfiletype, conn->export->xyzext, 1, choices.macforks, conn->pool));
 			}

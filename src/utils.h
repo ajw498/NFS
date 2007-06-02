@@ -187,10 +187,10 @@ void log_error(os_error *err);
 
 
 /* Convert unix leafname into RISC OS format */
-int filename_riscosify(const char *name, int namelen, char *buffer, int buflen, int *filetype, int defaultfiletype, int xyzext, int macforks);
+int filename_riscosify(const char *name, int namelen, char *buffer, int buflen, int *filetype, int defaultfiletype, int xyzext, int macforks, int escapewin);
 
 /* Convert a RISC OS leafname into unix format */
-char *filename_unixify(const char *name, unsigned int len, unsigned int *newlen, struct pool *pool);
+char *filename_unixify(const char *name, unsigned int len, unsigned int *newlen, int escapewin, struct pool *pool);
 
 /* Get the local alphabet encoding */
 char *encoding_getlocal(void);

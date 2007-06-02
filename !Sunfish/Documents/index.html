@@ -191,7 +191,7 @@ Filenames on different systems have different restrictions on what characters ca
 <p>
 When converting filenames to RISC OS, and characters that are illegal in RISC OS filenames are changed into escape sequences of <code>?xx</code> where xx is the hexadecimal value of the character. Spaces are mapped onto hard spaces, dots map to slashes and vice versa, and other characters are unchanged. The opposite transformation is performed when converting in the other direction.
 <p>
-If the <code>Escape illegal Windows characters</code> option is set then when converting filenames from RISC OS, any characters that are illegal in filenames under Windows will chaged into escape sequences of <code>#xx</code> where xx is the hexadecimal value of the character. This matches the method that LanMan98 uses.
+If the <code>Translate characters that are illegal on Windows</code> option is set then when converting filenames from RISC OS, the <code>? &lt; &gt;</code> characters will be translated to <code># $ ^</code> respectively. This matches the method that LanMan98 uses.
 <p>
 The character encoding of the filename is not specified in the NFS 2 and NFS 3 specifications, therefore by default Sunfish does not change the encoding of the filename. However if the server is using a different encoding from the client then the <code>Encoding</code> option can be used to specificy what encoding the server uses.
 <p>
@@ -390,6 +390,8 @@ Controls adding of a ,xyz extension. When 0, no ,xyz extensions are added, and a
 <p>
 <h4>UnixEx</h4>
 If set to 1, any files with executable permissions set wil be given a filetype of UnixEx (&FE6) rather than their normal filetype. It will get this filetype if any of the user, group or other execute bits are set. If you create a new file with the UnixEx filetype or change an existing file's filetype to UnixEx, then the user execute bit will be set, and the group and others execute bits will be set if the corresponding read bit is set. If not specified, then it defaults to 0.
+<h4>TranslateWin</h4>
+If set to 1, any characters in filenames that are illegal characters under Windows will be changed into other characters. <code>? &lt; &gt;</code> characters will be translated to <code># $ ^</code> respectively. If not specified, then it defaults to 0.
 <p>
 <h4>Encoding</h4>
 Specifies the character set encoding used for filenames on the server. The local encoding is determined from the <code>*alphabet</code> setting, and if the two encodings are different then filenames are converted between the two. Common encodings are <code>ISO-8859-1</code> (for Latin1) and <code>UTF-8</code>. If no encoding is specified, then filenames are used without any conversion.
