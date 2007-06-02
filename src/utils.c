@@ -265,6 +265,7 @@ int filename_riscosify(const char *name, int namelen, char *buffer, int buflen, 
 		           || name[i] == '/'
 		           || name[i] == ':'
 		           || name[i] == '@'
+		           || name[i] == '|'
 		           || name[i] == '\\'
 		           || name[i] == 127
 		           || ((name[i] == 160) && (localutf8 == 0))) {
