@@ -1,4 +1,5 @@
 Dir <Obey$Dir>
 Regression mint.cp15.org
 Regression orange.cp15.org
-Regression 172.17.0.4 -nounixex
+Regression beardown.cp15.org -win
+Regression fudge.cp15.org -nounixex
