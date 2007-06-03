@@ -13,7 +13,7 @@ DISTCC = distcc
 ifneq (,$(findstring release,$(MAKECMDGOALS)))
 
 CFLAGSN = -Otime
-CFLAGSG = -O2
+CFLAGSG = -O1
 EXTRATARGET = release
 
 else
