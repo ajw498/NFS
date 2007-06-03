@@ -364,9 +364,14 @@ char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfile
 			extneeded = 0;
 		} else {
 			/* Only add an extension if needed */
-			char *ext;
+			char *ext = NULL;
 
-			ext = strrchr(leafname, '.');
+			for (int i = len - 1; i >= 0; i--) {
+				if (leafname[i] == '.') {
+					ext = leafname + i;
+					break;
+				}
+			}
 			if (ext) {
 				int mimefiletype;
 				int extlen = len - (ext - leafname) - 1;
