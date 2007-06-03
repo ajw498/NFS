@@ -111,10 +111,10 @@ Sunfish has been reported to work with the following servers:
 <tr><td>Linux 2.4 kernel server</td><td>No known issues</td></tr>
 <tr><td>Linux 2.6 kernel server</td><td>No known issues</td></tr>
 <tr><td>Solaris 8 server</td><td>No known issues</td></tr>
-<tr><td>TrueGrid NFS server on Windows XP</td><td>Question marks in filenames (and possibly other characters) can cause "No such device" errors.</td></tr>
+<tr><td>TrueGrid NFS server on Windows XP</td><td>Question marks in filenames (and possibly other characters) can cause "No such device" errors. Setting the <code>Translate characters that are illegal on Windows</code> option avoids this.</td></tr>
 <tr><td>Netware 6.5SP1a.</td><td>No known issues</td></tr>
-<tr><td>Allegro NFSd on Windows</td><td>Version 1.1.4 has a bug in that can cause file not found errors when copying files onto the server. Allegedly fixed in later versions.</td></tr>
-<tr><td>Microsoft Services for Unix 3.5 on Windows XP</td><td></td></tr>
+<tr><td>Allegro NFSd on Windows</td><td>Version 1.1.4 has a bug in that can cause file not found errors when copying files onto the server. Allegedly fixed in later versions. A similar problem still exists when renaming files.</td></tr>
+<tr><td>Microsoft Services for Unix 3.5 on Windows XP</td><td>Some characters in filenames can cause "Permission denied" errors. Setting the <code>Translate characters that are illegal on Windows</code> option avoids this.</td></tr>
 </table>
 <p>
 You may also have to ensure that the connection is not blocked by a firewall. The default configuration on some RedHat systems is known to block NFS traffic.

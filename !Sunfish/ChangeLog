@@ -1,4 +1,6 @@
-vx.xx xx-xxx-xx
+v2.00 3-Jun-07
+Completely new frontend that allows browsing of available servers and exports.
+Added full filing system support.
 Fixed finding of mountd and nfsd port numbers from portmapper when NFS2 not
 supported.
 Fixed encoding that sometimes added garbage to the end of filenames.
