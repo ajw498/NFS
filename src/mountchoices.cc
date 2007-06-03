@@ -75,9 +75,11 @@ mountchoices::mountchoices(void) :
 {
 }
 
+#define SAVEDIR "<Choices$Write>.Sunfish.mountsave"
+
 string mountchoices::genfilename(const string& host, const string& mountname)
 {
-	string filename = "<Choices$Write>.Sunfish.mounts.auto.";
+	string filename = SAVEDIR ".";
 	for (size_t i = 0; i < host.length(); i++) {
 		if (isalnum(host[i]) || (host[i] == '/')) {
 			filename += host[i];
@@ -144,6 +146,7 @@ string mountchoices::stringsave()
 void mountchoices::save(const string& filename)
 {
 	FILE *file;
+	rtk::os::OS_File8(SAVEDIR, 0);
 	file = fopen(filename.c_str(), "w");
 	if (file == NULL) throw rtk::os::exception(_kernel_last_oserror());
 
