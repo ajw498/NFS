@@ -31,13 +31,13 @@
 #include "rtk/desktop/radio_button.h"
 #include "rtk/desktop/option_button.h"
 #include "rtk/desktop/labelled_box.h"
-#include "rtk/desktop/string_set.h"
 #include "rtk/desktop/grid_layout.h"
 #include "rtk/desktop/row_layout.h"
 #include "rtk/desktop/column_layout.h"
 #include "rtk/events/mouse_click.h"
 #include "rtk/events/key_pressed.h"
 
+#include "string_set.h"
 #include "button_row_layout.h"
 
 
