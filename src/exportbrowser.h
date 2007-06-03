@@ -52,7 +52,7 @@ protected:
 	void finish() {}
 	size_type estsize() { return 1024; }
 private:
-	mountchoices mount;
+	mountchoices *mount;
 	bool done;
 };
 

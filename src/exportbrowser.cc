@@ -195,7 +195,8 @@ void exportbrowser::drag_ended(bool adjust, rtk::events::user_drag_box& ev)
 	for (int i = icons.size() - 1; i >= 0; i--) icons[i]->selected(false);
 }
 
-exportsave::exportsave()
+exportsave::exportsave() :
+	mount(0)
 {
 	filetype(SUNFISH_FILETYPE);
 }
@@ -207,7 +208,7 @@ void exportsave::get_block(const void** data,size_type* count)
 		if (data) *data=0;
 		if (count) *count=0;
 	} else {
-		string str = mount.stringsave();
+		string str = mount->stringsave();
 		if (data) *data = str.data();
 		if (count) *count = str.size();
 		done = true;
@@ -216,10 +217,12 @@ void exportsave::get_block(const void** data,size_type* count)
 
 void exportsave::load(const std::string& host, const std::string& exportname, bool tcp, int version)
 {
-	mount.load(mount.genfilename(host, exportname));
-	mount.server = host;
-	mount.exportname = exportname;
-	mount.nfs3 = version == 3;
-	mount.tcp = tcp;
+	if (mount) delete mount;
+	mount = new mountchoices;
+	mount->load(mount->genfilename(host, exportname));
+	mount->server = host;
+	mount->exportname = exportname;
+	mount->nfs3 = version == 3;
+	mount->tcp = tcp;
 }
 
