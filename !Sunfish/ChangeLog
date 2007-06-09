@@ -1,3 +1,6 @@
+v2.01 x-Jun-07
+Fixed bug that resulted in no iconbar icon if all saved mounts were unavailable when the frontend was loaded.
+
 v2.00 3-Jun-07
 Completely new frontend that allows browsing of available servers and exports.
 Added full filing system support.

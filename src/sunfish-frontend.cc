@@ -60,9 +60,9 @@ sunfish::sunfish():
 	application("Sunfish"),
 	ibaricon("", "", false, 2)
 {
-	add(ibaricon);
 	hostaliases.load();
 	getmounts();
+	if (ibaricons.size() == 0) add(ibaricon);
 
 	FILE *file = fopen("<Choices$Write>.Sunfish.choices","r");
 	if (file != NULL) {
