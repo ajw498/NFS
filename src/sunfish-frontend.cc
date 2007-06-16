@@ -100,6 +100,17 @@ ibicon *sunfish::add_mounticon(const std::string &name, const std::string &speci
 	return i;
 }
 
+void sunfish::remove_mounticon(ibicon *icon)
+{
+	for (vector<ibicon*>::iterator i = ibaricons.begin(); i != ibaricons.end(); i++) {
+		if (*i == icon) {
+			delete *i;
+			ibaricons.erase(i);
+			break;
+		}
+	}
+	if (ibaricons.size() == 0) add(ibaricon);
+}
 
 void sunfish::handle_event(rtk::events::menu_selection& ev)
 {
