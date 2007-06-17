@@ -31,6 +31,7 @@
 #include "rtk/desktop/radio_button.h"
 #include "rtk/desktop/option_button.h"
 #include "rtk/desktop/labelled_box.h"
+#include "rtk/desktop/string_set.h"
 #include "rtk/desktop/grid_layout.h"
 #include "rtk/desktop/row_layout.h"
 #include "rtk/desktop/button_row_layout.h"
@@ -38,7 +39,6 @@
 #include "rtk/events/mouse_click.h"
 #include "rtk/events/key_pressed.h"
 
-#include "string_set.h"
 
 
 using namespace std;
@@ -68,7 +68,7 @@ private:
 	radio_button showroot;
 	radio_button shownever;
 	option_button casesensitive;
-	string_set<string> encoding;
+	string_set encoding;
 	icon defaultfiletypelabel;
 	writable_field defaultfiletype;
 	radio_button extalways;
