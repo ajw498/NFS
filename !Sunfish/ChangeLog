@@ -1,4 +1,4 @@
-v2.01 x-Jun-07
+v2.01 17-Jun-07
 Fixed bug that resulted in no iconbar icon if all saved mounts were unavailable when the frontend was loaded.
 Prevent creating a mount icon on the iconbar if mounting from the export browser window failed.
 
