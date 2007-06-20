@@ -68,6 +68,7 @@ void hostbrowser::openexportbrowser(hostinfo *info, bool udp, bool tcp, int vers
 	if (udp && (version >= 3) && (port == 0)) {
 		port = info->mount3udpport;
 		vers = 3;
+		usetcp = false;
 	}
 	if (tcp && (version >= 2) && (port == 0)) {
 		port = info->mount1tcpport;
@@ -77,6 +78,7 @@ void hostbrowser::openexportbrowser(hostinfo *info, bool udp, bool tcp, int vers
 	if (udp && (version >= 2) && (port == 0)) {
 		port = info->mount1udpport;
 		vers = 2;
+		usetcp = false;
 	}
 
 	if (port == 0) throw "No suitable mount service found on remote server";
