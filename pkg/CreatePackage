@@ -24,10 +24,14 @@ Package: Sunfish
 Priority: Optional
 Section: Misc
 Maintainer: Alex Waugh <alex\@alexwaugh.com>
-Standards-Version: 0.0.0
+Standards-Version: 0.1.0
 Version: $version
 Licence: Free
 Description: An NFS client.
+ Sunfish is an NFS client for RISC OS. It is implemented as both a normal
+ filing system and an image filing system, and provides flexible configuration
+ options. Sunfish supports both the NFS2 and NFS3 protocols, over UDP or TCP
+ connections.
 };
 
 close OUT;
@@ -53,10 +57,14 @@ Package: Moonfish
 Priority: Optional
 Section: Misc
 Maintainer: Alex Waugh <alex\@alexwaugh.com>
-Standards-Version: 0.0.0
+Standards-Version: 0.1.0
 Version: $version
 Licence: Free
 Description: An NFS server.
+ Moonfish allows you to share files with other to share files with other
+ computers, either other platforms such as Linux, or RISC OS when combined
+ with Sunfish. Moonfish supports both the NFS2 and NFS3 protocols, over UDP
+ or TCP connections, and has partial support for NFS4.
 };
 
 close OUT;
