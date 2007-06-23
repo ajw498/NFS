@@ -1,3 +1,6 @@
+v1.07 23-Jun-07
+Fixed bug in adding extensions on filenames.
+
 v1.06 28-Apr-07
 Removed limit on number of concurrent connections.
 Fixed bug which could result in incorrect file sizes if setattr request done shortly after writing without setting the filesize.
