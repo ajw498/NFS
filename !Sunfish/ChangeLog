@@ -1,6 +1,7 @@
 v2.02 xx-Jun-07
 Fixed bug in selecting transport to use if the server didn't support TCP.
 Fixed "Invalid filename" error on shutdown.
+Added details of protocol and transport in export browser title bar.
 
 v2.01 17-Jun-07
 Fixed bug that resulted in no iconbar icon if all saved mounts were unavailable when the frontend was loaded.

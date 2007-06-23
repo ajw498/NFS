@@ -9,7 +9,7 @@
 using std::min;
 using std::max;
 
-const int minwidth = 300;
+const int minwidth = 400;
 
 #define FILERWIN
 

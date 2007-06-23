@@ -30,6 +30,7 @@
 #include "sunfish-frontend.h"
 #include "utils.h"
 
+#include <sstream>
 
 using namespace std;
 using namespace rtk;
@@ -45,7 +46,11 @@ exportbrowser::exportbrowser(hostinfo host, int port, bool tcp, int version) :
 	useport(port),
 	connectionwin(((version >= 3) && tcp) ? 32768 : 8192)
 {
-	title(info.host);
+	ostringstream details;
+	details << "NFS" << version << " ";
+	details << (tcp ? "TCP " : "UDP ");
+	details << info.host;
+	title(details.str());
 }
 
 void exportbrowser::open(sunfish& app)
