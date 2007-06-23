@@ -879,7 +879,7 @@ _kernel_oserror *imageentry_func_handler(_kernel_swi_regs *r, void *pw)
 
 _kernel_oserror *fsentry_func_handler(_kernel_swi_regs *r, void *pw)
 {
-	struct conn_info *conn;
+	struct conn_info *conn = NULL;
 	char *filename;
 	os_error *err = NULL;
 
