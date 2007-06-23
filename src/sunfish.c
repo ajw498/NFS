@@ -885,14 +885,23 @@ _kernel_oserror *fsentry_func_handler(_kernel_swi_regs *r, void *pw)
 
 	(void)pw;
 
-	ENTRY("FSFunc  ", r->r[0] == FSENTRY_FUNC_CANONICALISE ? "" : (char *)(r->r[1]), r);
 
-	if (r->r[0] != FSENTRY_FUNC_CANONICALISE) {
-		err = filename_to_conn((char *)(r->r[1]), (char *)(r->r[6]), &conn, &filename);
-		if (err) return err;
+	switch (r->r[0]) {
+		case IMAGEENTRY_FUNC_RENAME:
+		case IMAGEENTRY_FUNC_READDIR:
+		case IMAGEENTRY_FUNC_READDIRINFO:
+		case FSENTRY_FUNC_READDIRINFO:
+		case IMAGEENTRY_FUNC_READFREESPACE:
+		case IMAGEENTRY_FUNC_READFREESPACE64:
+			ENTRY("FSFunc  ", (char *)(r->r[1]), r);
+			err = filename_to_conn((char *)(r->r[1]), (char *)(r->r[6]), &conn, &filename);
+			break;
+		default:
+			ENTRY("FSFunc  ", "", r);
+			break;
 	}
 
-	err = func_handler(filename, conn, r);
+	if (err == NULL) err = func_handler(filename, conn, r);
 
 	EXIT(r, err);
 
