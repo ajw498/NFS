@@ -61,9 +61,9 @@ Standards-Version: 0.1.0
 Version: $version
 Licence: Free
 Description: An NFS server.
- Moonfish allows you to share files with other to share files with other
- computers, either other platforms such as Linux, or RISC OS when combined
- with Sunfish. Moonfish supports both the NFS2 and NFS3 protocols, over UDP
+ Moonfish allows you to share files with other computers, either other
+ platforms such as Linux, or RISC OS when combined with Sunfish.
+ Moonfish supports both the NFS2 and NFS3 protocols, over UDP
  or TCP connections, and has partial support for NFS4.
 };
 
