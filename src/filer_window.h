@@ -35,7 +35,6 @@ public:
 	filer_window& smallicons(bool smallicons);
 
 	virtual void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev) {}
-	virtual void drag_ended(bool adjust, rtk::events::user_drag_box& ev) {}
 	virtual void doubleclick(const std::string& item, rtk::events::mouse_click& ev) {}
 private:
 	void start_drag(rtk::events::mouse_click& ev, rtk::desktop::icon* ic);

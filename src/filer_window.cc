@@ -1,5 +1,7 @@
 
 #include "filer_window.h"
+#include "rtk/events/save_to_app.h"
+
 
 
 filer_window::filer_window(rtk::graphics::point size):
@@ -33,7 +35,9 @@ filer_window::~filer_window()
 void filer_window::handle_event(rtk::events::user_drag_box& ev)
 {
 	if (_icondrag) {
-		drag_ended(_adjustdrag, ev);
+		icon *srcicon = static_cast<icon *>(ev.target());
+		rtk::events::save_to_app saveev(*this, srcicon->text());
+		saveev.post();
 	} else {
 		rtk::graphics::box dbox = ev.dbox();
 		// The drag box depends on the direction the drag took place, so swap if backwards

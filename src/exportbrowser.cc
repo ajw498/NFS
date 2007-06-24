@@ -167,21 +167,19 @@ void exportbrowser::handle_event(rtk::events::menu_selection& ev)
 	}
 }
 
-void exportbrowser::drag_ended(bool adjust, rtk::events::user_drag_box& ev)
+void exportbrowser::handle_event(rtk::events::save_to_app& ev)
 {
-	icon *srcicon = static_cast<icon *>(ev.target());
-
 	if (application* app = parent_application()) {
-		saveop.load(info.host, srcicon->text(), usetcp, nfsversion);
+		saveop.load(info.host, ev.leafname(), usetcp, nfsversion);
 		app->add(saveop);
 		char buf[256];
-		int len = srcicon->text().length();
+		int len = ev.leafname().length();
 		char src[len];
 		for (int i = 0; i < len; i++) {
-			if (srcicon->text()[i] == '/') {
+			if (ev.leafname()[i] == '/') {
 				src[i] = '.';
 			} else {
-				src[i] = srcicon->text()[i];
+				src[i] = ev.leafname()[i];
 			}
 		}
 		len = filename_riscosify(src, len, buf, sizeof(buf), NULL, 0xFFF, NEVER, 0, 0);

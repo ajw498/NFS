@@ -59,7 +59,8 @@ private:
 
 class exportbrowser:
 	public filer_window,
-	public rtk::events::menu_selection::handler
+	public rtk::events::menu_selection::handler,
+	public rtk::events::save_to_app::handler
 {
 public:
 	exportbrowser(hostinfo host, int port, bool tcp, int version);
@@ -67,9 +68,9 @@ public:
 	void refresh();
 	void open(sunfish& app);
 	void open_menu(const std::string& item, bool selection, rtk::events::mouse_click& ev);
-	void drag_ended(bool adjust, rtk::events::user_drag_box& ev);
 	void doubleclick(const std::string& item, rtk::events::mouse_click& ev);
 	void handle_event(rtk::events::menu_selection& ev);
+	void handle_event(rtk::events::save_to_app& ev);
 private:
 	exportsave saveop;
 
