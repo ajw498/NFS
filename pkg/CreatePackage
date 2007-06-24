@@ -19,10 +19,9 @@ close CHANGELOG;
 
 open(OUT,">Sunfish/RiscPkg/Control");
 
-print OUT qq{
-Package: Sunfish
+print OUT qq{Package: Sunfish
 Priority: Optional
-Section: Misc
+Section: Disc
 Maintainer: Alex Waugh <alex\@alexwaugh.com>
 Standards-Version: 0.1.0
 Version: $version
@@ -52,10 +51,9 @@ close CHANGELOG;
 
 open(OUT,">Moonfish/RiscPkg/Control");
 
-print OUT qq{
-Package: Moonfish
+print OUT qq{Package: Moonfish
 Priority: Optional
-Section: Misc
+Section: Disc
 Maintainer: Alex Waugh <alex\@alexwaugh.com>
 Standards-Version: 0.1.0
 Version: $version
