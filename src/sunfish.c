@@ -748,6 +748,8 @@ static os_error *func_handler(char *filename, struct conn_info *conn, _kernel_sw
 	os_error *err = NULL;
 	size_t len;
 	char *to;
+	char *discname;
+	char *special;
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_FUNC_RENAME:
@@ -798,31 +800,23 @@ static os_error *func_handler(char *filename, struct conn_info *conn, _kernel_sw
 			break;
 		case FSENTRY_FUNC_CANONICALISE:
 			/* Only canonical form is accepted */
-			if (r->r[1]) {
-				len = strlen((char *)r->r[1]) + 1;
-				if (r->r[3]) {
-					memcpy((char *)(r->r[3]), (char *)(r->r[1]), len < r->r[5] ? len : r->r[5]);
-					r->r[1] = r->r[3];
-					r->r[3] = len - r->r[5];
-					if (r->r[3] < 0) r->r[3] = 0;
-				} else {
-					r->r[3] = len;
-				}
+			special = r->r[1] ? (char *)r->r[1] : "";
+			len = strlen(special) + 1;
+			if (r->r[3]) {
+				memcpy((char *)(r->r[3]), special, len < r->r[5] ? len : r->r[5]);
+				r->r[1] = r->r[3];
+				r->r[3] = (len > r->r[5]) ? (len - r->r[5]) : 0;
 			} else {
-				r->r[3] = 0;
+				r->r[3] = len - 1;
 			}
-			if (r->r[2]) {
-				len = strlen((char *)r->r[2]) + 1;
-				if (r->r[4]) {
-					memcpy((char *)(r->r[4]), (char *)(r->r[2]), len < r->r[6] ? len : r->r[6]);
-					r->r[2] = r->r[4];
-					r->r[4] = len - r->r[6];
-					if (r->r[4] < 0) r->r[4] = 0;
-				} else {
-					r->r[4] = len;
-				}
+			discname = r->r[2] ? (char *)r->r[2] : "";
+			len = strlen(discname) + 1;
+			if (r->r[4]) {
+				memcpy((char *)(r->r[4]), discname, len < r->r[6] ? len : r->r[6]);
+				r->r[2] = r->r[4];
+				r->r[4] = (len > r->r[6]) ? (len - r->r[6]) : 0;
 			} else {
-				r->r[4] = 0;
+				r->r[4] = len - 1;
 			}
 			break;
 		case FSENTRY_FUNC_RESOLVEWILDCARD:
