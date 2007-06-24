@@ -3,8 +3,8 @@
 #
 
 all:
-	mkdir -p Apps/Misc
-	cp -r ../../!Moonfish Apps/Misc
+	mkdir -p Apps/Disc
+	cp -r ../../!Moonfish Apps/Disc
 	zip -r -9 -I ^.^.moonfish-pkg/zip Apps RiscPkg Sprites SysVars -x *CVS* *svn*
 
 

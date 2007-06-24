@@ -3,8 +3,8 @@
 #
 
 all:
-	mkdir -p Apps/Misc
-	cp -r ../../!Sunfish Apps/Misc
+	mkdir -p Apps/Disc
+	cp -r ../../!Sunfish Apps/Disc
 	zip -r -9 -I ^.^.sunfish-pkg/zip Apps RiscPkg Sprites SysVars -x *CVS* *svn*
 
 
