@@ -212,7 +212,7 @@ edituid.o \
 editname.o \
 ibicon.o \
 searchhost.o \
-gridwrap_layout.o \
+filer_window_layout.o \
 filer_window.o
 
 MOONFISHOBJS = \

@@ -4,27 +4,20 @@
 
 #include "rtk/graphics/gcontext.h"
 #include "rtk/desktop/basic_window.h"
-#include "gridwrap_layout.h"
+#include "filer_window_layout.h"
 
-using std::min;
-using std::max;
-
-const int minwidth = 400;
-
-#define FILERWIN
-
-gridwrap_layout::gridwrap_layout(size_type cells):
-	_cells(cells),
+filer_window_layout::filer_window_layout():
 	_xcells(0),
-	_components(cells,0),
 	_baselines_valid(false),
 	_xgap(0),
 	_ygap(0),
-	_minwidth(0),
-	_minheight(0)
-{}
+	_mincellwidth(0),
+	_mincellheight(0),
+	_minlayoutwidth(0)
+{
+}
 
-gridwrap_layout::~gridwrap_layout()
+filer_window_layout::~filer_window_layout()
 {
 	for (std::vector<component*>::iterator i=_components.begin();
 		i!=_components.end();++i)
@@ -34,24 +27,25 @@ gridwrap_layout::~gridwrap_layout()
 	remove();
 }
 
-void gridwrap_layout::invalidate()
+void filer_window_layout::invalidate()
 {
-	_xcells = 0;
+	_xcells=0;
 	_baselines_valid=false;
 	inherited::invalidate();
 }
 
-// Cache the baselines of all child components, so the size of a cell can be calculated
-void gridwrap_layout::update_baselines() const
+// Cache the baselines of all child components, so the size of a cell
+// can be calculated
+void filer_window_layout::update_baselines() const
 {
-	_xbs = xbaseline_set();
-	_ybs = ybaseline_set();
+	_xbs=xbaseline_set();
+	_ybs=ybaseline_set();
 	for (std::vector<component*>::const_iterator i=_components.begin();
 		i!=_components.end();++i)
 	{
 		if (*i)
 		{
-			box mcbbox = (*i)->min_bbox();
+			box mcbbox=(*i)->min_bbox();
 			_xbs.add(mcbbox, (*i)->xbaseline());
 			_ybs.add(mcbbox, (*i)->ybaseline());
 		}
@@ -59,19 +53,20 @@ void gridwrap_layout::update_baselines() const
 	_baselines_valid=true;
 }
 
-// Calculate width and height, without any wrapping.
-box gridwrap_layout::min_bbox() const
+box filer_window_layout::min_bbox() const
 {
 	if (!size_valid()) resize();
 
 	if (!_baselines_valid) update_baselines();
 
-	// Calculate size when arranged as a single row
-	int xsize = _cells * (_xbs.offset(xbaseline_left,xbaseline_right,_minwidth) + _xgap) - _xgap;
-	int ysize = _ybs.offset(ybaseline_bottom,ybaseline_top,_minheight);
+	// Calculate maximum x size when arranged as a single row
+	// This ensures that the parent can expand to the full width
+	int xsize = _cells * (_xbs.offset(xbaseline_left,xbaseline_right,_mincellwidth) + _xgap) - _xgap;
+	// Calculate y size based on height when wrapped
+	int ysize = _ycells * (_ybs.offset(ybaseline_bottom,ybaseline_top,_mincellheight) + _ygap) - _ygap;
 
-	// Give a minimum width
-	if (xsize < minwidth) xsize = minwidth;
+	// Increase to meet the minimum width
+	if (xsize < _minlayoutwidth) xsize = _minlayoutwidth;
 
 	// Construct minimum bounding box, with respect to top left-hand
 	// corner of layout.
@@ -84,36 +79,22 @@ box gridwrap_layout::min_bbox() const
 	return abbox;
 }
 
-// Calculate width and height, with wrapping.
-box gridwrap_layout::min_wrap_bbox(const box& wbox) const
-{
-	// Update _baselines_valid.
-	if (!size_valid()) resize();
-
-	if (!_baselines_valid) update_baselines();
-
-	size_type xcells, ycells;
-	box bbox(wbox);
-	reflow(bbox,true,xcells,ycells);
-	return bbox;
-}
-
-box gridwrap_layout::ideal_bbox() const
+box filer_window_layout::ideal_bbox() const
 {
 	if (!size_valid()) resize();
 
 	if (!_baselines_valid) update_baselines();
 
-	// Calculate size when arranged as a single row
-	int xcells = _cells;
-	if (xcells > 4) xcells = 4;
-	int ycells = (_cells + (xcells - 1)) / xcells;
+	// Calculate size when arranged as 4 columns
+	int xcells=_cells;
+	if (xcells>4) xcells = 4;
+	int ycells=(_cells+(xcells-1))/xcells;
 
-	int xsize = xcells * (_xbs.offset(xbaseline_left,xbaseline_right,_minwidth) + _xgap) - _xgap;
-	int ysize = ycells * (_ybs.offset(ybaseline_bottom,ybaseline_top,_minheight) + _ygap) - _ygap;
+	int xsize = xcells*(_xbs.offset(xbaseline_left,xbaseline_right,_mincellwidth)+_xgap)-_xgap;
+	int ysize = ycells*(_ybs.offset(ybaseline_bottom,ybaseline_top,_mincellheight)+_ygap)-_ygap;
 
 	// Give a minimum width
-	if (xsize < minwidth) xsize = minwidth;
+	if (xsize<_minlayoutwidth) xsize=_minlayoutwidth;
 
 	// Construct minimum bounding box, with respect to top left-hand
 	// corner of layout.
@@ -126,11 +107,11 @@ box gridwrap_layout::ideal_bbox() const
 	return abbox;
 }
 
-component* gridwrap_layout::find(const point& p) const
+component* filer_window_layout::find(const point& p) const
 {
 	// Find the nearest cell
-	int xmaxcell = _xbs.offset(xbaseline_left,xbaseline_right,_minwidth);
-	int ymaxcell = _ybs.offset(ybaseline_bottom,ybaseline_top,_minheight);
+	int xmaxcell = _xbs.offset(xbaseline_left,xbaseline_right,_mincellwidth);
+	int ymaxcell = _ybs.offset(ybaseline_bottom,ybaseline_top,_mincellheight);
 	size_type x = (p.x()-(_bbox.xmin() + _margin.xmin()))/(xmaxcell + _xgap);
 	size_type y = -(p.y()-(_bbox.ymax()-_margin.ymax()))/(ymaxcell + _ygap);
 	size_type i = x + y * _xcells;
@@ -144,12 +125,12 @@ component* gridwrap_layout::find(const point& p) const
 	return c;
 }
 
-box gridwrap_layout::bbox() const
+box filer_window_layout::bbox() const
 {
 	return _bbox;
 }
 
-void gridwrap_layout::resize() const
+void filer_window_layout::resize() const
 {
 	if (!size_valid())
 	{
@@ -165,85 +146,28 @@ void gridwrap_layout::resize() const
 	}
 }
 
-// Reflow the grid to fit within bbox. Returns the number of cells wide and
-// high, and updated the bbox
-void gridwrap_layout::reflow(box& bbox, bool shrinkx, size_type& xcells, size_type& ycells) const
+void filer_window_layout::reformat(const point& origin,const box& pbbox)
 {
-	// Remove margin.
-	box ibox(bbox-_margin);
+	size_type oldxcells=_xcells;
 
-	xcells = 1;
-	ycells = 1;
-	if (_cells == 0) return;
+	// Get parent bbox, so we can wrap to fit within
+	box ibox;
+	basic_window* parent=parent_work_area();
+	if (parent) ibox=parent->bbox();
+
+	// Remove margin.
+	ibox-=_margin;
 
 	// Find the maximum number of cells we can fit in the x direction
-	xcells = (ibox.xsize() + _xgap) / (_xbs.offset(xbaseline_left,xbaseline_right,_minwidth) + _xgap);
+	_xcells=(ibox.xsize()+_xgap)/(_xbs.offset(xbaseline_left,xbaseline_right,_mincellwidth)+_xgap);
+	if (_xcells>_cells) _xcells=_cells;
+	if (_xcells<1) _xcells=1;
 
-#ifdef FILERWIN
-	int excess = (ibox.xsize() + _xgap) - (xcells * (_xbs.offset(xbaseline_left,xbaseline_right,_minwidth) + _xgap));
-	if (!shrinkx && ((xcells < _cells) || (excess == 0))) xcells -= 1;
-#endif
+	// Find the number of rows needed for the calculated width
+	_ycells=(_cells+(_xcells-1))/_xcells;
+	if (_ycells<1) _ycells=1;
 
-	if (xcells < 1) xcells = 1;
-	if (xcells > _cells) xcells = _cells;
-
-	ycells = (_cells + (xcells - 1)) / xcells;
-
-	// Work out the excess space, and align suitably within
-	int xspare = ibox.xsize() - (xcells * _xbs.offset(xbaseline_left,xbaseline_right,_minwidth) + (xcells - 1) * _xgap);
-	int yspare = ibox.ysize() - (ycells * _ybs.offset(ybaseline_bottom,ybaseline_top,_minheight) + (ycells - 1) * _ygap);
-
-	switch (xbaseline())
-	{
-	case xbaseline_left:
-		bbox.xmax(bbox.xmax() - xspare);
-		break;
-	case xbaseline_right:
-		bbox.xmin(bbox.xmin() + xspare);
-		break;
-	case xbaseline_centre:
-		bbox.xmin(bbox.xmin() + xspare/2);
-		bbox.xmax(bbox.xmax() - xspare/2);
-		break;
-	default:
-		break;
-	}
-
-#ifdef FILERWIN
-	// Make x size 1 cell wider than needed, to allow the window to expand
-	bbox.xmax(bbox.xmax()+_xbs.offset(xbaseline_left,xbaseline_right,_minwidth) + _xgap);
-	// Restrict the maximum x size to be enough to hold all cells, plus
-	// 1 pixel (to allow detection of when the window is full width)
-	int xsize = _margin.xsize() + _cells * (_xbs.offset(xbaseline_left,xbaseline_right,_minwidth) + _xgap) - _xgap + 2;
-	// Give a minimum width
-	if ((xsize < minwidth) && (ycells < 2)) xsize = minwidth;
-	if (bbox.xsize() > xsize) bbox.xmax(bbox.xmin()+xsize);
-#endif
-
-	switch (ybaseline())
-	{
-	case ybaseline_top:
-		bbox.ymin(bbox.ymin() + yspare);
-		break;
-	case ybaseline_bottom:
-		bbox.ymax(bbox.ymax() - yspare);
-		break;
-	case ybaseline_centre:
-		bbox.ymax(bbox.ymax() - yspare/2);
-		bbox.ymin(bbox.ymin() + yspare/2);
-		break;
-	default:
-		break;
-	}
-}
-
-void gridwrap_layout::reformat(const point& origin,const box& pbbox)
-{
-	// Fit bounding box to parent.
-	box bbox=pbbox;
-
-	size_type oldxcells=_xcells;
-	reflow(bbox,false,_xcells,_ycells);
+	box bbox=min_bbox();
 
 	// Update origin and bounding box of this component, force redraw
 	// if necessary.  (This must happen before reformat() is called for
@@ -266,8 +190,8 @@ void gridwrap_layout::reformat(const point& origin,const box& pbbox)
 			{
 				// Construct bounding box for cell with respect to
 				// origin of layout.
-				int xmaxcell = _xbs.offset(xbaseline_left,xbaseline_right,_minwidth);
-				int ymaxcell = _ybs.offset(ybaseline_bottom,ybaseline_top,_minheight);
+				int xmaxcell = _xbs.offset(xbaseline_left,xbaseline_right,_mincellwidth);
+				int ymaxcell = _ybs.offset(ybaseline_bottom,ybaseline_top,_mincellheight);
 				box cbbox(  (xmaxcell + _xgap) * x,
 				          - ((ymaxcell + _ygap) * y + ymaxcell),
 				            (xmaxcell + _xgap) * (x+1) -_xgap,
@@ -291,24 +215,23 @@ void gridwrap_layout::reformat(const point& origin,const box& pbbox)
 				c->reformat(cpos,cbbox-cpos);
 			}
 
-			if (++x >= _xcells)
+			if (++x>=_xcells)
 			{
-				x = 0;
+				x=0;
 				y++;
 			}
 		}
-#ifdef FILERWIN
+
 		// Invalidate the parent to allow the work area to shrink if needed.
 		// When this reformat is called again because of this, the _xcells
 		// won't have changed, so we won't reformat all children again and
 		// get into an infinite loop 
 		basic_window* parent=parent_work_area();
 		if (parent) parent->invalidate();
-#endif
 	}
 }
 
-void gridwrap_layout::unformat()
+void filer_window_layout::unformat()
 {
 	for (std::vector<component*>::iterator i=_components.begin();
 		i!=_components.end();++i)
@@ -317,11 +240,11 @@ void gridwrap_layout::unformat()
 	}
 }
 
-void gridwrap_layout::redraw(gcontext& context,const box& clip)
+void filer_window_layout::redraw(gcontext& context,const box& clip)
 {
 	// Find which cells are within the clip box
-	int xmaxcell = _xbs.offset(xbaseline_left,xbaseline_right,_minwidth);
-	int ymaxcell = _ybs.offset(ybaseline_bottom,ybaseline_top,_minheight);
+	int xmaxcell = _xbs.offset(xbaseline_left,xbaseline_right,_mincellwidth);
+	int ymaxcell = _ybs.offset(ybaseline_bottom,ybaseline_top,_mincellheight);
 	size_type x0 = (clip.xmin()-(_bbox.xmin() + _margin.xmin()))/(xmaxcell + _xgap);
 	size_type x1 = (clip.xmax()-(_bbox.xmin() + _margin.xmin()))/(xmaxcell + _xgap);
 	size_type y0 = -(clip.ymax()-(_bbox.ymax() - _margin.ymax()))/(ymaxcell + _ygap);
@@ -350,7 +273,7 @@ void gridwrap_layout::redraw(gcontext& context,const box& clip)
 	inherited::redraw(context,clip);
 }
 
-void gridwrap_layout::remove_notify(component& c)
+void filer_window_layout::remove_notify(component& c)
 {
 	std::vector<component*>::iterator f=
 		std::find(_components.begin(),_components.end(),&c);
@@ -362,9 +285,9 @@ void gridwrap_layout::remove_notify(component& c)
 	}
 }
 
-gridwrap_layout& gridwrap_layout::cells(size_type cells)
+filer_window_layout& filer_window_layout::cells(size_type cells)
 {
-	for (size_type i=min(cells,_components.size());i!=_components.size();++i)
+	for (size_type i=std::min(cells,_components.size());i!=_components.size();++i)
 		if (component* c=_components[i]) c->remove();
 	_components.resize(cells,0);
 	_cells = cells;
@@ -373,7 +296,7 @@ gridwrap_layout& gridwrap_layout::cells(size_type cells)
 	return *this;
 }
 
-gridwrap_layout& gridwrap_layout::add(component& c,size_type i)
+filer_window_layout& filer_window_layout::add(component& c,size_type i)
 {
 	if (i>=_cells) cells(i+1);
 
@@ -384,42 +307,49 @@ gridwrap_layout& gridwrap_layout::add(component& c,size_type i)
 	return *this;
 }
 
-gridwrap_layout& gridwrap_layout::xgap(int xgap)
+filer_window_layout& filer_window_layout::xgap(int xgap)
 {
 	_xgap=xgap;
 	invalidate();
 	return *this;
 }
 
-gridwrap_layout& gridwrap_layout::ygap(int ygap)
+filer_window_layout& filer_window_layout::ygap(int ygap)
 {
 	_ygap=ygap;
 	invalidate();
 	return *this;
 }
 
-gridwrap_layout& gridwrap_layout::min_width(int min_width)
+filer_window_layout& filer_window_layout::min_cell_width(int width)
 {
-	_minwidth=min_width;
+	_mincellwidth=width;
 	invalidate();
 	return *this;
 }
 
-gridwrap_layout& gridwrap_layout::min_height(int min_height)
+filer_window_layout& filer_window_layout::min_cell_height(int height)
 {
-	_minheight=min_height;
+	_mincellheight=height;
 	invalidate();
 	return *this;
 }
 
-gridwrap_layout& gridwrap_layout::margin(const box& margin)
+filer_window_layout& filer_window_layout::min_layout_width(int width)
+{
+	_minlayoutwidth=width;
+	invalidate();
+	return *this;
+}
+
+filer_window_layout& filer_window_layout::margin(const box& margin)
 {
 	_margin=margin;
 	invalidate();
 	return *this;
 }
 
-gridwrap_layout& gridwrap_layout::margin(int margin)
+filer_window_layout& filer_window_layout::margin(int margin)
 {
 	_margin=box(-margin,-margin,margin,margin);
 	invalidate();

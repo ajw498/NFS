@@ -14,7 +14,8 @@ filer_window::filer_window(rtk::graphics::point size):
 	adjust_icon(true);
 	toggle_icon(true);
 
-	layout.min_width(172).min_height(124);
+	layout.min_cell_width(172).min_cell_height(124);
+	layout.min_layout_width(450);//FIXME
 	layout.xgap(16).margin(rtk::graphics::box(-8,0,8,10));
 	layout.xbaseline(component::xbaseline_left);
 	layout.ybaseline(component::ybaseline_top);
@@ -225,7 +226,7 @@ filer_window& filer_window::smallicons(bool smallicons)
 			// large hcentre, no rjustify, no vcentre
 			// small no hcentre, no rjustify, vcentre
 		}
-		layout.min_height(smallicons ? 44 : 124);
+		layout.min_cell_height(smallicons ? 44 : 124);
 		layout.invalidate();
 	}
 	_smallicons = smallicons;

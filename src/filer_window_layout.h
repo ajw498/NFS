@@ -1,6 +1,6 @@
 
-#ifndef _GRIDWRAP_LAYOUT
-#define _GRIDWRAP_LAYOUT
+#ifndef _FILER_WINDOW_LAYOUT
+#define _FILER_WINDOW_LAYOUT
 
 #include <vector>
 
@@ -10,15 +10,18 @@ using namespace rtk;
 using namespace rtk::desktop;
 
 /** A layout class for arranging components in a grid that wraps to fit
- * the available space.
+ * the available horizontal space in the parent window.
+ * Although the components wrap to fit the width available, the layout
+ * remains wide enough to hold all the components in a single row.
+ * The class is primarily intended to be used by the filer_window class
+ * to implement a filer like window.  
  * It is possible to specify the horizontal or vertical gap to be placed
  * between cells and the margin to be placed around the layout as a whole.
  * Cells that share the same horizontal or vertical baseline are aligned
- * with each other. The layout will expand to fill any horizontal space
- * made available to it, and will alter the number of columns to fit.
+ * with each other.
  * The components will be arranged in order left to right, top to bottom.
  */
-class gridwrap_layout:
+class filer_window_layout:
 	public component
 {
 private:
@@ -33,6 +36,7 @@ private:
 
 	/** The number of cells wide */
 	size_type _xcells;
+
 	/** The number of cells high */
 	size_type _ycells;
 
@@ -58,10 +62,13 @@ private:
 	int _ygap;
 
 	/** The minimum width of each cell. */
-	int _minwidth;
+	int _mincellwidth;
 
 	/** The minimum height of each cell. */
-	int _minheight;
+	int _mincellheight;
+
+	/** The minimum width of the layout. */
+	int _minlayoutwidth;
 
 	/** The margin to be placed around the whole layout. */
 	box _margin;
@@ -70,17 +77,13 @@ private:
 	box _bbox;
 
 public:
-	/** Construct wrapping grid layout.
-	 * @param cells the required number of cells (defaults to 0)
-	 */
-	gridwrap_layout(size_type cells=0);
+	/** Construct filer window layout. */
+	filer_window_layout();
 
-	/** Destroy grid layout. */
-	virtual ~gridwrap_layout();
+	/** Destroy filer window layout. */
+	virtual ~filer_window_layout();
 
 	virtual box min_bbox() const;
-	virtual box min_wrap_bbox(const box& wbox) const;
-	box ideal_bbox() const;
 	virtual component* find(const point& p) const;
 	virtual box bbox() const;
 	virtual void resize() const;
@@ -88,12 +91,18 @@ public:
 	virtual void unformat();
 	virtual void redraw(gcontext& context,const box& clip);
 	virtual void invalidate();
+
 protected:
 	virtual void remove_notify(component& c);
 private:
 	void update_baselines() const;
-	void reflow(box& bbox, bool shrinkx, size_type& xcells, size_type& ycells) const;
 public:
+	/** Get the bounding box if the layout were to be arranged in the
+	 * ideal size of 4 columns.
+	 * @return the ideal bounding box
+	 */
+	box ideal_bbox() const;
+
 	/** Get number of cells.
 	 * @return the number of cells
 	 */
@@ -104,7 +113,7 @@ public:
 	 * @param cells the required number of cells
 	 * @return a reference to this
 	 */
-	gridwrap_layout& cells(size_type cells);
+	filer_window_layout& cells(size_type cells);
 
 	/** Add component to layout.
 	 * If a component already exists at the specified position
@@ -115,7 +124,7 @@ public:
 	 * @param i the cell index
 	 * @return a reference to this
 	 */
-	gridwrap_layout& add(component& c,size_type i);
+	filer_window_layout& add(component& c,size_type i);
 
 	/** Get size of gap between columns.
 	 * @return the size of gap between columns
@@ -132,38 +141,50 @@ public:
 	/** Get minimum width for each cell.
 	 * @return the minimum width for cells
 	 */
-	int min_width() const
-		{ return _minwidth; }
+	int min_cell_width() const
+		{ return _mincellwidth; }
 
 	/** Get minimum height for each cell.
 	 * @return the minimum height for cells
 	 */
-	int min_height() const
-		{ return _minheight; }
+	int min_cell_height() const
+		{ return _mincellheight; }
+
+	/** Get minimum width for the total layout.
+	 * @return the minimum width for the layout
+	 */
+	int min_layout_width() const
+		{ return _minlayoutwidth; }
 
 	/** Set size of gap between columns.
 	 * @param xgap the required gap between columns
 	 * @return a reference to this
 	 */
-	gridwrap_layout& xgap(int xgap);
+	filer_window_layout& xgap(int xgap);
 
 	/** Set size of gap between rows.
 	 * @param ygap the required gap between rows
 	 * @return a reference to this
 	 */
-	gridwrap_layout& ygap(int ygap);
+	filer_window_layout& ygap(int ygap);
 
 	/** Set minimum width of each cell.
-	 * @param min_width the required minimum width
+	 * @param width the required minimum width
 	 * @return a reference to this
 	 */
-	gridwrap_layout& min_width(int min_width);
+	filer_window_layout& min_cell_width(int width);
 
 	/** Set minimum height of each cell.
-	 * @param min_height the required minimum height
+	 * @param height the required minimum height
 	 * @return a reference to this
 	 */
-	gridwrap_layout& min_height(int min_height);
+	filer_window_layout& min_cell_height(int height);
+
+	/** Set minimum width of the total layout.
+	 * @param width the required minimum width
+	 * @return a reference to this
+	 */
+	filer_window_layout& min_layout_width(int width);
 
 	/** Get margin around layout.
 	 * @return a box indicating the margin width for each side of the layout
@@ -176,14 +197,14 @@ public:
 	 *  side of the layout
 	 * @return a reference to this
 	 */
-	gridwrap_layout& margin(const box& margin);
+	filer_window_layout& margin(const box& margin);
 
 	/** Set margin around layout.
 	 * @param margin an integer specifying the required margin width for
 	 *  all sides of the layout
 	 * @return a reference to this
 	 */
-	gridwrap_layout& margin(int margin);
+	filer_window_layout& margin(int margin);
 };
 
 #endif

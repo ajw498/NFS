@@ -10,7 +10,7 @@
 #include "rtk/events/mouse_click.h"
 #include "rtk/events/close_window.h"
 #include "rtk/events/user_drag_box.h"
-#include "gridwrap_layout.h"
+#include "filer_window_layout.h"
 
 class filer_window:
 	public rtk::desktop::window,
@@ -23,7 +23,7 @@ public:
 	virtual void reformat(const point& origin,const box& pbbox);
 	void handle_event(rtk::events::mouse_click& ev);
 	void handle_event(rtk::events::user_drag_box& ev);
-	gridwrap_layout layout;
+	filer_window_layout layout;
 	std::vector<rtk::desktop::icon *> icons;
 
 	filer_window& add_icon(const std::string& text, const std::string& sprite, int index=-1);
