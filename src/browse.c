@@ -27,6 +27,7 @@
 #include "pcnfsd-calls.h"
 #include "mount1-calls.h"
 #include "mount3-calls.h"
+#include "nfs3-calls.h"
 
 #include "sunfish.h"
 #include "browse.h"
@@ -126,6 +127,10 @@ char *browse_gethost(struct hostinfo *info, enum broadcast_type type, const char
 	info->mount1udpport = 0;
 	info->mount3tcpport = 0;
 	info->mount3udpport = 0;
+	info->nfs2tcpport = 0;
+	info->nfs2udpport = 0;
+	info->nfs3tcpport = 0;
+	info->nfs3udpport = 0;
 	info->pcnfsdtcpport = 0;
 	info->pcnfsdudpport = 0;
 
@@ -144,6 +149,21 @@ char *browse_gethost(struct hostinfo *info, enum broadcast_type type, const char
 					info->mount3udpport = list->map.port;
 				} else if (list->map.prot == IPPROTO_TCP) {
 					info->mount3tcpport = list->map.port;
+				}
+			}
+			break;
+		case NFS_RPC_PROGRAM:
+			if (list->map.vers == 2) {
+				if (list->map.prot == IPPROTO_UDP) {
+					info->nfs2udpport = list->map.port;
+				} else if (list->map.prot == IPPROTO_TCP) {
+					info->nfs2tcpport = list->map.port;
+				}
+			} else if (list->map.vers == 3) {
+				if (list->map.prot == IPPROTO_UDP) {
+					info->nfs3udpport = list->map.port;
+				} else if (list->map.prot == IPPROTO_TCP) {
+					info->nfs3tcpport = list->map.port;
 				}
 			}
 			break;

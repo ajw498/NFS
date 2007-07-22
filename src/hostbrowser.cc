@@ -60,22 +60,22 @@ void hostbrowser::openexportbrowser(hostinfo *info, bool udp, bool tcp, int vers
 	int vers = 0;
 	bool usetcp = false;
 
-	if (tcp && (version >= 3) && (port == 0)) {
+	if (tcp && (version >= 3) && (port == 0) && info->nfs3tcpport) {
 		port = info->mount3tcpport;
 		vers = 3;
 		usetcp = true;
 	}
-	if (udp && (version >= 3) && (port == 0)) {
+	if (udp && (version >= 3) && (port == 0) && info->nfs3udpport) {
 		port = info->mount3udpport;
 		vers = 3;
 		usetcp = false;
 	}
-	if (tcp && (version >= 2) && (port == 0)) {
+	if (tcp && (version >= 2) && (port == 0) && info->nfs2tcpport) {
 		port = info->mount1tcpport;
 		vers = 2;
 		usetcp = true;
 	}
-	if (udp && (version >= 2) && (port == 0)) {
+	if (udp && (version >= 2) && (port == 0) && info->nfs2udpport) {
 		port = info->mount1udpport;
 		vers = 2;
 		usetcp = false;

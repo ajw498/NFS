@@ -34,6 +34,10 @@ struct hostinfo {
 	unsigned mount1udpport;
 	unsigned mount3tcpport;
 	unsigned mount3udpport;
+	unsigned nfs2tcpport;
+	unsigned nfs2udpport;
+	unsigned nfs3tcpport;
+	unsigned nfs3udpport;
 	unsigned pcnfsdtcpport;
 	unsigned pcnfsdudpport;
 	char host[256];
