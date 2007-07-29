@@ -236,9 +236,9 @@ void hostbrowser::open_menu(const std::string& item, bool selection, rtk::events
 	udpprotocol.add(udpnfs3, 1);
 //	udpprotocol.add(udpnfs4, 2);
 	udpnfs2.text("NFSv2");
-	udpnfs2.enabled(menuinfo->mount1udpport);
+	udpnfs2.enabled(menuinfo->mount1udpport && menuinfo->nfs2udpport);
 	udpnfs3.text("NFSv3");
-	udpnfs3.enabled(menuinfo->mount3udpport);
+	udpnfs3.enabled(menuinfo->mount3udpport && menuinfo->nfs2udpport);
 	udpnfs4.text("NFSv4");
 	udpnfs4.enabled(false);
 
@@ -247,9 +247,9 @@ void hostbrowser::open_menu(const std::string& item, bool selection, rtk::events
 	tcpprotocol.add(tcpnfs3, 1);
 //	tcpprotocol.add(tcpnfs4, 2);
 	tcpnfs2.text("NFSv2");
-	tcpnfs2.enabled(menuinfo->mount1tcpport);
+	tcpnfs2.enabled(menuinfo->mount1tcpport && menuinfo->nfs3tcpport);
 	tcpnfs3.text("NFSv3");
-	tcpnfs3.enabled(menuinfo->mount3tcpport);
+	tcpnfs3.enabled(menuinfo->mount3tcpport && menuinfo->nfs3tcpport);
 	tcpnfs4.text("NFSv4");
 	tcpnfs4.enabled(false);
 
