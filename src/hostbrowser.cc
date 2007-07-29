@@ -114,7 +114,7 @@ void hostbrowser::broadcast()
 	app.register_null(*this);
 
 	remove_all_icons();
-	hostinfos.erase(hostinfos.begin(),hostinfos.end());
+	hostinfos.clear();
 
 	for (vector<string>::iterator i = extrahosts.begin(); i != extrahosts.end(); ++i) {
 		hostinfo info;
