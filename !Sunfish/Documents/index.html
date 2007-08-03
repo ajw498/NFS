@@ -459,7 +459,9 @@ If ShowHidden == 0 and you try to delete a directory that contains hidden files 
 <p>
 If an NFS3 server returns a jukebox error, Sunfish should retry the operation a short while later. It doesn't, and reports the error to the user. If you manually retry then things should work.
 <p>
-Files greater than 2GB in size are reported as having a size of exactly 2GB. The data in the first 2GB of the file can be read and written to normally, but the rest of the file cannot be accessed.
+Files greater than 2GB in size are reported as having a size of exactly 2GB. The data in the first 2GB of the file can be read and written to normally, but the rest of the file cannot be accessed. This is due to RISC OS not supporting files larger than 2GB.
+<p>
+The server and export browser windows sometimes show icons left aligned rather than centred when running on RISC OS Select.
 <p>
 <table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
 <h2><font color="#ffffff"><a name="recompiling">Recompiling</a></font></h2>
