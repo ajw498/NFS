@@ -82,7 +82,9 @@ struct request_entry {
 	int reference;
 	unsigned int retries;
 	int error;
+	time_t firstactivity;
 	time_t lastactivity;
+	int timeout;
 	struct buffer_list tx;
 	void *extradata;
 	int extralen;
@@ -191,8 +193,10 @@ static struct request_entry *get_request_entry(struct conn_info *conn)
 	entry->status = TXWAIT;
 	entry->conn = conn;
 	entry->reference = conn->reference;
+	entry->timeout = conn->tcp ? 200 : 50;
 	entry->retries = 0;
-	entry->lastactivity = clock();
+	entry->firstactivity = clock();
+	entry->lastactivity = entry->firstactivity;
 	entry->error = 0;
 	entry->rx = NULL;
 	entry->tx.len = 0;
@@ -640,7 +644,11 @@ static void handle_error(struct request_entry *entry, int err)
 			entry->conn->rxmutex = NULL;
 		}
 	}
-	if (entry->retries <= entry->conn->retries) {
+
+	if (clock() > entry->firstactivity + entry->conn->timeout) {
+		entry->error = err;
+		entry->status = DONE;
+	} else if (entry->retries <= entry->conn->retries) {
 		/* Try again */
 		entry->status = TXWAIT;
 	} else {
@@ -668,11 +676,12 @@ static void poll_connections(void)
 			entry->status = TX;
 			entry->lastactivity = t;
 			entry->retries++;
+			entry->timeout *= 2;
 			entry->tx.position = 0;
 			entry->error = 0;
 			/* Fallthrough */
 		case TX:
-			if (t > entry->lastactivity + entry->conn->timeout) {
+			if (t > entry->lastactivity + entry->timeout) {
 				ret = ETIMEDOUT;
 			} else {
 				ret = poll_tx(entry);
@@ -693,7 +702,7 @@ static void poll_connections(void)
 			entry->status = RX;
 			/* Fallthrough */
 		case RX:
-			if (t > entry->lastactivity + entry->conn->timeout) {
+			if (t > entry->lastactivity + entry->timeout) {
 				ret = ETIMEDOUT;
 			} else {
 				ret = poll_rx(entry->conn);
