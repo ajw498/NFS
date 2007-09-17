@@ -1,5 +1,6 @@
-v2.04 ?-Sep-07
+v2.04 17-Sep-07
 Improved timeout and retry behaviour.
+Fixed creation of Choices directory before trying writing to it.
 
 v2.03 3-Aug-07
 Fixed bug in selecting transport and protocol to use if mountd supports more options than nfsd.

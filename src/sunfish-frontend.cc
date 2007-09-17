@@ -122,6 +122,7 @@ void sunfish::handle_event(rtk::events::menu_selection& ev)
 			ibaricons.erase(i);
 			break;
 		} else if (ev.target() == &((*i)->ibsave)) {
+			rtk::os::OS_File8("<Choices$Write>.Sunfish", 0);
 			FILE *file = fopen("<Choices$Write>.Sunfish.savemounts","w");
 			if (file == NULL) throw "Cannot open file";
 			for (vector<ibicon*>::iterator j = ibaricons.begin(); j != ibaricons.end(); j++) {
@@ -132,6 +133,7 @@ void sunfish::handle_event(rtk::events::menu_selection& ev)
 		}
 	}
 	if (ev.target() == &(ibaricon.ibsave)) {
+		rtk::os::OS_File8("<Choices$Write>.Sunfish", 0);
 		FILE *file = fopen("<Choices$Write>.Sunfish.savemounts","w");
 		if (file == NULL) throw "Cannot open file";
 		fprintf(file, "\n\n");
@@ -155,6 +157,7 @@ void sunfish::smallicons(bool small)
 	if (small != usesmallicons) {
 		usesmallicons = small;
 
+		rtk::os::OS_File8("<Choices$Write>.Sunfish", 0);
 		FILE *file = fopen("<Choices$Write>.Sunfish.choices","w");
 		if (file != NULL) {
 			fprintf(file, "smallicons: %d\n\n", small);

@@ -75,7 +75,8 @@ mountchoices::mountchoices(void) :
 {
 }
 
-#define SAVEDIR "<Choices$Write>.Sunfish.mountsave"
+#define SAVEPARENT "<Choices$Write>.Sunfish"
+#define SAVEDIR SAVEPARENT ".mountsave"
 
 string mountchoices::genfilename(const string& host, const string& mountname)
 {
@@ -146,6 +147,7 @@ string mountchoices::stringsave()
 void mountchoices::save(const string& filename)
 {
 	FILE *file;
+	rtk::os::OS_File8(SAVEPARENT, 0);
 	rtk::os::OS_File8(SAVEDIR, 0);
 	file = fopen(filename.c_str(), "w");
 	if (file == NULL) throw rtk::os::exception(_kernel_last_oserror());
