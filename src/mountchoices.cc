@@ -60,7 +60,7 @@ mountchoices::mountchoices(void) :
 	mountport(0),
 	maxdatabuffer(0),
 	pipelining(false),
-	timeout(6),
+	timeout(20),
 	logging(false),
 	localportmin(0),
 	localportmax(0),

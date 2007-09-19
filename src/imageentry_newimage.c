@@ -285,7 +285,7 @@ os_error *func_newimage(unsigned int fileswitchhandle, char *config, struct conn
 	conn->tcp = 0;
 	conn->server = "";
 	conn->exportname = "";
-	conn->timeout = 10;
+	conn->timeout = 30;
 	conn->retries = -1;
 	conn->hidden = 1;
 	conn->umask = 022;
