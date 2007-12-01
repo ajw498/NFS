@@ -1,3 +1,6 @@
+v1.08 xx-Dec-07
+Fixed bug in reporting of maximum transfer size.
+
 v1.07 23-Jun-07
 Fixed bug in adding extensions on filenames.
 
