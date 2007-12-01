@@ -258,7 +258,7 @@ nstat NFS4_LOOKUP(LOOKUP4args *args, LOOKUP4res *res, struct server_conn *conn)
 	if (type == OBJ_NONE) return res->status = NFSERR_NOENT;
 	realfiletype = ((load & 0xFFF00000) == 0xFFF00000) ? ((load & 0x000FFF00) >> 8) : conn->export->defaultfiletype;
 
-	if ((type != OBJ_DIR) && (filetype != -1) && (realfiletype != UNIXEX_FILETYPE) &&
+	if ((type != OBJ_DIR) && (conn->export->xyzext != NEVER) && (filetype != -1) && (realfiletype != UNIXEX_FILETYPE) &&
 	    (realfiletype != filetype)) return res->status = NFSERR_NOENT;
 
 	return res->status = NFS_OK;
