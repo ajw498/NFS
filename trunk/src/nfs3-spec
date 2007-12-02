@@ -1,0 +1,816 @@
+/*
+	$Id$
+
+	XDR Specification for the NFS V3 protocol.
+	See RFC 1813 for more details.
+	Some structures have been renamed to help integration with NFS2
+
+	StrongEd$Mode=C
+*/
+
+#define NFS_RPC_PROGRAM 100003
+#define NFS_RPC_VERSION 3
+
+const NFS3_FHSIZE = 64;
+/* The maximum size in bytes of the opaque file handle. */
+
+const NFS3_COOKIEVERFSIZE = 8;
+/* The size in bytes of the opaque cookie verifier passed by
+   READDIR and READDIRPLUS. */
+
+const NFS3_CREATEVERFSIZE = 8;
+/* The size in bytes of the opaque verifier used for
+   exclusive CREATE. */
+
+/* The size in bytes of the opaque verifier used for
+   asynchronous WRITE. */
+const NFS3_WRITEVERFSIZE = 8;
+
+typedef uint64_t uint64;
+typedef int uint32;
+
+typedef opaque filename3<>;
+
+typedef opaque nfspath3<>;
+
+typedef uint64 fileid3;
+
+typedef uint64 cookie3;
+
+typedef opaque cookieverf3[NFS3_COOKIEVERFSIZE];
+
+
+typedef opaque createverf3[NFS3_CREATEVERFSIZE];
+
+typedef opaque writeverf3[NFS3_WRITEVERFSIZE];
+
+typedef uint32 uid3;
+
+typedef uint32 gid3;
+
+typedef uint64 size3;
+
+typedef uint64 offset3;
+
+typedef uint32 mode3;
+
+typedef uint32 count3;
+
+
+#ifndef NSTAT
+#define NSTAT
+typedef int nstat;
+#endif
+
+const NFS_OK             = 0;
+const NFSERR_PERM        = 1;
+const NFSERR_NOENT       = 2;
+const NFSERR_IO          = 5;
+const NFSERR_NXIO        = 6;
+const NFSERR_ACCES       = 13;
+const NFSERR_EXIST       = 17;
+const NFSERR_XDEV        = 18;
+const NFSERR_NODEV       = 19;
+const NFSERR_NOTDIR      = 20;
+const NFSERR_ISDIR       = 21;
+const NFSERR_INVAL       = 22;
+const NFSERR_FBIG        = 27;
+const NFSERR_NOSPC       = 28;
+const NFSERR_ROFS        = 30;
+const NFSERR_MLINK       = 31;
+const NFSERR_NAMETOOLONG = 63;
+const NFSERR_NOTEMPTY    = 66;
+const NFSERR_DQUOT       = 69;
+const NFSERR_STALE       = 70;
+const NFSERR_REMOTE      = 71;
+const NFSERR_BADHANDLE   = 10001;
+const NFSERR_NOT_SYNC    = 10002;
+const NFSERR_BAD_COOKIE  = 10003;
+const NFSERR_NOTSUPP     = 10004;
+const NFSERR_TOOSMALL    = 10005;
+const NFSERR_SERVERFAULT = 10006;
+const NFSERR_BADTYPE     = 10007;
+const NFSERR_JUKEBOX     = 10008;
+
+enum ftype3 {
+   NFREG    = 1,
+   NFDIR    = 2,
+   NFBLK    = 3,
+   NFCHR    = 4,
+   NFLNK    = 5,
+   NFSOCK   = 6,
+   NFFIFO   = 7
+};
+
+struct specdata3 {
+     uint32     specdata1;
+     uint32     specdata2;
+};
+
+struct nfs_fh3 {
+   opaque       data<NFS3_FHSIZE>;
+};
+
+struct ntimeval3 {
+   unsigned   seconds;
+   unsigned   nseconds;
+};
+
+
+struct fattr3 {
+   ftype3     type;
+   mode3      mode;
+   uint32     nlink;
+   uid3       uid;
+   gid3       gid;
+   size3      size;
+   size3      used;
+   specdata3  rdev;
+   uint64     fsid;
+   fileid3    fileid;
+   ntimeval3  atime;
+   ntimeval3  mtime;
+   ntimeval3  ctime;
+};
+
+union post_op_attr switch (bool attributes_follow) {
+case TRUE:
+   fattr3   attributes;
+case FALSE:
+   void;
+};
+
+struct wcc_attr {
+   size3       size;
+   ntimeval3   mtime;
+   ntimeval3   ctime;
+};
+
+union pre_op_attr switch (bool attributes_follow) {
+case TRUE:
+     wcc_attr  attributes;
+case FALSE:
+     void;
+};
+
+struct wcc_data {
+   pre_op_attr    before;
+   post_op_attr   after;
+};
+
+union post_op_fh3 switch (bool handle_follows) {
+case TRUE:
+     nfs_fh3  handle;
+case FALSE:
+     void;
+};
+
+enum time_how {
+   DONT_CHANGE        = 0,
+   SET_TO_SERVER_TIME = 1,
+   SET_TO_CLIENT_TIME = 2
+};
+
+union set_mode3 switch (bool set_it) {
+case TRUE:
+   mode3    mode;
+default:
+   void;
+};
+
+union set_uid3 switch (bool set_it) {
+case TRUE:
+   uid3     uid;
+default:
+   void;
+};
+
+union set_gid3 switch (bool set_it) {
+case TRUE:
+   gid3     gid;
+default:
+   void;
+};
+
+union set_size3 switch (bool set_it) {
+case TRUE:
+   size3    size;
+default:
+   void;
+};
+
+union set_atime switch (time_how set_it) {
+case SET_TO_CLIENT_TIME:
+   ntimeval3  atime;
+default:
+   void;
+};
+
+union set_mtime switch (time_how set_it) {
+case SET_TO_CLIENT_TIME:
+   ntimeval3  mtime;
+default:
+   void;
+};
+
+struct sattr3 {
+   set_mode3   mode;
+   set_uid3    uid;
+   set_gid3    gid;
+   set_size3   size;
+   set_atime   atime;
+   set_mtime   mtime;
+};
+
+struct diropargs3 {
+   nfs_fh3     dir;
+   filename3   name;
+};
+
+
+
+void NFSPROC3_NULL(void) = 0;
+
+
+struct GETATTR3args {
+   nfs_fh3  fhandle;
+};
+
+struct GETATTR3resok {
+   fattr3   obj_attributes;
+};
+
+union GETATTR3res switch (nstat status) {
+case NFS_OK:
+   GETATTR3resok  resok;
+default:
+   void;
+};
+
+GETATTR3res NFSPROC3_GETATTR(GETATTR3args) = 1;
+
+
+union sattrguard3 switch (bool check) {
+case TRUE:
+   ntimeval3  obj_ctime;
+case FALSE:
+   void;
+};
+
+struct sattrargs3 {
+   nfs_fh3      file;
+   sattr3       attributes;
+   sattrguard3  guard;
+};
+
+struct SETATTR3resok {
+   wcc_data  obj_wcc;
+};
+
+struct SETATTR3resfail {
+   wcc_data  obj_wcc;
+};
+
+union sattrres3 switch (nstat status) {
+case NFS_OK:
+   SETATTR3resok   resok;
+default:
+   SETATTR3resfail resfail;
+};
+
+sattrres3 NFSPROC3_SETATTR(sattrargs3) = 2;
+
+
+struct diropok3 {
+     nfs_fh3      file;
+     post_op_attr obj_attributes;
+     post_op_attr dir_attributes;
+};
+
+struct LOOKUP3resfail {
+     post_op_attr dir_attributes;
+};
+
+union diropres3 switch (nstat status) {
+case NFS_OK:
+     diropok3    diropok;
+default:
+     LOOKUP3resfail  resfail;
+};
+
+diropres3 NFSPROC3_LOOKUP(diropargs3) = 3;
+
+
+const ACCESS3_READ    = 0x0001;
+const ACCESS3_LOOKUP  = 0x0002;
+const ACCESS3_MODIFY  = 0x0004;
+const ACCESS3_EXTEND  = 0x0008;
+const ACCESS3_DELETE  = 0x0010;
+const ACCESS3_EXECUTE = 0x0020;
+
+struct ACCESS3args {
+     nfs_fh3  object;
+     uint32   access;
+};
+
+struct ACCESS3resok {
+     post_op_attr   obj_attributes;
+     uint32         access;
+};
+
+struct ACCESS3resfail {
+     post_op_attr   obj_attributes;
+};
+
+union ACCESS3res switch (nstat status) {
+case NFS_OK:
+     ACCESS3resok   resok;
+default:
+     ACCESS3resfail resfail;
+};
+
+
+ACCESS3res NFSPROC3_ACCESS(ACCESS3args) = 4;
+
+
+struct readlinkargs3 {
+     nfs_fh3  fhandle;
+};
+
+struct READLINK3resok {
+     post_op_attr   symlink_attributes;
+     nfspath3       data;
+};
+
+struct READLINK3resfail {
+     post_op_attr   symlink_attributes;
+};
+
+union readlinkres3 switch (nstat status) {
+case NFS_OK:
+     READLINK3resok   resok;
+default:
+     READLINK3resfail resfail;
+};
+
+readlinkres3 NFSPROC3_READLINK(readlinkargs3) = 5;
+
+
+struct readargs3 {
+     nfs_fh3  file;
+     offset3  offset;
+     count3   count;
+};
+
+struct READ3resok {
+     post_op_attr   file_attributes;
+     count3         count;
+     bool           eof;
+     opaque         data<>;
+};
+
+struct READ3resfail {
+     post_op_attr   file_attributes;
+};
+
+union readres3 switch (nstat status) {
+case NFS_OK:
+     READ3resok   resok;
+default:
+     READ3resfail resfail;
+};
+
+
+readres3 NFSPROC3_READ(readargs3) = 6;
+
+
+enum stable_how {
+     UNSTABLE  = 0,
+     DATA_SYNC = 1,
+     FILE_SYNC = 2
+};
+
+struct writeargs3 {
+     nfs_fh3     file;
+     offset3     offset;
+     count3      count;
+     stable_how  stable;
+     opaque      data<>;
+};
+
+struct WRITE3resok {
+     wcc_data    file_wcc;
+     count3      count;
+     stable_how  committed;
+     writeverf3  verf;
+};
+
+struct WRITE3resfail {
+     wcc_data    file_wcc;
+};
+
+union writeres3 switch (nstat status) {
+case NFS_OK:
+     WRITE3resok    resok;
+default:
+     WRITE3resfail  resfail;
+};
+
+writeres3 NFSPROC3_WRITE(writeargs3) = 7;
+
+
+enum createmode3 {
+     UNCHECKED = 0,
+     GUARDED   = 1,
+     EXCLUSIVE = 2
+};
+
+union createhow3 switch (createmode3 mode) {
+case UNCHECKED:
+     sattr3       obj_attributes;
+case GUARDED:
+     sattr3       obj_attributes2;
+case EXCLUSIVE:
+     createverf3  verf;
+};
+
+struct createargs3 {
+     diropargs3   where;
+     createhow3   how;
+};
+
+struct CREATE3resok {
+     post_op_fh3   obj;
+     post_op_attr  obj_attributes;
+     wcc_data      dir_wcc;
+};
+
+struct CREATE3resfail {
+     wcc_data      dir_wcc;
+};
+
+union createres3 switch (nstat status) {
+case NFS_OK:
+     CREATE3resok    diropok;
+default:
+     CREATE3resfail  resfail;
+};
+
+createres3 NFSPROC3_CREATE(createargs3) = 8;
+
+
+struct mkdirargs3 {
+     diropargs3   where;
+     sattr3       attributes;
+};
+
+createres3 NFSPROC3_MKDIR(mkdirargs3) = 9;
+
+
+
+struct symlinkdata3 {
+     sattr3    symlink_attributes;
+     nfspath3  symlink_data;
+};
+
+struct SYMLINK3args {
+     diropargs3    where;
+     symlinkdata3  symlink;
+};
+
+struct SYMLINK3resok {
+     post_op_fh3   obj;
+     post_op_attr  obj_attributes;
+     wcc_data      dir_wcc;
+};
+
+struct SYMLINK3resfail {
+     wcc_data      dir_wcc;
+};
+
+union SYMLINK3res switch (nstat status) {
+case NFS_OK:
+     SYMLINK3resok   resok;
+default:
+     SYMLINK3resfail resfail;
+};
+
+
+SYMLINK3res NFSPROC3_SYMLINK(SYMLINK3args) = 10;
+
+
+struct devicedata3 {
+     sattr3     dev_attributes;
+     specdata3  spec;
+};
+
+union mknoddata3 switch (ftype3 type) {
+case NFCHR:
+case NFBLK:
+     devicedata3  device;
+case NFSOCK:
+case NFFIFO:
+     sattr3       pipe_attributes;
+default:
+     void;
+};
+
+struct MKNOD3args {
+     diropargs3   where;
+     mknoddata3   what;
+};
+
+
+
+struct MKNOD3resok {
+     post_op_fh3   obj;
+     post_op_attr  obj_attributes;
+     wcc_data      dir_wcc;
+};
+
+struct MKNOD3resfail {
+     wcc_data      dir_wcc;
+};
+
+union MKNOD3res switch (nstat status) {
+case NFS_OK:
+     MKNOD3resok   resok;
+default:
+     MKNOD3resfail resfail;
+};
+
+MKNOD3res NFSPROC3_MKNOD(MKNOD3args) = 11;
+
+
+
+
+struct REMOVE3resok {
+     wcc_data    dir_wcc;
+};
+
+struct REMOVE3resfail {
+     wcc_data    dir_wcc;
+};
+
+union removeres3 switch (nstat status) {
+case NFS_OK:
+     REMOVE3resok   resok;
+default:
+     REMOVE3resfail resfail;
+};
+
+
+removeres3 NFSPROC3_REMOVE(diropargs3) = 12;
+
+
+removeres3 NFSPROC3_RMDIR(diropargs3) = 13;
+
+
+struct renameargs3 {
+     diropargs3   from;
+     diropargs3   to;
+};
+
+struct RENAME3resok {
+     wcc_data     fromdir_wcc;
+     wcc_data     todir_wcc;
+};
+
+struct RENAME3resfail {
+     wcc_data     fromdir_wcc;
+     wcc_data     todir_wcc;
+};
+
+union renameres3 switch (nstat status) {
+case NFS_OK:
+     RENAME3resok   resok;
+default:
+     RENAME3resfail resfail;
+};
+
+
+renameres3 NFSPROC3_RENAME(renameargs3) = 14;
+
+
+struct LINK3args {
+     nfs_fh3     file;
+     diropargs3 link;
+};
+
+struct LINK3resok {
+     post_op_attr   file_attributes;
+     wcc_data       linkdir_wcc;
+};
+
+struct LINK3resfail {
+     post_op_attr   file_attributes;
+     wcc_data       linkdir_wcc;
+};
+
+union LINK3res switch (nstat status) {
+case NFS_OK:
+     LINK3resok    resok;
+default:
+     LINK3resfail  resfail;
+};
+
+
+LINK3res NFSPROC3_LINK(LINK3args) = 15;
+
+
+struct readdirargs3 {
+     nfs_fh3      dir;
+     cookie3      cookie;
+     cookieverf3  cookieverf;
+     count3       count;
+};
+
+
+struct *entry3 {
+     fileid3      fileid;
+     filename3    name;
+     cookie3      cookie;
+     entry3       *next;
+};
+
+struct READDIR3resok {
+     post_op_attr dir_attributes;
+     cookieverf3  cookieverf;
+     entry3       *entries;
+     bool         eof;
+};
+
+struct READDIR3resfail {
+     post_op_attr dir_attributes;
+};
+
+union readdirres3 switch (nstat status) {
+case NFS_OK:
+     READDIR3resok   readdirok;
+default:
+     READDIR3resfail resfail;
+};
+
+
+readdirres3 NFSPROC3_READDIR(readdirargs3) = 16;
+
+
+struct readdirplusargs3 {
+     nfs_fh3      dir;
+     cookie3      cookie;
+     cookieverf3  cookieverf;
+     count3       count;
+     count3       maxcount;
+};
+
+struct *entryplus3 {
+     fileid3      fileid;
+     filename3    name;
+     cookie3      cookie;
+     post_op_attr name_attributes;
+     post_op_fh3  name_handle;
+     entryplus3   *next;
+};
+
+
+struct READDIRPLUS3resok {
+     post_op_attr dir_attributes;
+     cookieverf3  cookieverf;
+     entryplus3   *entries;
+     bool         eof;
+};
+
+
+struct READDIRPLUS3resfail {
+     post_op_attr dir_attributes;
+};
+
+union readdirplusres3 switch (nstat status) {
+case NFS_OK:
+     READDIRPLUS3resok   readdirok;
+default:
+     READDIRPLUS3resfail resfail;
+};
+
+readdirplusres3 NFSPROC3_READDIRPLUS(readdirplusargs3) = 17;
+
+
+
+struct FSSTAT3args {
+     nfs_fh3   fhandle;
+};
+
+struct FSSTAT3resok {
+     post_op_attr obj_attributes;
+     size3        tbytes;
+     size3        fbytes;
+     size3        abytes;
+     size3        tfiles;
+     size3        ffiles;
+     size3        afiles;
+     uint32       invarsec;
+};
+
+struct FSSTAT3resfail {
+     post_op_attr obj_attributes;
+};
+
+union FSSTAT3res switch (nstat status) {
+case NFS_OK:
+     FSSTAT3resok   resok;
+default:
+     FSSTAT3resfail resfail;
+};
+
+FSSTAT3res NFSPROC3_STATFS(FSSTAT3args) = 18;
+
+
+const FSF3_LINK        = 0x0001;
+const FSF3_SYMLINK     = 0x0002;
+const FSF3_HOMOGENEOUS = 0x0008;
+const FSF3_CANSETTIME  = 0x0010;
+
+struct fsinfoargs {
+     nfs_fh3   fsroot;
+};
+
+struct FSINFO3resok {
+     post_op_attr obj_attributes;
+     uint32       rtmax;
+     uint32       rtpref;
+     uint32       rtmult;
+     uint32       wtmax;
+     uint32       wtpref;
+     uint32       wtmult;
+     uint32       dtpref;
+     size3        maxfilesize;
+     ntimeval3    time_delta;
+     uint32       properties;
+};
+
+struct FSINFO3resfail {
+     post_op_attr obj_attributes;
+};
+
+union fsinfores switch (nstat status) {
+case NFS_OK:
+     FSINFO3resok   resok;
+default:
+     FSINFO3resfail resfail;
+};
+
+fsinfores NFSPROC3_FSINFO(fsinfoargs) = 19;
+
+
+struct PATHCONF3args {
+     nfs_fh3   object;
+};
+
+struct PATHCONF3resok {
+     post_op_attr obj_attributes;
+     uint32       linkmax;
+     uint32       name_max;
+     bool         no_trunc;
+     bool         chown_restricted;
+     bool         case_insensitive;
+     bool         case_preserving;
+};
+
+struct PATHCONF3resfail {
+     post_op_attr obj_attributes;
+};
+
+union PATHCONF3res switch (nstat status) {
+case NFS_OK:
+     PATHCONF3resok   resok;
+default:
+     PATHCONF3resfail resfail;
+};
+
+PATHCONF3res NFSPROC3_PATHCONF(PATHCONF3args) = 20;
+
+struct COMMIT3args {
+     nfs_fh3    file;
+     offset3    offset;
+     count3     count;
+};
+
+struct COMMIT3resok {
+     wcc_data   file_wcc;
+     writeverf3 verf;
+};
+
+struct COMMIT3resfail {
+     wcc_data   file_wcc;
+};
+
+union COMMIT3res switch (nstat status) {
+case NFS_OK:
+     COMMIT3resok   resok;
+default:
+     COMMIT3resfail resfail;
+};
+
+COMMIT3res NFSPROC3_COMMIT(COMMIT3args) = 21;
+
+

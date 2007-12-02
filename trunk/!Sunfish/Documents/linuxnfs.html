@@ -1,0 +1,65 @@
+<!-- $Id$ -->
+<html>
+<head>
+  <title>Installing NFS under Linux</title>
+</head>
+
+<body bgcolor="#ffffff" text="#000000">
+
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff">Installing NFS under Linux</font></h2>
+</td></tr></table>
+<p>
+These notes were kindly provided by Allan Curtis. They relate to his
+experience with Mandrake 10, but should be very similar on most distributions that accept rpms.
+<p>
+Firstly, if not already installed you will have to install the NFS server
+which is somewhat obscurely called nfs-utils and should be included with your
+distribution.  With Mandrake, use the package manager to add this
+application.
+<p>
+Normally, the portmap application will be already installed.  If it isn't you
+will need to install this from your distribution CDs.
+<p>
+You will now need to edit the /etc/exports file as root to define the
+directories as well as the daughter directories that you will export.  You
+can also define which computers can see these directories and the access
+permissions that you allow.  An example will explain the syntax.
+<p>
+<code>/home/allan 195.150.1.4(rw) 195.150.1.5(ro)</code>
+<p>
+In this case I have allowed two computers with IP addresses 195.150.1.4 and
+195.150.1.5 access to /home/allan and all it's daughter directories and
+files.  I have allowed 195.150.1.4 full read/write access while the other
+computer only has read only access. (NB: there should be no gap between the
+final digit of the ip address and the opening bracket of the access
+permission).  If you wish, you can also edit the /etc/hosts file to give
+names to the above computers and hence use their names rather than IP
+addresses.  Just follow the syntax of the existing entries in the /etc/hosts
+file.
+<p>
+If you want to, or are allowed to login to the server without a password,
+then you only need to find out your user ID (UID) and group ID (GID) to
+finish all that you need to do under Linux.  Under Mandrake, open the User
+Manager application (you will need to login as root) to discover the UID and
+GID.  If you require a login with a password and are using Suse then all is
+easy as the required pcnfsd application is nicely packaged for you.  For the
+rest of us, it is not so easy.  The pcnfsd application is rather old and
+needs to be patched for a modern distribution.  You will need to install the
+following rpms in this order:
+<p>
+<ul>
+<li>ld.so-1.9.5-11.LS1.i386.rpm which I found <a href="http://www.kcs-inc.co.jp/laser5/rpm2html/local/i386/ld.so-1.9.5-11.LS1.i386.html">here</a>.
+<li>libc-5.4.44-1glibc.i386.rpm
+<li>pcnfsd-2.0lsh-6shadow.i386.rpm
+</ul>
+
+both of these applications can be located from www.rpmfind.net.
+<p>
+Hopefully, that will have a working NFS system on your Linux box.  Further
+information can be found on <a href="http://nfs.sourceforge.net">http://nfs.sourceforge.net</a>.
+<p>
+
+
+</body>
+</html>

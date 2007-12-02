@@ -1,0 +1,143 @@
+v2.04 17-Sep-07
+Improved timeout and retry behaviour.
+Fixed creation of Choices directory before trying writing to it.
+
+v2.03 3-Aug-07
+Fixed bug in selecting transport and protocol to use if mountd supports more options than nfsd.
+
+v2.02 24-Jun-07
+Fixed bug in selecting transport to use if the server didn't support TCP.
+Fixed "Invalid filename" error on shutdown.
+Added details of protocol and transport in export browser title bar.
+Improved behaviour of toggle size icon in server and export browsers.
+Fixed bug in discname canonicalisation.
+
+v2.01 17-Jun-07
+Fixed bug that resulted in no iconbar icon if all saved mounts were unavailable when the frontend was loaded.
+Prevent creating a mount icon on the iconbar if mounting from the export browser window failed.
+
+v2.00 3-Jun-07
+Completely new frontend that allows browsing of available servers and exports.
+Added full filing system support.
+Fixed finding of mountd and nfsd port numbers from portmapper when NFS2 not
+supported.
+Fixed encoding that sometimes added garbage to the end of filenames.
+Added TranslateWin option to translate characters that are illegal in Windows filenames.
+
+v1.10 28-Mar-07
+Fixed timestamp setting for OS_File 0 if the file already existed.
+Fixed inaccuracy in calculation of nanosecond part of the timestamp.
+The timestamp is now set when an open file is closed.
+Now refetches the root filehandle if it is stale.
+When reconnecting after a timeout, use a different socket to avoid delays.
+
+v1.09 16-Oct-06
+Fixed bug that caused the wrong attributes to be returned for a symlink that
+couldn't be followed.
+File sizes are limited to 2GB rather than 4GB as accessing > 2GB doesn't work.
+Added UnixEx option to set filetype based on executable permissions.
+Added filename encoding option.
+Improved NFS3 writes for servers that support unstable storage.
+Added support for accessing files from callbacks.
+
+v1.08 26-Oct-05
+Fixed bug where sometimes filetypes would get changed when a file was renamed.
+
+v1.07 14-Jun-05
+Fixed problem with renamed directories getting ,ffd appended.
+
+v1.06 29-May-05
+Added support for NFS v3.
+Directories now always get a filetype of ffd.
+Fixed bug that truncated filenames with escape sequences when renaming them.
+Fixed problem that could give a permissions error when creating a file.
+
+v1.05 9-Apr-05
+Fixed bug in renaming files that was caused by the changes in 1.04.
+
+v1.04 2-Apr-05
+Fixed bug when a mount was mounted before the iconbar menu was displayed.
+Hard spaces in filenames on the server are now escaped correctly.
+Deleting a symbolic link now deletes the link and not the target of the link.
+Symbolic links that point to non-existant files can now be deleted.
+Fixed bug that prevented renaming a file when the new name differed only in case.
+
+v1.03 6-Jan-05
+Add support for dragging files to a mount's iconbar icon.
+Silently reconnect if a server closes a TCP connection due to inactivity.
+Improve error message on portmapper failure.
+Add option to show hidden files except in the root directory of a mount.
+
+v1.02 6-Nov-04
+Added support for TCP connections.
+Fixed a bug where an error could occasionally be misreported.
+Added support to the frontend for editing existing mount files.
+
+v1.01 7-Oct-04
+Add flag to detect if we are reentered from a callback and give a sensible
+error if this occurs rather than loosing track of recieved packets.
+Fix potential bug if more than 2^32 requests have been sent.
+Fix bug that could cause a spurious error on the next operation after a
+connection timed out.
+Wimpslot is now set correctly for the frontend.
+
+v1.00 14-Apr-04
+Added frontend for creating mount files.
+
+v0.98 22-Feb-04
+Fixed bug that could cause directory not empty errors when trying to delete
+a directory.
+Removed limitation of only supporting 4 concurrent OS_GBPB directory
+enumerations per mount.
+Fixed bug that could occasionally cause a stale file handle error when
+writing a file.
+Fix problems with pipelined reading or writing of 0 byte files.
+Fix case-insensitive matching for directory names.
+
+v0.97 12-Jan-04
+Allow ; in filenames.
+Minor improvements to logging code.
+Fix bug that could leave an open socket if mounting failed.
+Added unumask option.
+Added CaseSensitive option and made the default caseinsensitive.
+Fixed bug that could prevent timestamps getting set correctly.
+Fixed bug that could cause OS_Args 3 to erroneously write zeros to the file.
+
+v0.96 14-Dec-03
+Fixed bug that could cause some filetypes to be incorrectly set to the
+default filetype.
+No longer waits for a reponse when unmounting, so it won't wait for
+a timeout if server is uncontactable when the module is killed.
+Implemented pipelining of file reads and writes to improve speed, and
+added the Pipelining option to control this.
+Fixed a bug that on some network cards could cause a
+"no buffer space available" error.
+
+v0.95 9-Nov-03
+Fixed bug in OS_File 0 handling which could cause incorrect size and
+filetype if an existing file of the same name was present.
+
+v0.94 6-Nov-03
+Added support for symlinks.
+
+v0.93 30-Oct-03
+Work around RISC OS bug that could cause directory listings to miss
+entries if the server returned cookies with the top bit set.
+
+v0.92 22-Oct-03
+Fix bug in IP address handling.
+Fixed bug in reading of auxilliary gids from pcnfsd.
+Allow ' in filenames.
+Support the read boot option entry point, so *cat and *ex work.
+Fix bug in alignment of OS_GBPB 8/9 results.
+
+v0.91 18-Oct-03
+Specifying an IP address as the server name now works for addresses
+that don't have a reverse DNS entry.
+Added LocalPort option, and defaults to using a low numbered port.
+Improved handling of errors on module finalisation.
+Add MaxDataBuffer option to control the maximum size of packets.
+
+v0.90 14-Oct-03
+First Beta release.
+

@@ -1,0 +1,87 @@
+/*
+	$Id$
+
+	XDR Specification for the MOUNT V1 protocol.
+	See RFC 1094 for more details.
+
+	StrongEd$Mode=C
+*/
+
+const MOUNT_RPC_PROGRAM = 100005;
+const MOUNT_RPC_VERSION = 1;
+
+
+/* The maximum number of bytes in a pathname argument. */
+const MNTPATHLEN = 1024;
+
+/* The maximum number of bytes in a name argument. */
+const MNTNAMLEN = 255;
+
+/* The size in bytes of the opaque file handle. */
+const FHSIZE = 32;
+
+#ifndef NFS_FH
+#define NFS_FH
+typedef opaque fhdata1[FHSIZE];
+
+struct nfs_fh1 {
+   fhdata1 data;
+};
+#endif
+
+struct mountres_ok {
+        nfs_fh1 fhandle;
+};
+
+union mountres switch (unsigned status) {
+case 0:
+    mountres_ok mountinfo;
+default:
+    void;
+}
+
+typedef opaque dirpath<MNTPATHLEN>;
+typedef opaque name<MNTNAMLEN>;
+
+void MNTPROC_NULL(void) = 0;
+
+struct mountargs {
+        dirpath dirpath;
+};
+
+mountres MNTPROC_MNT(mountargs) = 1;
+
+struct *mountlist {
+        name hostname;
+        dirpath directory;
+        mountlist *next;
+};
+
+struct mountlist2 {
+        mountlist *list;
+};
+
+mountlist2 MNTPROC_DUMP(void) = 2;
+
+void MNTPROC_UMNT(mountargs) = 3;
+
+void MNTPROC_UMNTALL(void) = 4;
+
+struct *groups {
+        name grname;
+        groups *next;
+};
+
+struct *exportlist {
+        dirpath filesys;
+        groups *groups;
+        exportlist *next;
+};
+
+struct exportlist2 {
+	exportlist *list;
+};
+
+exportlist2 MNTPROC_EXPORT(void) = 5;
+
+

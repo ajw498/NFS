@@ -1,0 +1,11 @@
+|
+|    $Id$
+|
+
+Set File$Type_1B6 Sunfish
+
+Set Sunfish$Dir <Obey$Dir>
+
+IconSprites <Sunfish$Dir>.!Sprites
+
+Set Alias$@RunType_1B6 Run <Sunfish$Dir>.!Run %%*0

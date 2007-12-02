@@ -1,0 +1,312 @@
+/*
+	$Id$
+
+	XDR Specification for the NFS V2 protocol.
+	See RFC 1094 for more details.
+
+	StrongEd$Mode=C
+*/
+
+#define NFS_RPC_PROGRAM 100003
+#define NFS_RPC_VERSION 2
+
+/* The maximum number of bytes of data in a READ or WRITE request. */
+const NFS2MAXDATA = 8192;
+
+/* The maximum number of bytes in a pathname argument. */
+const MAXPATHLEN = 1024;
+
+/* The maximum number of bytes in a file name argument. */
+const MAXNAMLEN = 255;
+
+/* The size in bytes of the opaque "cookie" passed by READDIR. */
+const COOKIESIZE  = 4;
+
+/* The size in bytes of the opaque file handle. */
+const FHSIZE = 32;
+
+#ifndef NSTAT
+#define NSTAT
+
+typedef int nstat;
+#endif
+
+const NFS_OK = 0;
+const NFSERR_PERM=1;
+
+const NFSERR_NOENT=2;
+const NFSERR_IO=5;
+const NFSERR_NXIO=6;
+const NFSERR_ACCES=13;
+const NFSERR_EXIST=17;
+const NFSERR_NODEV=19;
+const NFSERR_NOTDIR=20;
+const NFSERR_ISDIR=21;
+const NFSERR_FBIG=27;
+const NFSERR_NOSPC=28;
+const NFSERR_ROFS=30;
+const NFSERR_NAMETOOLONG=63;
+const NFSERR_NOTEMPTY=66;
+const NFSERR_DQUOT=69;
+const NFSERR_STALE=70;
+const NFSERR_WFLUSH=99;
+
+enum ftype {
+    NFNON = 0,
+    NFREG = 1,
+    NFDIR = 2,
+    NFBLK = 3,
+    NFCHR = 4,
+    NFLNK = 5
+};
+
+typedef opaque fhdata[FHSIZE];
+
+struct nfs_fh {
+   fhdata data;
+};
+
+#ifndef NTIMEVAL
+#define NTIMEVAL
+
+struct ntimeval {
+    unsigned seconds;
+    unsigned useconds;
+};
+
+#endif
+
+struct fattr {
+    ftype        type;
+    unsigned mode;
+    unsigned nlink;
+    unsigned uid;
+    unsigned gid;
+    unsigned size;
+    unsigned blocksize;
+    unsigned rdev;
+    unsigned blocks;
+
+    unsigned fsid;
+    unsigned fileid;
+    ntimeval      atime;
+    ntimeval      mtime;
+    ntimeval      ctime;
+};
+
+struct sattr {
+    unsigned mode;
+    unsigned uid;
+    unsigned gid;
+    unsigned size;
+    ntimeval      atime;
+    ntimeval      mtime;
+};
+
+typedef opaque filename<MAXNAMLEN>;
+
+typedef opaque path<MAXPATHLEN>;
+
+
+void NFSPROC_NULL(void) = 0;
+
+union attrstat switch (nstat status) {
+case NFS_OK:
+    fattr attributes;
+default:
+    void;
+};
+
+struct diropargs {
+    nfs_fh  dir;
+    filename name;
+};
+
+struct diropok {
+    nfs_fh file;
+    fattr   attributes;
+};
+
+union diropres switch (nstat status) {
+case NFS_OK:
+    diropok diropok;
+default:
+    void;
+};
+
+
+diropres NFSPROC_LOOKUP(diropargs) = 4;
+
+typedef int nfscookie;
+
+struct readdirargs {
+        nfs_fh dir;
+        nfscookie cookie;
+        unsigned count;
+};
+
+struct *entry {
+        unsigned fileid;
+        filename name;
+        nfscookie cookie;
+        entry *next;
+};
+
+struct readdirok {
+        entry *entries;
+        bool eof;
+};
+
+union readdirres switch (nstat status) {
+case NFS_OK:
+        readdirok readdirok;
+default:
+        void;
+};
+
+readdirres NFSPROC_READDIR(readdirargs) = 16;
+
+struct readargs {
+        nfs_fh file;
+        unsigned offset;
+        unsigned count;
+        unsigned totalcount;
+};
+
+struct readresok {
+        fattr attributes;
+        opaque data<>;
+};
+
+union readres switch (nstat status) {
+case NFS_OK:
+        readresok resok;
+default:
+        void;
+};
+
+readres NFSPROC_READ(readargs) = 6;
+
+struct writeargs {
+        nfs_fh file;
+        unsigned beginoffset;
+        unsigned offset;
+        unsigned totalcount;
+        opaque data<>;
+};
+
+attrstat NFSPROC_WRITE(writeargs) = 8;
+
+struct createargs {
+        diropargs where;
+        sattr attributes;
+};
+
+union createres switch (nstat status) {
+case NFS_OK:
+    diropok diropok;
+default:
+    void;
+};
+
+createres NFSPROC_CREATE(createargs) = 9;
+
+struct removeres {
+        nstat status;
+};
+
+removeres NFSPROC_RMDIR(diropargs) = 15;
+
+removeres NFSPROC_REMOVE(diropargs) = 10;
+
+struct renameargs {
+        diropargs from;
+        diropargs to;
+};
+
+struct renameres {
+        nstat status;
+};
+
+renameres NFSPROC_RENAME(renameargs) = 11;
+
+struct getattrargs {
+	nfs_fh fhandle;
+};
+
+attrstat NFSPROC_GETATTR(getattrargs) = 1;
+
+struct mkdirargs {
+        diropargs where;
+        sattr attributes;
+};
+
+createres NFSPROC_MKDIR(mkdirargs) = 14;
+
+struct sattrargs {
+        nfs_fh file;
+        sattr attributes;
+};
+
+union sattrres switch (nstat status) {
+case NFS_OK:
+    fattr attributes;
+default:
+    void;
+};
+
+sattrres NFSPROC_SETATTR(sattrargs) = 2;
+
+struct info {
+    unsigned tsize;
+    unsigned bsize;
+    unsigned blocks;
+    unsigned bfree;
+    unsigned bavail;
+};
+
+union statfsres switch (nstat status) {
+case NFS_OK:
+	info info;
+default:
+        void;
+};
+
+struct statfsargs {
+	nfs_fh fhandle;
+};
+
+statfsres NFSPROC_STATFS(statfsargs) = 17;
+
+struct readlinkargs {
+	nfs_fh fhandle;
+};
+
+struct readlinkresok {
+	path data;
+};
+
+union readlinkres switch (nstat status) {
+case NFS_OK:
+    readlinkresok resok;
+default:
+    void;
+};
+
+readlinkres NFSPROC_READLINK(readlinkargs) = 5;
+
+struct linkargs {
+	nfs_fh from;
+	diropargs to;
+};
+
+nstat NFSPROC_LINK(linkargs) = 12;
+
+struct symlinkargs {
+	diropargs from;
+	path to;
+	sattr attributes;
+};
+
+nstat NFSPROC_SYMLINK(symlinkargs) = 13;
+

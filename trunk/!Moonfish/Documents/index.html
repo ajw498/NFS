@@ -1,0 +1,230 @@
+<!-- $Id$ -->
+<html>
+<head>
+  <title>Moonfish NFS server</title>
+</head>
+
+<body bgcolor="#ffffff" text="#000000">
+<p align="center"><img src="title.png" alt="Moonfish" border=0>
+
+<p>
+
+<b>Moonfish</b>, <i>Drepane punctata</i><br>
+
+
+<p>
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff">Contents</font></h2>
+</td></tr></table>
+<ul>
+<li><a href="#license">License</a><br>
+<li><a href="#introduction">Introduction</a><br>
+<li><a href="#setup">Installing</a><br>
+<li><a href="#options">Export Options</a><br>
+<li><a href="#choices">Global Choices</a><br>
+<li><a href="#performance">Improving Performance</a><br>
+<li><a href="#reportingbugs">Reporting Bugs</a><br>
+<li><a href="#knownbugs">Known Issues</a><br>
+<li><a href="#recompiling">Recompiling</a><br>
+</ul>
+
+
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="license">License</a></font></h2>
+</td></tr></table>
+
+<p>
+Moonfish is copyright &copy; 2006 <a href="mailto:alex@alexwaugh.com">Alex Waugh</a>
+<p>
+This program is free software; you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation; either version 2 of the License, or
+(at your option) any later version.
+<p>
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+<p>
+You should have received a copy of the GNU General Public License
+along with this program; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+<p>
+
+
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="introduction">Introduction</a></font></h2>
+</td></tr></table>
+<p>
+Moonfish is an NFS server, that can be used to share files to another computer. It has been tested with clients including Linux 2.4, Solaris 8, Windows Services for UNIX 3.5, and Sunfish on RISC OS, but should work with any suitable NFS client on any platform.
+The server supports version 2, version 3, or version 4 of the NFS protocol, version 1 or 3 of the Mount protocol, and version 2 of the portmapper protocol. Both UDP and TCP connections are supported. Authentication and encryption with the auth_gss method of NFS4 are not currently supported.
+<p>
+It runs as a module in the background, and so can continue to serve files even when the machine is single tasking.
+<p>
+Moonfish should run on any version of RISC OS from 3.11 onwards, although it has only been tested on RISC OS 4 and RISC OS 5. It is 26/32bit neutral, and requires a 32bit Shared C Library that includes C99 features.
+<p>
+
+Any updates will be available from <a href="http://www.alexwaugh.com/">http://www.alexwaugh.com/</a>
+
+<p>
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="setup">Installing</a></font></h2>
+</td></tr></table>
+<p>
+Moonfish can either be installed as a configure plugin (RISC OS 4 onwards) or it can be used standalone. The former is recommended if possible.
+<p>
+To install as a configure plugin, copy the !Moonfish directory into !Boot.Resources.Configure, then when you run configure by double clicking on !Boot you should get a Moonfish icon in the configure window.
+<p>
+To use standalone, simply copy !Moonfish to whereever you want, then double click on it to load it. It will put an icon on the iconbar, clicking on which will open the exports window. The autoload module option is not available when run standalone, but the exports window is otherwise identical to when run as a configure plugin.
+<p>
+Moonfish requires the Iconv module to be installed. This can be downloaded from <a href="http://netsurf.sourceforge.net/iconv/">here</a>.
+<p>
+<h3>Loading the module</h3>
+The actual server is provided by the Moonfish module, and so this needs to be loaded for clients to be able to access any of the exports. The module is loaded whenever !Moonfish is run, either standalone or from configure, and remains loaded even when the GUI is quit.
+<p>
+If you want the module loaded when the machine is booted (so that the exports are always available to clients) then you can set the autoload at boot option which will create a file in !Boot.Choices.Boot.Tasks (or whatever the equivalent directory is) which will load just the Moonfish module when the machine is booted. If you are not using Moonfish as a configure plugin then this option is not available and you will have to ensure the module is loaded some other way, for example by adding the !Moonfish application to the list of tasks to run in the boot sequence configuration.
+<p>
+
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="options">Export Options</a></font></h2>
+</td></tr></table>
+<p>
+In the exports window, there is a list of directories to export (initially this will be blank). You can select a directory from the list and edit or delete it using the respective buttons to the right. To add a new directory to the list, click on the Add button and fill in the details in the edit export window.
+All fields in the edit export window must be filled in for a working export to be set up, however those in the options window can often be left as the defaults.
+<p>
+<h4>Directory</h4>
+Specifies the directory to export. This can be any directory on a local filing system, including a root directory of a disc. You can drag a directory from the filer onto this field to fill in the icon.
+<p>
+<h4>Export</h4>
+This is the name to export the directory as, and will be what client machines will see as the name of the export. It can be the same as the leafname of the directory, or it can be different. It is recommend that the name starts with a <code>/</code> and contains only alphanumeric and underscore character, as some clients may expect it to be in the format of a Unix path, for example <code>/home</code>.
+<p>
+<h4>Allow connections from</h4>
+This allows you to limit the client machines that are allowed to access the export. It can be specified as a hostname or IP address of a single machine, an IP address and netmask to allow a range of IP addresses (e.g. 192.168.0.0/24 to allow any address in the range 192.168.0.0 to 192.168.0.255), or it can be * to allow access from any address. If allowing any address to access the server, it is strongly recommeded that you use some sort of firewall to prevent access from unwanted machines.
+<p>
+<h3>Optional options</h3>
+These options can be specified from the options window if needed, but if they are not then default values will be used. For many cases the defaults will be sufficient.
+<p>
+<h4>UID</h4>
+The UID to report all files and directories belong to. If left blank, the UID used will be whatever the client reports its UID as.
+<p>
+<h4>GID</h4>
+The GID to report all files and directories belong to. If left blank, the GID used will be whatever the client reports its primary GID as.
+<p>
+<h4>UDP transfer size</h4>
+The maximum number of bytes to use for the data buffer of a read or write request on UDP transfers. A bigger buffer will generally be faster than a smaller one on a fast machine such as an Iyonix, but on slower machines like RiscPCs (particularly when the client is faster than the server) a larger buffer will cause more packets to get lost and hence slow things down. The maximum value is 8192 bytes, and it is recommeded that you set it to this if your network card can handle it (You will probably get timeout errors or very slow file transfer when reading files if it is too big). If omitted, it defaults to 4096 bytes.
+<p>
+<h4>Read only</h4>
+If set the export will be marked as read only, and any writes will be prevented.
+<p>
+<h4>Fake directory timestamps</h4>
+On Unix like filesystems, the timestamp of a directory gets updated whenever the contents of a directory are altered, e.g. a new file is added to the directory. Some clients will cache the contents of directories to improve performance, and use the timestamp of the directory to determine whether the cache is out of date or not. However RISC OS does not update the timpstamp of the directory when you add or delete a file from it, and so such a caching system will not update its cache correctly. If this option is set, the timestamp of all directories are reported as the current time, so that any cache will always get updated (although this negates some of the benefit of caching).
+<p>
+This setting is ignored for NFSv4 exports, as NFSv4 has an explicit changeid
+attribute to determine if a directory has changed.
+<p>
+<h4>Treat image filing systems as directories</h4>
+By default, image files (e.g. zip files when SparkFS is loaded) will be reported as files. If this option is set then they will be treated as directories, and so the client will not realise that they are actually files, and can manipulate the contents.
+<p>
+<h4>umask</h4>
+The umask to use, specified in octal. All operations that return a file's attributes will have the Unix mode bits modified according to the umask. If not specified, it defaults to 0, and the mode bits are not modified.
+<p>
+<h4>unumask</h4>
+RISC OS does not have any concept like a umask - the default attributes of a file are decided by the application that creates the file. Usually the default chosen is private read/write set and public read/write clear, although sometimes private read/write is not set either, which doesn't have any effect on RISC OS applications accessing the files, but can prevent Unix applications from accessing them. The unumask allows you to force particular unix mode bits to be set, and is specified in octal in the same format as the umask. If not specified, it defaults to 0.
+<p>
+The RISC OS attributes are first converted to unix mode bits, with the private attributes mapping to user permissions, and the public attributes mapping to the group and others permissions (if a public attribute is set then both the corresponding group and others permission bit will be set). If the object is a directory then execute permissions will be set if the corresponding read permission is set. This value is then ORed with the unumask, and then ANDed with the inverse of the umask to give the final unix mode bits.
+<p>
+<h4>DefaultFiletype</h4>
+The hexadecimal filetype to give a file if it doesn't have an ,xyz filetype extension or a . extension that matches a mimemap entry. If not specified then it defaults to FFF.
+<p>
+<h4>Add extension</h4>
+Controls adding of a ,xyz filetype extension. When set to never, no ,xyz extensions are added, and all files get the default filetype. When set to only when needed, an ,xyz extension is only added when necessary to preserve the filetype, and if the file has a . extension that matches a mimemap entry then no extension is added. When set to always, an ,xyz extension is always added.
+<p>
+
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="choices">Global Choices</a></font></h2>
+</td></tr></table>
+<h4>UDP</h4>
+Enable connections over the UDP transport. This is what has been traditionally used for NFSv2 and NFSv3 connections.
+<p>
+<h4>TCP</h4>
+Enable connections over the TCP transport. This is what is normally used for NFSv4 connections. Note that the portmapper, if enabled, will always listen on both TCP and UDP, regardless of the settings here.
+<p>
+<h4>Encoding</h4>
+The client machine may be set to a different locale than the server, and so filenames may be encoded in a different character set on one machine to the other. NFSv4 specifies that filenames must be encoded as UTF-8, so Moonfish will automatically convert the local filenames to UTF-8 (It assumes that they are encoded on the local disc in the same encoding as the alphabet set with <code>*alphabet</code>).<p>
+For NFSv2 and NFSv3, it is not specified what encoding the filenames should be in. Therefore this option allows you to specify the encoding to be used for NFSv2 and NFSv3. The value can be any encoding that the iconv module understands. If left blank, no encoding conversion is done.
+<p>
+<h4>Portmapper</h4>
+Enables the portmapper, listening on port 111. This must be selected if either NFSv2 or NFSv3 is enabled.
+<p>
+<h4>NFS v2 and Mount v1</h4>
+Enables the NFSv2 protocol, and the associated Mount v1 protocol.
+<p>
+<h4>NFS v3 and Mount v3</h4>
+Enables the NFSv3 protocol, and the associated Mount v3 protocol.
+<p>
+<h4>NFS v4</h4>
+Enables the NFSv4 protocol, listening on port 2049. The portmapper and mount protocols are not needed for NFSv4.
+<p>
+<h4>Autoload module at boot</h4>
+When set, this option creates a file in !Boot.Choices.Boot.Tasks (or equivalent) to load the Moonfish module when the machine is booted. This option will be unavailable unless you are running Moonfish as a configure plugin.
+<p>
+<h4>Ignore extensions of resource forks</h4>
+When set, the filetype of files with a filename beginning with "._" (as typically used to hold MacOS resource forks) is set to data, rather than being based on the filename extension. Filenames with an explicit ,xyz extention will still get the filetype specified.
+<p>
+
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="performance">Improving Performance</a></font></h2>
+</td></tr></table>
+<p>
+There are three options that are likely to have an effect on performance, although only the first one is under the control of the server, the other two you have to specify on the client.
+<p>
+<ul>
+<li>UDP buffer size as described in the options section above. This only has an effect if using UDP connections.
+<li>The protocol, NFS2, NFS3 or NFS4. NFS3 should be faster than NFS2, because it is more efficient when listing directory contents, and allows larger data buffers. NFS4 should be marginally faster than NFS3, but fewer clients support it at present.
+<li>The transport, UDP or TCP. I have observed faster maximum speeds when using UDP on a quiet network, however TCP may be better on a busy network, and is generally more consistent and resilient.
+</ul>
+
+
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="reportingbugs">Reporting Bugs</a></font></h2>
+</td></tr></table>
+<p>
+If you discover a bug, please report it to <a href="mailto:alex@alexwaugh.com">me</a>, or better still fix it yourself and send me a patch. When reporting a bug, first make sure <a href="http://www.compton.nu/syslog.html">SysLog</a> is loaded, and check the Moonfish log if it exists for any error messages. If you have access to a machine that can run a packet sniffer such as ethereal then it would be very useful to use that to save a dump of the network traffic along with the syslog file. Also, please provide a description of the problem and exactly what operation you were doing to trigger the bug, and details of what OS and NFS version the client is running would be helpful, and the version of the Moonfish module and RISC OS version.
+<p>
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="knownbugs">Known Issues</a></font></h2>
+</td></tr></table>
+<p>
+Each file should have a unique ID associated with it (the inode on a Unix system), but RISC OS does not provide a method for generating this, therefore it is calculated as a hash of the filename. While this will be unique in most cases, it is possible for two files to end up with the same ID. This could be an issue if a client relies on the uniqueness of the ID, but it has not yet been observed as a problem in practice.
+<p>
+NFS refers to files by an NFS filehandle, and Moonfish must be able to map an NFS filehandle onto a RISC OS filename. For filenames that are less than 32 (NFS2), 64 (NFS3), or 128 (NFS4) characters this is easy as the filename can be stored fully in the filehandle. However for filenames longer than this, Moonfish must maintain a cache of the mappings from filehandle to filename. Therefore if you access lots of different files with long filenames then this cache will grow and use more memory. The format of the cache imposes a limit on the number of directory levels supported (30 for NFS2, 62 for NFS3, 126 for NFS4) but this is unlikely to be an issue.
+<p>
+For NFS2 and NFS3, filehandles are supposed to be persistant, so if the server is restarted or rebooted the filehandle should remain valid and point to the same file. However because Moonfish maintains the cache to map filehandles to filenames, this cache is lost when Moonfish exits, and so the mapping is no longer valid. Most clients will reread the filehandle if it becomes stale, and so can cope with this situation. This is not an issue with NFS4 as that allows filehandles to be volatile.
+<p>
+Hard links, symbolic links, devices and other non regular files are not supported, as they don't map to RISC OS functionality.
+<p>
+File permissions behave slightly differently from Unix systems. For example if the client copies a file that has only user read permission onto the export then it may create the file with user read permission, then write to the file. On some systems this write is allowed, but with RISC OS the write is faulted because the file does not have user write permissions.  
+<p>
+The code is currently optimised for performance of the file transfers, at the expense of slowing the desktop down when large transfers are taking place. If there is demand I may add an option to try an keep the desktop more responsive, although this would of course reduce the speed of file transfers.
+<p>
+NFSv4 mandates that implementations support the auth_gss method of authenticating and encrypting using Kerberos V5 and LIPKEY. Moonfish does not currently support this.
+<p>
+
+<table bgcolor="#00449a" fgcolor="ffffff" width="99%"><tr><td>
+<h2><font color="#ffffff"><a name="recompiling">Recompiling</a></font></h2>
+</td></tr></table>
+<p>
+Full source code is provided. To recompile the module, you will need at least either GCC 3.4.4 release 3 or Norcroft v5.53, cmhg or CMunge, TCPIPLibs, GNU make, and Perl. Earlier 26bit versions of Norcroft will not work because the code makes use of 64bit integers and some C99 functions.
+<p>
+The makefile in the src directory has several targets:
+<ul>
+<li><code>make</code> - build with Norcroft without optimisation.
+<li><code>make release</code> - build with Norcroft with full optimisation.
+<li><code>make gcc</code> - build with GCC without optimisation.
+<li><code>make gcc release</code> - build with GCC with full optimisation.
+<li><code>make debug</code> - build a version that can run in a taskwindow instead of a module (you should make clean when swapping between this build and normal module builds).
+</ul>
+<p>
+
+</body>
+</html>
