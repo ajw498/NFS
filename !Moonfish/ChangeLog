@@ -1,4 +1,4 @@
-v1.08 xx-Dec-07
+v1.08 2-Dec-07
 Fixed bug in reporting of maximum transfer size.
 Fixed bug in file lookup when never adding ,xyz extensions.
 
