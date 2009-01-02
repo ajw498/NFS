@@ -183,7 +183,7 @@ void getuid::create_mount(mountchoices& mountdetails, sunfish& app)
 	string hostalias = app.hostaliases.getalias(mountdetails.server, mountdetails.exportname);
 
 	if (hostalias == "") {
-		hostalias = mountdetails.exportname;
+		hostalias = mountdetails.server + mountdetails.exportname;
 		// Remove illegal characters for discnames
 		int len = hostalias.length();
 		for (int i = 0; i < len; i++) {
@@ -203,7 +203,6 @@ void getuid::create_mount(mountchoices& mountdetails, sunfish& app)
 				break;
 			}
 		}
-		sf = mountdetails.server;
 	}
 
 	bool found;

@@ -393,7 +393,7 @@ static os_error *declare_fs(void *private_word)
 	info_block.imageentry_file =     ((int)imageentry_file) - module_base_address;
 	info_block.imageentry_func =     ((int)imageentry_func) - module_base_address;
 
-	fsinfo_block.information_word = 0x80900000 | SUNFISH_FSNUMBER;
+	fsinfo_block.information_word = 0x80100000 | SUNFISH_FSNUMBER;
 	fsinfo_block.extra_information_word = 0;
 	fsinfo_block.fsname =           ((int)fsname) - module_base_address;
 	fsinfo_block.startuptext =      ((int)fsname) - module_base_address;
@@ -746,10 +746,7 @@ _kernel_oserror *fsentry_file_handler(_kernel_swi_regs *r, void *pw)
 static os_error *func_handler(char *filename, struct conn_info *conn, _kernel_swi_regs *r)
 {
 	os_error *err = NULL;
-	size_t len;
 	char *to;
-	char *discname;
-	char *special;
 
 	switch (r->r[0]) {
 		case IMAGEENTRY_FUNC_RENAME:
@@ -800,24 +797,8 @@ static os_error *func_handler(char *filename, struct conn_info *conn, _kernel_sw
 			break;
 		case FSENTRY_FUNC_CANONICALISE:
 			/* Only canonical form is accepted */
-			special = r->r[1] ? (char *)r->r[1] : "";
-			len = strlen(special) + 1;
-			if (r->r[3]) {
-				memcpy((char *)(r->r[3]), special, len < r->r[5] ? len : r->r[5]);
-				r->r[1] = r->r[3];
-				r->r[3] = (len > r->r[5]) ? (len - r->r[5]) : 0;
-			} else {
-				r->r[3] = len - 1;
-			}
-			discname = r->r[2] ? (char *)r->r[2] : "";
-			len = strlen(discname) + 1;
-			if (r->r[4]) {
-				memcpy((char *)(r->r[4]), discname, len < r->r[6] ? len : r->r[6]);
-				r->r[2] = r->r[4];
-				r->r[4] = (len > r->r[6]) ? (len - r->r[6]) : 0;
-			} else {
-				r->r[4] = len - 1;
-			}
+			r->r[3] = 0;
+			r->r[4] = 0;
 			break;
 		case FSENTRY_FUNC_RESOLVEWILDCARD:
 			r->r[4] = -1;
