@@ -1,3 +1,6 @@
+v2.05 ??-???-09
+Fixed reporting of largest creatable object (Patch from John Tytgat).
+
 v2.04 17-Sep-07
 Improved timeout and retry behaviour.
 Fixed creation of Choices directory before trying writing to it.

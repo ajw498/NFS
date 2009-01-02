@@ -503,12 +503,13 @@ os_error *ENTRYFUNC(func_free) (char *filename, struct conn_info *conn, unsigned
 	} else {
 		if ((free >> 32) != 0ULL) {
 			*freelo = 0xFFFFFFFF;
-			if (biggestobj) *biggestobj = 0x7FFFFFFF;
 		} else {
 			*freelo = (unsigned)free;
-			if (biggestobj) *biggestobj = (unsigned)free;
 		}
 	}
+
+	if (biggestobj) *biggestobj = (freehi && *freehi) ? 0x7FFFFFFF : *freelo;
+
 	if (sizehi) {
 		*sizehi = (unsigned)(size >> 32);
 		*sizelo = (unsigned)(size & 0xFFFFFFFF);
