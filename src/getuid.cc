@@ -189,6 +189,8 @@ void getuid::create_mount(mountchoices& mountdetails, sunfish& app)
 		for (int i = 0; i < len; i++) {
 			switch (hostalias[i]) {
 				case '.':
+				hostalias[i] = '_';
+				break;
 				case ':':
 				case '*':
 				case ' ':
