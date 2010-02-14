@@ -40,6 +40,7 @@
 
 
 #include "sunfish-frontend.h"
+#include "utils.h"
 
 #include <algorithm>
 
@@ -215,15 +216,28 @@ void sunfish::getmounts()
 
 			string hostname;
 			string exportname;
+			char *slash = strchr(discname, '/');
 			if (specialfield[0]) {
 				hostname = specialfield;
 				exportname = discname;
+			} else if (slash) {
+				hostname = string(discname, slash - discname);
+				exportname = string(slash);
 			} else {
 				hostaliases.gethost(discname, hostname, exportname);
 				if (hostname == "") continue;
 			}
+
+			struct hostent *hostent = NULL;
+			string ip = hostname;
+			if (gethostbyname_timeout(hostname.c_str(), 50, &hostent, 0) == NULL) {
+				if (hostent && hostent->h_name) {
+					ip = string(hostent->h_name);
+				}
+			}
+
 			mountchoices mountdetails;
-			string filename = mountdetails.genfilename(hostname, exportname);
+			string filename = mountdetails.genfilename(hostname, ip, exportname);
 			mountdetails.load(filename);
 			mountdetails.server = hostname;
 			mountdetails.exportname = exportname;

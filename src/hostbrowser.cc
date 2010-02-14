@@ -48,6 +48,7 @@
 #include "hostbrowser.h"
 #include "exportbrowser.h"
 #include "sunfish-frontend.h"
+#include "utils.h"
 
 
 using namespace std;
@@ -163,18 +164,26 @@ void hostbrowser::handle_event(rtk::events::null_reason& ev)
 {
 	char *err;
 
-	if ((clock() > broadcasttime + 100) && (broadcasttype == LISTEN)) {
-		parent_application()->deregister_null(*this);
+	if ((clock() > broadcasttime + 300) && (broadcasttype == LISTEN)) {
+		if (parent_application()) {
+			parent_application()->deregister_null(*this);
+		}
 		broadcasttype = IDLE;
 		err = browse_gethost(NULL, CLOSE, NULL);
 		if (err) throw err;
-	} else {
+	} else if (parent_application()) {
 		hostinfo info;
 		err = browse_gethost(&info, broadcasttype, NULL);
 		broadcasttype = LISTEN;
 		if (err) throw err;
 
 		if (info.valid) {
+			struct hostent *hostent;
+
+			if (gethostbyname_timeout(info.host, 100, &hostent, 1) == NULL) {
+				snprintf(info.host, sizeof(info.host), "%s", hostent->h_name);
+			}
+
 			map<string,hostinfo>::iterator i = hostinfos.find(info.host);
 			if (i != hostinfos.end()) {
 				//remove;

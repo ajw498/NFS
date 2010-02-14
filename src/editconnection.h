@@ -53,11 +53,11 @@ class editconnection:
 {
 public:
 	editconnection(int maxbuf);
-	void open(const string& host, string& exportname, sunfish& app);
+	void open(const string& host, const string& ip, string& exportname, sunfish& app);
 	void handle_event(events::mouse_click& ev);
 	void handle_event(events::key_pressed& ev);
 private:
-	void load(const string& host, string& exportname);
+	void load(const string& host, const string& ip, string& exportname);
 	void save();
 	string filename;
 

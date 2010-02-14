@@ -122,7 +122,8 @@ char *browse_gethost(struct hostinfo *info, enum broadcast_type type, const char
 	}
 
 	info->valid = 1;
-	strcpy(info->host, rpc_get_last_host());
+	snprintf(info->ip, sizeof(info->ip), "%s", rpc_get_last_host());
+	snprintf(info->host, sizeof(info->host), "%s", info->ip);
 	info->mount1tcpport = 0;
 	info->mount1udpport = 0;
 	info->mount3tcpport = 0;

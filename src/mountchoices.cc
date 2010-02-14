@@ -78,7 +78,20 @@ mountchoices::mountchoices(void) :
 #define SAVEPARENT "<Choices$Write>.Sunfish"
 #define SAVEDIR SAVEPARENT ".mountsave"
 
-string mountchoices::genfilename(const string& host, const string& mountname)
+string mountchoices::genfilename(const string& host, const string& ip, const string& mountname)
+{
+	string filename;
+	unsigned int type;
+
+	filename = genfilename2(ip, mountname);
+	rtk::os::OS_File17(filename.c_str(), &type, NULL, NULL, NULL, NULL);
+	if (type == 0) {
+		filename = genfilename2(host, mountname);
+	}
+	return filename;
+}
+
+string mountchoices::genfilename2(const string& host, const string& mountname)
 {
 	string filename = SAVEDIR ".";
 	for (size_t i = 0; i < host.length(); i++) {

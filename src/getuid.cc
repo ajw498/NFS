@@ -83,7 +83,7 @@ void getuid::setup(const hostinfo& info, string name, bool tcp, int version, sun
 	exportname = name;
 	usetcp = tcp;
 	nfsversion = version;
-	string filename = mountdetails.genfilename(host.host, exportname);
+	string filename = mountdetails.genfilename(host.host, host.ip, exportname);
 	mountdetails.load(filename);
 	mountdetails.server = string(host.host);
 	mountdetails.exportname = exportname;
@@ -124,7 +124,7 @@ void getuid::setup(const hostinfo& info, string name, bool tcp, int version, sun
 void getuid::use(bool save)
 {
 	mountchoices mountdetails;
-	string filename = mountdetails.genfilename(host.host, exportname);
+	string filename = mountdetails.genfilename(host.host, host.ip, exportname);
 	mountdetails.load(filename);
 	mountdetails.server = string(host.host);
 	mountdetails.exportname = exportname;

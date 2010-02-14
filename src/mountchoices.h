@@ -67,7 +67,9 @@ public:
 	void save(const string& filename);
 	void load(const string& filename);
 	string stringsave();
-	string genfilename(const string& host, const string& mountname);
+	string genfilename(const string& host, const string& ip, const string& mountname);
+private:
+	string genfilename2(const string& host, const string& mountname);
 };
 
 struct alias {

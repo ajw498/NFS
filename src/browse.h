@@ -40,6 +40,7 @@ struct hostinfo {
 	unsigned nfs3udpport;
 	unsigned pcnfsdtcpport;
 	unsigned pcnfsdudpport;
+	char ip[16];
 	char host[256];
 };
 

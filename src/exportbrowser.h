@@ -45,7 +45,7 @@ class exportsave:
 {
 public:
 	exportsave();
-	void load(const std::string& host, const std::string& exportname, bool tcp, int version);
+	void load(const std::string& host, const std::string& ip, const std::string& exportname, bool tcp, int version);
 protected:
 	void start() { done = false; }
 	void get_block(const void** data,size_type* count);

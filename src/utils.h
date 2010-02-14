@@ -230,8 +230,8 @@ void timeval_to_loadexec(unsigned seconds, unsigned nseconds, int filetype, unsi
 
 
 /* A version of gethostbyname that will timeout.
-   Also handles IP addresses without needing a reverse lookup */
-os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct hostent **hp);
+   Also handles IP addresses without needing a reverse lookup, unless reverse is specified */
+os_error *gethostbyname_timeout(const char *host, unsigned long timeout, struct hostent **hp, int reverse);
 
 
 #ifdef NFS3

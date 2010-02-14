@@ -149,11 +149,11 @@ void exportbrowser::handle_event(rtk::events::menu_selection& ev)
 	} else if (ev.target() == &namemount) {
 		namewin.open(info.host, menuitem, app);
 	} else if (ev.target() == &filenames) {
-		filenameswin.open(info.host, menuitem, app);
+		filenameswin.open(info.host, info.ip, menuitem, app);
 	} else if (ev.target() == &connection) {
-		connectionwin.open(info.host, menuitem, app);
+		connectionwin.open(info.host, info.ip, menuitem, app);
 	} else if (ev.target() == &uids) {
-		uidswin.open(info.host, menuitem, app);
+		uidswin.open(info.host, info.ip, menuitem, app);
 	} else if (ev.target() == &largeiconsitem) {
 		largeiconsitem.tick(true);
 		smalliconsitem.tick(false);
@@ -170,7 +170,7 @@ void exportbrowser::handle_event(rtk::events::menu_selection& ev)
 void exportbrowser::handle_event(rtk::events::save_to_app& ev)
 {
 	if (application* app = parent_application()) {
-		saveop.load(info.host, ev.leafname(), usetcp, nfsversion);
+		saveop.load(info.host, info.ip, ev.leafname(), usetcp, nfsversion);
 		app->add(saveop);
 		char buf[256];
 		int len = ev.leafname().length();
@@ -218,11 +218,11 @@ void exportsave::get_block(const void** data,size_type* count)
 	}
 }
 
-void exportsave::load(const std::string& host, const std::string& exportname, bool tcp, int version)
+void exportsave::load(const std::string& host, const std::string& ip, const std::string& exportname, bool tcp, int version)
 {
 	if (mount) delete mount;
 	mount = new mountchoices;
-	mount->load(mount->genfilename(host, exportname));
+	mount->load(mount->genfilename(host, ip, exportname));
 	mount->server = host;
 	mount->exportname = exportname;
 	mount->nfs3 = version == 3;

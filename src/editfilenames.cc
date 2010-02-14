@@ -107,9 +107,9 @@ editfilenames::editfilenames()
 	add(layout1);
 }
 
-void editfilenames::open(const string& host, string& exportname, sunfish& app)
+void editfilenames::open(const string& host, const string& ip, string& exportname, sunfish& app)
 {
-	load(host, exportname);
+	load(host, ip, exportname);
 
 	// Open window near mouse position.
 	os::pointer_info_get blk;
@@ -127,11 +127,11 @@ void editfilenames::open(const string& host, string& exportname, sunfish& app)
 	defaultfiletype.set_caret_position(point(),-1,defaultfiletype.text().length());
 }
 
-void editfilenames::load(const string& host, string& exportname)
+void editfilenames::load(const string& host, const string& ip, string& exportname)
 {
 	mountchoices mountinfo;
 	if (host.length() > 0) {
-		filename = mountinfo.genfilename(host, exportname);
+		filename = mountinfo.genfilename(host, ip, exportname);
 	}
 	mountinfo.load(filename);
 
@@ -195,7 +195,7 @@ void editfilenames::handle_event(events::mouse_click& ev)
 			remove();
 		} else {
 			string none;
-			load(none, none);
+			load(none, none, none);
 		}
 	}
 }

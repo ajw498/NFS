@@ -446,8 +446,8 @@ void timeval_to_loadexec(unsigned seconds, unsigned nseconds, int filetype, unsi
 #define Resolver_GetHost 0x46001
 
 /* A version of gethostbyname that will timeout.
-   Also handles IP addresses without needing a reverse lookup */
-os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct hostent **hp)
+   Also handles IP addresses without needing a reverse lookup, unless reverse is specified */
+os_error *gethostbyname_timeout(const char *host, unsigned long timeout, struct hostent **hp, int reverse)
 {
 	unsigned long starttime;
 	unsigned long endtime;
@@ -455,7 +455,7 @@ os_error *gethostbyname_timeout(char *host, unsigned long timeout, struct hosten
 	int errnum;
 	int quad1, quad2, quad3, quad4;
 
-	if (sscanf(host, "%d.%d.%d.%d", &quad1, &quad2, &quad3, &quad4) == 4) {
+	if (!reverse && (sscanf(host, "%d.%d.%d.%d", &quad1, &quad2, &quad3, &quad4) == 4)) {
 		/* Host is an IP address, so doesn't need resolving */
 		static struct hostent hostent;
 		static unsigned int addr;

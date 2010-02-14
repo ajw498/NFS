@@ -81,9 +81,9 @@ edituid::edituid()
 	add(layout1);
 }
 
-void edituid::open(const string& host, string& exportname, sunfish& app)
+void edituid::open(const string& host, const string& ip, string& exportname, sunfish& app)
 {
-	load(host, exportname);
+	load(host, ip, exportname);
 
 	// Open window near mouse position.
 	os::pointer_info_get blk;
@@ -101,11 +101,11 @@ void edituid::open(const string& host, string& exportname, sunfish& app)
 	uid.set_caret_position(point(),-1,uid.text().length());
 }
 
-void edituid::load(const string& host, string& exportname)
+void edituid::load(const string& host, const string& ip, string& exportname)
 {
 	mountchoices mountinfo;
 	if (host.length() > 0) {
-		filename = mountinfo.genfilename(host, exportname);
+		filename = mountinfo.genfilename(host, ip, exportname);
 	}
 	mountinfo.load(filename);
 
@@ -148,7 +148,7 @@ void edituid::handle_event(events::mouse_click& ev)
 			remove();
 		} else {
 			string none;
-			load(none, none);
+			load(none, none, none);
 		}
 	}
 }
