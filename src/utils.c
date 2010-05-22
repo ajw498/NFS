@@ -72,7 +72,11 @@ char *host_to_str(unsigned int host, struct pool *pool)
 {
 	char *str;
 
-	str = palloc(16, pool);
+	if (pool) {
+		str = palloc(16, pool);
+	} else {
+		str = malloc(16);
+	}
 	if (str == NULL) return NULL;
 
 	snprintf(str, 16, "%d.%d.%d.%d",
