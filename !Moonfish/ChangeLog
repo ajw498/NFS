@@ -1,3 +1,6 @@
+v1.09 22-May-10
+Recompiled for ARMv7 compatibility.
+
 v1.08 2-Dec-07
 Fixed bug in reporting of maximum transfer size.
 Fixed bug in file lookup when never adding ,xyz extensions.
