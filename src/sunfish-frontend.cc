@@ -231,8 +231,17 @@ void sunfish::getmounts()
 			struct hostent *hostent = NULL;
 			string ip = hostname;
 			if (gethostbyname_timeout(hostname.c_str(), 50, &hostent, 0) == NULL) {
-				if (hostent && hostent->h_name) {
-					ip = string(hostent->h_name);
+				if (hostent) {
+					if (hostent->h_addr) {
+						char *addr = host_to_str(*((unsigned int *)hostent->h_addr), NULL);
+						if (addr) {
+							ip = string(addr);
+							free(addr);
+						}
+					}
+					if (hostent->h_name) {
+						hostname = string(hostent->h_name);
+					}
 				}
 			}
 

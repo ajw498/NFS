@@ -1,4 +1,4 @@
-v2.05 15-Feb-10
+v2.05 22-May-10
 Fixed reporting of largest creatable object (Patch from John Tytgat).
 Removed use of special fields in generated mount names.
 Performs reverse DNS on found hosts, so the hostname can be displayed in place of the IP address when available.

@@ -57,7 +57,7 @@ ibicon::ibicon(const std::string& icontext, const std::string& special, bool use
 {
 	proginfo.add("Name", "Sunfish");
 	proginfo.add("Purpose", "Mount NFS servers");
-	proginfo.add("Author", "© Alex Waugh, 2003-2007");
+	proginfo.add("Author", "© Alex Waugh, 2003-2010");
 	proginfo.add("Version", Module_VersionString " (" Module_Date ")");
 	ibinfo.text("Info");
 	ibinfo.attach_dbox(proginfo);
