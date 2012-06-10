@@ -185,6 +185,13 @@ void syslogf(char *logname, int level, char *fmt, ...);
 
 void log_error(os_error *err);
 
+#ifndef Free_Register
+#define Free_Register 0x444c0
+#endif
+
+#ifndef Free_DeRegister
+#define Free_DeRegister 0x444c1
+#endif
 
 /* Convert unix leafname into RISC OS format */
 int filename_riscosify(const char *name, int namelen, char *buffer, int buflen, int *filetype, int defaultfiletype, int xyzext, int macforks, int escapewin);
