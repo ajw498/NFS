@@ -7,6 +7,9 @@
 #ifndef PRIMITIVES_H
 #define PRIMITIVES_H
 
+#ifndef USE_TCPIPLIBS
+#include <stdint.h>
+#endif
 #include <string.h>
 #include <sys/types.h>
 

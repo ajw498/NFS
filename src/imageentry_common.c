@@ -28,7 +28,12 @@
 #include <swis.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <unixlib.h>
+#ifdef USE_TCPIPLIBS
+# include <unixlib.h>
+# include <riscos.h>
+#else
+# include <strings.h>
+#endif
 
 #include "imageentry_common.h"
 #include "imageentry_func.h"
@@ -167,7 +172,7 @@ static os_error *lookup_leafname(struct commonfh *dhandle, char *leafname, int l
 /* Convert a leafname into nfs handle and attributes.
    May follow symlinks if needed.
    Returns a pointer to objinfo data, and updates the leafname in place (but only if simple is not set). */
-os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, unsigned int *len, int simple, int followsymlinks, struct commonfh *dirhandle, struct objinfo **finfo, nstat *status, struct conn_info *conn)
+os_error *ENTRYFUNC(leafname_to_finfo) (char *leafname, size_t *len, int simple, int followsymlinks, struct commonfh *dirhandle, struct objinfo **finfo, nstat *status, struct conn_info *conn)
 {
 #ifdef NFS3
 	struct diropargs3 lookupargs;
@@ -384,7 +389,7 @@ os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, stru
 	struct commonfh dirhandle;
 	struct objinfo *dirinfo;
 	char *segmentname;
-	unsigned int segmentlen;
+	size_t segmentlen;
 	struct objinfo *segmentinfo;
 	nstat status;
 	os_error *err;
@@ -405,7 +410,7 @@ os_error *ENTRYFUNC(filename_to_finfo) (char *filename, int followsymlinks, stru
 
 		if (conn->toenc != (iconv_t)-1) {
 			char *encleaf;
-			unsigned encleaflen;
+			size_t encleaflen;
 			static char buffer2[MAX_PATHNAME];
 
 			encleaf = buffer2;

@@ -5,17 +5,17 @@
 
 
 	Copyright (C) 2003 Alex Waugh
-	
+
 	This program is free software; you can redistribute it and/or modify
 	it under the terms of the GNU General Public License as published by
 	the Free Software Foundation; either version 2 of the License, or
 	(at your option) any later version.
-	
+
 	This program is distributed in the hope that it will be useful,
 	but WITHOUT ANY WARRANTY; without even the implied warranty of
 	MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 	GNU General Public License for more details.
-	
+
 	You should have received a copy of the GNU General Public License
 	along with this program; if not, write to the Free Software
 	Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
@@ -47,13 +47,16 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 #include <netdb.h>
-#include <socklib.h>
 #include <time.h>
 #include <sys/time.h>
 #include <swis.h>
 #include <sys/errno.h>
-#include <unixlib.h>
-
+#ifdef USE_TCPIPLIBS
+# include <socklib.h>
+# include <unixlib.h>
+# include <riscos.h>
+#endif
+#include <unistd.h>
 
 
 /* A monotonicly increasing transaction id */
@@ -330,7 +333,7 @@ os_error *rpc_init_connection(struct conn_info *conn)
 	}
 
 	ret = rpc_create_socket(conn);
-	if (ret) return gen_error(RPCERRBASE + 4,"Unable to connect or bind socket (%s)", xstrerror(ret));
+	if (ret) return gen_error(RPCERRBASE + 4,"Unable to connect or bind socket (%s)", strerror(ret));
 
 	memset(&(conn->sockaddr), 0, sizeof(conn->sockaddr));
 
@@ -358,7 +361,7 @@ os_error *rpc_close_connection(struct conn_info *conn)
 	ret = close(conn->sock);
 	conn->sock = -1;
 
-	if (ret) return gen_error(RPCERRBASE + 3, "Socket close failed (%s)", xstrerror(errno));
+	if (ret) return gen_error(RPCERRBASE + 3, "Socket close failed (%s)", strerror(errno));
 
 	return NULL;
 }
@@ -571,7 +574,11 @@ static int poll_rx(struct conn_info *conn)
 	int ret;
 	int len;
 	struct buffer_list *currentrx;
+#ifdef USE_TCPIPLIBS
 	int addrlen = sizeof(addr);
+#else
+	socklen_t addrlen = sizeof(addr);
+#endif
 
 	if (conn->tcp) {
 		currentrx = conn->rxmutex;
@@ -767,7 +774,7 @@ os_error *rpc_do_call(int prog, enum callctl calltype, void *extradata, int extr
 			if (conn->tcp && (conn->sock != -1)) close(conn->sock);
 
 			ret = rpc_connect_socket(conn);
-			if (ret) return gen_error(RPCERRBASE + 4,"Unable to connect or bind socket (%s)", xstrerror(ret));
+			if (ret) return gen_error(RPCERRBASE + 4,"Unable to connect or bind socket (%s)", strerror(ret));
 		}
 
 		txentry->tx.len = obuf - txentry->tx.buffer;
@@ -808,7 +815,7 @@ os_error *rpc_do_call(int prog, enum callctl calltype, void *extradata, int extr
 	if (rxentry->nextpipelined) rxentry->nextpipelined->prevpipelined = NULL;
 
 	if (rxentry->error) {
-		return gen_error(RPCERRBASE + 8, "Error when sending or receiving data (%s)",xstrerror(rxentry->error));
+		return gen_error(RPCERRBASE + 8, "Error when sending or receiving data (%s)",strerror(rxentry->error));
 	}
 
 	/* Setup buffers and parse header */

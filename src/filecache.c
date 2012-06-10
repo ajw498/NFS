@@ -28,7 +28,10 @@
 #include <swis.h>
 #include <kernel.h>
 #include <ctype.h>
-#include <unixlib.h>
+#ifdef USE_TCPIPLIBS
+# include <unixlib.h>
+# include <riscos.h>
+#endif
 
 #include "moonfish.h"
 #include "utils.h"

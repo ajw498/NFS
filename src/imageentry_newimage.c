@@ -26,7 +26,12 @@
 #include <ctype.h>
 #include <string.h>
 #include <swis.h>
-#include <unixlib.h>
+#ifdef USE_TCPIPLIBS
+# include <unixlib.h>
+# include <riscos.h>
+#else
+# include <strings.h>
+#endif
 #include <unistd.h>
 #include <sys/param.h>
 

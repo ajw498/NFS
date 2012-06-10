@@ -200,7 +200,7 @@ void log_error(os_error *err);
 int filename_riscosify(const char *name, int namelen, char *buffer, int buflen, int *filetype, int defaultfiletype, int xyzext, int macforks, int escapewin);
 
 /* Convert a RISC OS leafname into unix format */
-char *filename_unixify(const char *name, unsigned int len, unsigned int *newlen, int escapewin, struct pool *pool);
+char *filename_unixify(const char *name, size_t len, size_t *newlen, int escapewin, struct pool *pool);
 
 /* Get the local alphabet encoding */
 char *encoding_getlocal(void);
@@ -218,7 +218,7 @@ unsigned int mode_to_attr(unsigned int mode);
 unsigned attr_to_mode(unsigned attr, unsigned oldmode, unsigned umask, unsigned unumask);
 
 /* Add ,xyz onto the leafname if necessary */
-char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, int defaultfiletype, int xyzext, int unixexfiletype, int macforks, struct pool *pool);
+char *addfiletypeext(char *leafname, size_t len, int extfound, int newfiletype, size_t *newlen, int defaultfiletype, int xyzext, int unixexfiletype, int macforks, struct pool *pool);
 
 /* Drop to user mode to trigger any pending callbacks */
 void trigger_callback(void);

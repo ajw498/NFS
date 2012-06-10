@@ -1019,7 +1019,7 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 		if (read > 0) {
 			struct entry4 *entry;
 			char *leaf;
-			unsigned leaflen;
+			size_t leaflen;
 			int filetype;
 			unsigned load;
 			unsigned exec;
@@ -1061,7 +1061,7 @@ nstat NFS4_READDIR(READDIR4args *args, READDIR4res *res, struct server_conn *con
 
 			if (choices.toutf8 != (iconv_t)-1) {
 				char *utf8leaf;
-				unsigned utf8leaflen;
+				size_t utf8leaflen;
 				static char buffer2[MAX_PATHNAME];
 
 				utf8leaf = buffer2;

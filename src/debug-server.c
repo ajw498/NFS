@@ -31,12 +31,15 @@
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <socklib.h>
 #include <time.h>
 #include <sys/time.h>
 #include <swis.h>
 #include <sys/errno.h>
-#include <unixlib.h>
+#ifdef USE_TCPIPLIBS
+# include <socketlib.h>
+# include <unixlib.h>
+# include <riscos.h>
+#endif
 #include <stdarg.h>
 #include <ctype.h>
 

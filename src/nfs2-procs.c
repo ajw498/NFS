@@ -166,13 +166,13 @@ static nstat diropargs_to_path(struct diropargs *where, char **path, int *filety
 	char *dirpath;
 	char buffer[MAX_PATHNAME];
 	char *leaf = where->name.data;
-	unsigned leaflen = where->name.size;
+	size_t leaflen = where->name.size;
 
 	NR(nfs2fh_to_path(&(where->dir), &dirpath, conn));
 
 	if (choices.fromenc != (iconv_t)-1) {
 		char *encleaf;
-		unsigned encleaflen;
+		size_t encleaflen;
 		static char buffer2[MAX_PATHNAME];
 
 		encleaf = buffer2;
@@ -247,7 +247,7 @@ enum accept_stat NFSPROC_READDIR(struct readdirargs *args, struct readdirres *re
 		if (read > 0) {
 			struct entry *entry;
 			char *leaf = buffer + 20;
-			unsigned int leaflen;
+			size_t leaflen;
 			int filetype;
 			unsigned int load = ((unsigned int *)buffer)[0];
 			int type;
@@ -267,7 +267,7 @@ enum accept_stat NFSPROC_READDIR(struct readdirargs *args, struct readdirres *re
 			}
 			if (choices.toenc != (iconv_t)-1) {
 				char *encleaf;
-				unsigned encleaflen;
+				size_t encleaflen;
 				static char buffer2[MAX_PATHNAME];
 
 				encleaf = buffer2;

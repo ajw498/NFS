@@ -2,7 +2,7 @@
 #    $Id$
 #
 
-INCLUDE = -ITCPIPLibs: -IOSLibSupport: -IOSLib: -Ilibiconv:src -Iauto -I.
+INCLUDE = -DUSE_TCPIPLIBS -ITCPIPLibs: -IOSLibSupport: -IOSLib: -Ilibiconv:src -Iauto -I.
 
 MODLIBS = TCPIPLIBS:o.unixlibzm TCPIPLIBS:o.inetlibzm TCPIPLibs:o.socklib5zm -l libiconv:libiconv
 

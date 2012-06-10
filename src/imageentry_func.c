@@ -26,7 +26,10 @@
 #include <ctype.h>
 #include <string.h>
 #include <swis.h>
-#include <unixlib.h>
+#ifdef USE_TCPIPLIBS
+# include <unixlib.h>
+# include <riscos.h>
+#endif
 #include <unistd.h>
 #include <sys/param.h>
 
@@ -222,7 +225,7 @@ restart:
 					struct dir11_entry *fullinfo_entry = (struct dir11_entry *)bufferpos;
 					int filetype;
 					char *leafname;
-					unsigned len;
+					size_t len;
 
 					if (info == 1) {
 						bufferpos += sizeof(struct dir10_entry);
@@ -238,7 +241,7 @@ restart:
 
 					if (conn->fromenc != (iconv_t)-1) {
 						char *encleaf;
-						unsigned encleaflen;
+						size_t encleaflen;
 						static char buffer2[MAX_PATHNAME];
 
 						encleaf = buffer2;
@@ -282,7 +285,7 @@ restart:
 							fh_to_commonfh(fh, rddir.dir);
 	
 							/* Lookup file attributes. */
-							err = ENTRYFUNC(leafname_to_finfo) (direntry->name.data, &(direntry->name.size), 1, 1, &fh, &lookupres, &status, conn);
+							err = ENTRYFUNC(leafname_to_finfo) (direntry->name.data, (size_t *)&(direntry->name.size), 1, 1, &fh, &lookupres, &status, conn);
 							if (err) return err;
 							if (status == NFS_OK && lookupres->attributes.type != NFLNK) {
 								if (lookupres->attributes.type == NFDIR) {
@@ -384,7 +387,7 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 	static char oldleafname[MAX_PATHNAME];
 	int filetype;
 	int dirnamelen; /* The length of the directory name including the last dot */
-	unsigned int leafnamelen;
+	size_t leafnamelen;
 	int sourcetype;
 	struct commonfh sourcedir;
 
@@ -421,7 +424,7 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 
 		if (conn->toenc != (iconv_t)-1) {
 			char *encleaf;
-			unsigned encleaflen;
+			size_t encleaflen;
 			static char buffer2[MAX_PATHNAME];
 
 			encleaf = buffer2;
@@ -454,7 +457,7 @@ os_error *ENTRYFUNC(func_rename) (char *oldfilename, char *newfilename, struct c
 		renameargs.to.name.size = leafnamelen;
 	} else {
 		/* Add ,xyz on if necessary to preserve filetype */
-		renameargs.to.name.data = addfiletypeext(leafname, leafnamelen, 0, filetype, &(renameargs.to.name.size), conn->defaultfiletype, conn->xyzext, conn->unixexfiletype, 0, conn->pool);
+		renameargs.to.name.data = addfiletypeext(leafname, leafnamelen, 0, filetype, (size_t *)&(renameargs.to.name.size), conn->defaultfiletype, conn->xyzext, conn->unixexfiletype, 0, conn->pool);
 	}
 
 	err = NFSPROC(RENAME, (&renameargs, &renameres, conn));

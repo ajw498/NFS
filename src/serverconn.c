@@ -31,14 +31,18 @@
 #include <sys/ioctl.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <socklib.h>
 #include <time.h>
 #include <sys/time.h>
 #include <swis.h>
 #include <sys/errno.h>
-#include <unixlib.h>
+#ifdef USE_TCPIPLIBS
+# include <socklib.h>
+# include <unixlib.h>
+# include <riscos.h>
+#endif
 #include <stdarg.h>
 #include <ctype.h>
+#include <unistd.h>
 
 
 #include "rpc-structs.h"
@@ -181,27 +185,27 @@ static int conn_create_socket(int port, int tcp)
 
 	sock = socket(AF_INET, tcp ? SOCK_STREAM : SOCK_DGRAM, 0);
 	if (sock < 0) {
-		syslogf(LOGNAME, LOG_SERIOUS, "Unable to open socket (%s)", xstrerror(errno));
+		syslogf(LOGNAME, LOG_SERIOUS, "Unable to open socket (%s)", strerror(errno));
 		return -1;
 	}
 
 	/* Make the socket non-blocking */
 	if (ioctl(sock, FIONBIO, &on) < 0) {
-		syslogf(LOGNAME, LOG_SERIOUS, "Unable to ioctl (%s)", xstrerror(errno));
+		syslogf(LOGNAME, LOG_SERIOUS, "Unable to ioctl (%s)", strerror(errno));
 		close(sock);
 		return -1;
 	}
 
 	/* Make the socket generate an event */
 	if (ioctl(sock, FIOASYNC, &on) < 0) {
-		syslogf(LOGNAME, LOG_SERIOUS, "Unable to ioctl (%s)", xstrerror(errno));
+		syslogf(LOGNAME, LOG_SERIOUS, "Unable to ioctl (%s)", strerror(errno));
 		close(sock);
 		return -1;
 	}
 
 	/* Prevent bind from failing if we have recently close the connection */
 	if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on)) < 0) {
-		syslogf(LOGNAME, LOG_SERIOUS, "Unable to setsockopt (%s)", xstrerror(errno));
+		syslogf(LOGNAME, LOG_SERIOUS, "Unable to setsockopt (%s)", strerror(errno));
 		close(sock);
 		return -1;
 	}
@@ -214,13 +218,13 @@ static int conn_create_socket(int port, int tcp)
 
 	name.sin_port = htons(port);
 	if (bind(sock, (struct sockaddr *)&name, sizeof(name))) {
-		syslogf(LOGNAME, LOG_SERIOUS, "Unable to bind socket to local port (%s)", xstrerror(errno));
+		syslogf(LOGNAME, LOG_SERIOUS, "Unable to bind socket to local port (%s)", strerror(errno));
 		close(sock);
 		return -1;
 	}
 
 	if (tcp && listen(sock, 5)) {
-		syslogf(LOGNAME, LOG_SERIOUS, "Unable to listen on socket (%s)", xstrerror(errno));
+		syslogf(LOGNAME, LOG_SERIOUS, "Unable to listen on socket (%s)", strerror(errno));
 		close(sock);
 		return -1;
 	}
@@ -258,7 +262,7 @@ static int udp_read(int sock)
 			activity |= 1;
 			active = 1;
 		} else if (conn->requestlen == -1 && errno != EWOULDBLOCK) {
-			syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",xstrerror(errno));
+			syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",strerror(errno));
 			close_conn(conn);
 			return activity;
 		}
@@ -275,7 +279,7 @@ static void udp_write(struct server_conn *conn)
 		if (len > 0) {
 			conn->replysent = conn->replylen;
 		} else if (len == -1 && errno != EWOULDBLOCK) {
-			syslogf(LOGNAME, LOG_ERROR, "Error writing to socket (%s)",xstrerror(errno));
+			syslogf(LOGNAME, LOG_ERROR, "Error writing to socket (%s)",strerror(errno));
 			close_conn(conn);
 		}
 	}
@@ -307,7 +311,7 @@ static int tcp_accept(int sock)
 		conn->host = conn->hostaddr.sin_addr.s_addr;
 		return 1;
 	} else if (errno != EWOULDBLOCK) {
-		syslogf(LOGNAME, LOG_ERROR, "Error calling accept on socket (%s)",xstrerror(errno));
+		syslogf(LOGNAME, LOG_ERROR, "Error calling accept on socket (%s)",strerror(errno));
 	}
 	return 0;
 }
@@ -337,7 +341,7 @@ static int tcp_read(struct server_conn *conn)
 				}
 			}
 		} else if (errno != EWOULDBLOCK) {
-			syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",xstrerror(errno));
+			syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",strerror(errno));
 			close_conn(conn);
 		}
 	}
@@ -355,7 +359,7 @@ static int tcp_read(struct server_conn *conn)
 			}
 			return 1;
 		} else if (errno != EWOULDBLOCK) {
-			syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",xstrerror(errno));
+			syslogf(LOGNAME, LOG_ERROR, "Error reading from socket (%s)",strerror(errno));
 			close_conn(conn);
 		}
 	}
@@ -375,7 +379,7 @@ static int tcp_write(struct server_conn *conn)
 			conn->replysent += len;
 			activity = 1;
 		} else if (errno != EWOULDBLOCK) {
-			syslogf(LOGNAME, LOG_ERROR, "Error writing to socket (%s)",xstrerror(errno));
+			syslogf(LOGNAME, LOG_ERROR, "Error writing to socket (%s)",strerror(errno));
 			close_conn(conn);
 			return activity;
 		}

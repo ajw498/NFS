@@ -28,7 +28,10 @@
 #include <swis.h>
 #include <stdarg.h>
 #include <stdio.h>
-#include <unixlib.h>
+#ifdef USE_TCPIPLIBS
+# include <unixlib.h>
+# include <riscos.h>
+#endif
 
 #include "utils.h"
 
@@ -118,7 +121,7 @@ nstat nfserr_removenfs4(nstat errnum)
 
 static int localutf8 = 0;
 
-char *filename_unixify(const char *name, unsigned int len, unsigned int *newlen, int escapewin, struct pool *pool)
+char *filename_unixify(const char *name, size_t len, size_t *newlen, int escapewin, struct pool *pool)
 {
 	char *namebuffer;
 	int i;
@@ -343,7 +346,7 @@ unsigned attr_to_mode(unsigned attr, unsigned oldmode, unsigned umask, unsigned 
 }
 
 
-char *addfiletypeext(char *leafname, unsigned int len, int extfound, int newfiletype, unsigned int *newlen, int defaultfiletype, int xyzext, int unixexfiletype, int macforks, struct pool *pool)
+char *addfiletypeext(char *leafname, size_t len, int extfound, int newfiletype, size_t *newlen, int defaultfiletype, int xyzext, int unixexfiletype, int macforks, struct pool *pool)
 {
 	char *newleafname;
 

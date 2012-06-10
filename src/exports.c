@@ -31,7 +31,10 @@
 #include <sys/time.h>
 #include <swis.h>
 #include <sys/errno.h>
-#include <unixlib.h>
+#ifdef USE_TCPIPLIBS
+# include <unixlib.h>
+# include <riscos.h>
+#endif
 #include <stdarg.h>
 #include <ctype.h>
 
