@@ -749,6 +749,9 @@ static os_error *func_handler(char *filename, struct conn_info *conn, _kernel_sw
 	char *to;
 
 	switch (r->r[0]) {
+		case FSENTRY_FUNC_SETCURDIR:
+		case FSENTRY_FUNC_SETLIBDIR:
+			break;
 		case IMAGEENTRY_FUNC_RENAME:
 			CONNENTRY(conn);
 			if (filename != (char *)(r->r[1])) {
@@ -770,6 +773,8 @@ static os_error *func_handler(char *filename, struct conn_info *conn, _kernel_sw
 			}
 			err = CALLENTRY(func_rename, conn, (filename, to, conn, &(r->r[1])));
 			CONNEXIT(conn);
+			break;
+		case FSENTRY_FUNC_READNAMEANDBOOT:
 			break;
 		case IMAGEENTRY_FUNC_READDIR:
 			CONNENTRY(conn);
