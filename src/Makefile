@@ -8,7 +8,7 @@ MODLIBS = TCPIPLIBS:o.unixlibzm TCPIPLIBS:o.inetlibzm TCPIPLibs:o.socklib5zm -l 
 
 APPLIBS = -l TCPIPLIBS:o.unixlib TCPIPLIBS:o.inetlib -l TCPIPLibs:o.socklib5 -l OSLibSupport:o.OSLibSupport32 -l OSLib:o.OSLib32 -l libiconv:libiconv
 
-DISTCC = distcc
+#DISTCC = distcc
 
 ifneq (,$(findstring release,$(MAKECMDGOALS)))
 
@@ -49,7 +49,7 @@ MODLIBS := $(MODLIBS) C:o.stubs
 MODCC = cc
 MODCFLAGS = -Wp $(INCLUDE) -DMODULE -fah -throwback -zpq262144 -IC: $(CFLAGSN)
 
-MODLINK = link -m 
+MODLINK = link -m
 
 MODULE = -zM
 
@@ -169,7 +169,7 @@ imageentry_file.o \
 imageentry_args.o \
 imageentry_bytes.o \
 imageentry_openclose.o \
-imageentry_common.o 
+imageentry_common.o
 
 ASMOBJS = \
 base.o \
@@ -257,7 +257,7 @@ $(MOONFISHMODOBJS) $(MOONFISHAPPOBJS): auto
 	$(MODLINK) -o Sunfish $(SUNFISHMODOBJS) $(MODLIBS)
 	mv Sunfish ../!Sunfish/Sunfish
 
-../!Moonfish/Moonfish: $(MOONFISHMODOBJS) 
+../!Moonfish/Moonfish: $(MOONFISHMODOBJS)
 	$(MODLINK) -o Moonfish $(MOONFISHMODOBJS) $(MODLIBS)
 	mv Moonfish ../!Moonfish/Moonfish
 
